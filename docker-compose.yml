@@ -25,7 +25,6 @@ services:
 
   celery:
     build: "./VK Service Posting"
-    container_name: celery
     env_file: "./VK Service Posting/.env"
     depends_on:
       - backend
