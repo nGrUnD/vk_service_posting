@@ -14,39 +14,39 @@ def get_vk_curl(driver, timeout: int = 60) -> str:
     """
     print("get vk curl")
     driver.get("https://vk.com/id0")
-    #driver.refresh()
 
     end = time.time() + timeout
     while time.time() < end:
         for req in driver.requests:
             if 'https://login.vk.com/?act=web_token' in req.url:
                 # Формируем cURL команду
-                curl_command = (
-                    f"curl '{req.url}'"
-                    f" {' '.join(f'-H \"{k}: {v}\"' for k, v in req.headers.items())}"
-                )
+                headers = ' '.join(f'-H "{k}: {v}"' for k, v in req.headers.items())
+                curl_command = f"curl '{req.url}' {headers}"
 
                 # Добавляем параметры POST-запроса, если они есть
                 if req.method == 'POST':
                     try:
-                        # Если body - словарь
                         if isinstance(req.body, dict):
-                            curl_command += ' '.join(f'-d "{k}={v}"' for k, v in req.body.items())
-                        # Если body - байты
+                            # Если body - словарь
+                            data = ' '.join(f'-d "{k}={v}"' for k, v in req.body.items())
+                            curl_command += f" {data}"
                         elif isinstance(req.body, bytes):
+                            # Если body - байты
                             try:
                                 body_str = req.body.decode('utf-8')
                                 curl_command += f" -d '{body_str}'"
                             except UnicodeDecodeError:
                                 # Если не удаётся декодировать как utf-8
-                                curl_command += f" -d '{req.body.hex()}' --data-binary"
-                        # Если body - строка
+                                hex_data = req.body.hex()
+                                curl_command += f" -d '{hex_data}' --data-binary"
                         elif isinstance(req.body, str):
+                            # Если body - строка
                             curl_command += f" -d '{req.body}'"
                     except Exception as e:
                         print(f"Ошибка при обработке тела запроса: {e}")
 
                 return curl_command
+
         time.sleep(0.5)
 
     raise RuntimeError("cURL не найден за отведённое время")
