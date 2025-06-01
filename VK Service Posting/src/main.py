@@ -56,6 +56,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        "http://79.141.67.73",
     ],  # фронтенд-URL
     allow_credentials=True,                   # важно для cookie
     allow_methods=["*"],
