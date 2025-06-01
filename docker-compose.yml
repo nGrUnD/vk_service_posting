@@ -2,7 +2,7 @@ version: "3.9"
 
 services:
   backend:
-    build: ./VK\ Service\ Posting
+    build: ./VK Service Posting
     container_name: backend
     env_file: ./VK Service Posting/.env
     depends_on:
@@ -19,7 +19,7 @@ services:
       "
 
   celery:
-    build: ./VK\ Service\ Posting
+    build: ./VK Service Posting
     container_name: celery
     env_file: ./VK Service Posting/.env
     depends_on:
@@ -30,7 +30,7 @@ services:
       celery -A app.worker worker --loglevel=info
 
   frontend:
-    build: ./VK\ Service\ Posting/frontend
+    build: ./VK Service Posting frontend
     container_name: frontend
     ports:
       - "80:80"
