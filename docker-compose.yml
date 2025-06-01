@@ -6,7 +6,7 @@ services:
     container_name: backend
     env_file: "./VK Service Posting/.env"
     depends_on:
-      - db
+      - postgres
       - redis
     working_dir: /app
     volumes:
@@ -28,7 +28,7 @@ services:
     depends_on:
       - backend
       - redis
-      - db
+      - postgres
     volumes:
       - "./VK Service Posting:/app"
     working_dir: /app
@@ -44,7 +44,7 @@ services:
     volumes:
       - "./VK Service Posting frontend:/app"
 
-  db:
+  postgres:
     image: postgres:15
     container_name: postgres
     restart: always
