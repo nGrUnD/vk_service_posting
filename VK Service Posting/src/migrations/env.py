@@ -22,7 +22,10 @@ from src.models.schedule_posting import SchedulePostingOrm
 # access to the values within the .ini file in use.
 config = context.config
 
-config.set_main_option("sqlalchemy.url", f"{settings.DB_URL}?async_fallback=True")
+# Превращаем async URL в sync
+# Например: postgresql+asyncpg://... -> postgresql://...
+sync_db_url = settings.DB_URL.replace("postgresql+asyncpg://", "postgresql://")
+config.set_main_option("sqlalchemy.url", sync_db_url)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
