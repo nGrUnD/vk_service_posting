@@ -7,7 +7,7 @@ import { message } from 'antd'; // Добавляем импорт message
 import LoginPage from './pages/LoginPage.jsx';
 import RegisterPage from './pages/RegisterPage.jsx';
 
-import MainTab from './components/tab.jsx';
+import MainTab from './components/Tab.jsx';
 import DashboardAccount from './pages/DashboardAccount.jsx';
 import ConnectAccountPage from './pages/ConnectAccountPage.jsx';
 import ConnectBackupAccountPage from './pages/ConnectBackupAccountPage.jsx';
