@@ -1,0 +1,15 @@
+FROM python:3.11-slim
+
+WORKDIR /usr/src/app
+
+# Копируем зависимости и приложение
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY app/ ./app/
+
+# Чтобы импорты вида "import app..." работали
+ENV PYTHONPATH=/usr/src/app
+
+# По умолчанию запускаем воркера; override командой в docker-compose
+CMD ["celery", "-A", "app.celery_config", "worker", "--loglevel=info"]

@@ -1,0 +1,40 @@
+import requests
+from src.utils.rand_user_agent import get_random_user_agent
+
+
+def join_group(group_id: int, access_token: str):
+    url = "https://api.vk.com/method/groups.join"
+    params = {
+        "group_id": group_id,
+        "access_token": access_token,
+        "v": "5.131"
+    }
+
+    headers = {"User-Agent": get_random_user_agent()}
+
+    response = requests.post(url, data=params, headers=headers)
+    result = response.json()
+    if "error" in result:
+        return False
+        #print(f"Ошибка: {result['error']['error_msg']}")
+
+    return True
+        #print("Успешно вступили в группу.")
+
+def assign_editor_role(group_id: int, user_id: int, access_token: str):
+    url = "https://api.vk.com/method/groups.editManager"
+    params = {
+        "group_id": group_id,
+        "user_id": user_id,
+        "role": "editor",
+        "access_token": access_token,
+        "v": "5.131"
+    }
+    response = requests.post(url, data=params)
+    result = response.json()
+    if "error" in result:
+        return False
+        #print(f"Ошибка: {result['error']['error_msg']}")
+
+    return True
+        #print("Роль редактора успешно назначена.")

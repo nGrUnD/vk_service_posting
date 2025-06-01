@@ -1,0 +1,55 @@
+version: "3.9"
+
+services:
+  backend:
+    build: ./backend
+    container_name: backend
+    env_file: .env
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    command: >
+      sh -c "
+        alembic upgrade head &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      "
+
+  frontend:
+    build: ./frontend
+    container_name: frontend
+    ports:
+      - "80:80"
+
+  db:
+    image: postgres:15
+    container_name: postgres
+    restart: always
+    env_file: .env
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7
+    container_name: redis
+    ports:
+      - "6379:6379"
+
+  celery:
+    build: ./backend
+    container_name: celery
+    env_file: .env
+    depends_on:
+      - backend
+      - redis
+      - db
+    command: >
+      celery -A app.worker worker --loglevel=info
+
+volumes:
+  postgres_data:
