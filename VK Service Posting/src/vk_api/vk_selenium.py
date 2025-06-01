@@ -86,27 +86,27 @@ def vk_manual_login(driver, login, password):
     # После нажатия кнопки "Войти" на странице VK должно появиться окно с OTP-полями.
     try:
         alt_button = wait.until(EC.element_to_be_clickable(
-            (By.XPATH, "//span[contains(text(), 'Подтвердить другим способом')]")
+            (By.XPATH, "//span[contains(text(), 'Confirm using other method')]")
         ))
         alt_button.click()
 
         password_button = wait.until(EC.element_to_be_clickable(
-            (By.XPATH, "//div[@role='button' and .//span[text()='Пароль']]")
+            (By.XPATH, "//div[@role='button' and .//span[text()='Password']]")
         ))
         password_button.click()
 
     except Exception:
-        print("Не получилось найти кнопку Подтвердить другим способом")
+        print("Не получилось найти кнопку Confirm using other method")
 
     # После OTP переходим к вводу пароля.
     password_input = wait.until(
-        EC.presence_of_element_located((By.CSS_SELECTOR, 'input[name="password"][aria-label="Введите пароль"]'))
+        EC.presence_of_element_located((By.CSS_SELECTOR, 'input[name="password"][aria-label="Enter password"]'))
     )
     password_input.clear()
     password_input.send_keys(password)
     # Нажимаем кнопку "Продолжить"
     continue_button = wait.until(
-        EC.element_to_be_clickable((By.XPATH, '//button[.//span[contains(text(), "Продолжить")]]'))
+        EC.element_to_be_clickable((By.XPATH, '//button[.//span[contains(text(), "Continue")]]'))
     )
     continue_button.click()
     # Дополнительное ожидание до завершения авторизации
