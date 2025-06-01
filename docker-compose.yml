@@ -8,6 +8,7 @@ services:
     depends_on:
       - db
       - redis
+    working_dir: /app
     volumes:
       - "./VK Service Posting:/app"
     ports:
