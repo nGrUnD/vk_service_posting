@@ -6,6 +6,9 @@ class Settings(BaseSettings):
     DB_PORT: str
     DB_USER: str
     DB_PASS: str
+    postgres_user: str
+    postgres_password: str
+    postgres_db: str
 
     @property
     def DB_URL(self):
