@@ -2,44 +2,53 @@ version: "3.9"
 
 services:
   backend:
-    build: ./VK Service Posting
+    build: "./VK Service Posting"
     container_name: backend
-    env_file: ./VK Service Posting/.env
+    env_file: "./VK Service Posting/.env"
     depends_on:
       - db
       - redis
     volumes:
-      - ./VK Service Posting:/app
+      - "./VK Service Posting:/app"
     ports:
       - "8000:8000"
     command: >
       sh -c "
         alembic upgrade head &&
-        uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+        uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
       "
+    environment:
+      - PYTHONPATH=/app/src
 
   celery:
-    build: ./VK Service Posting
+    build: "./VK Service Posting"
     container_name: celery
-    env_file: ./VK Service Posting/.env
+    env_file: "./VK Service Posting/.env"
     depends_on:
       - backend
       - redis
       - db
+    volumes:
+      - "./VK Service Posting:/app"
+    working_dir: /app
+    environment:
+      - PYTHONPATH=/app/src
     command: >
-      celery -A app.worker worker --loglevel=info
+      sh -c "celery -A celery_app.celery_config.celery_app worker --loglevel=info"
 
   frontend:
-    build: ./VK Service Posting frontend
+    build: "./VK Service Posting frontend"
     container_name: frontend
     ports:
       - "80:80"
+    volumes:
+      - "./VK Service Posting frontend:/app"
 
   db:
     image: postgres:15
     container_name: postgres
     restart: always
-    env_file: ./VK Service Posting/.env
+    env_file: "./VK Service Posting/.env"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
