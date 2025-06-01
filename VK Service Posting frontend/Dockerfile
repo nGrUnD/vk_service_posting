@@ -3,7 +3,7 @@ FROM node:20 AS build
 
 WORKDIR /app
 COPY package-lock.json ./
-COPY vk\ service\ posting/ ./
+COPY "vk service posting/" ./
 RUN npm ci
 RUN npm run build
 
