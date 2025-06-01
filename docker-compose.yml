@@ -1,8 +1,5 @@
 version: "3.9"
 
-networks:
-  vk_service_posting_dev:
-
 services:
   backend:
     build: "./VK Service Posting"
@@ -25,8 +22,6 @@ services:
       "
     environment:
       - PYTHONPATH=/app/src
-    networks:
-      - vk_service_posting_dev
 
   celery:
     build: "./VK Service Posting"
@@ -42,16 +37,12 @@ services:
     environment:
       - PYTHONPATH=/app/src
     command: celery -A src.celery_app worker --loglevel=info --pool=solo
-    networks:
-      - vk_service_posting_dev
 
   frontend:
     build: "./VK Service Posting frontend"
     container_name: frontend
     ports:
       - "80:80"
-    networks:
-      - vk_service_posting_dev
 
   postgres:
     image: postgres:15
@@ -71,16 +62,12 @@ services:
       retries: 10
     ports:
       - "5432:5432"
-    networks:
-      - vk_service_posting_dev
 
   redis:
     image: redis:7
     container_name: redis
     ports:
       - "6379:6379"
-    networks:
-      - vk_service_posting_dev
 
 volumes:
   postgres_data:
