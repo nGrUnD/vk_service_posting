@@ -33,8 +33,7 @@ services:
     working_dir: /app
     environment:
       - PYTHONPATH=/app/src
-    command: >
-      sh -c "celery -A celery_app.celery_config.celery_app worker --loglevel=info"
+    command: celery -A src.celery_app worker --loglevel=info --pool=solo
 
   frontend:
     build: "./VK Service Posting frontend"
