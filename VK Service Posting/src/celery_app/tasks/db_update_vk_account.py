@@ -36,6 +36,6 @@ async def _update_vk_account_db(account_id_database: int, account_update_data: d
 
 @app.task
 def update_db_sync(data: dict, account_id_database: int)->dict:
-    groups_count = len(data["groups_data"])
+    groups_count = len(data["groups_data"]["groups"])
     async_to_sync(_update_vk_account_db)(account_id_database, data["vk_account_data"]["vk_account_data"], groups_count)
     return data
