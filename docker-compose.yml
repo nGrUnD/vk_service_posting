@@ -2,14 +2,14 @@ version: "3.9"
 
 services:
   backend:
-    build: ./backend
+    build: ./VK\ Service\ Posting
     container_name: backend
-    env_file: .env
+    env_file: ./VK Service Posting/.env
     depends_on:
       - db
       - redis
     volumes:
-      - ./backend:/app
+      - ./VK Service Posting:/app
     ports:
       - "8000:8000"
     command: >
@@ -18,8 +18,19 @@ services:
         uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
       "
 
+  celery:
+    build: ./VK\ Service\ Posting
+    container_name: celery
+    env_file: ./VK Service Posting/.env
+    depends_on:
+      - backend
+      - redis
+      - db
+    command: >
+      celery -A app.worker worker --loglevel=info
+
   frontend:
-    build: ./frontend
+    build: ./VK\ Service\ Posting/frontend
     container_name: frontend
     ports:
       - "80:80"
@@ -28,7 +39,7 @@ services:
     image: postgres:15
     container_name: postgres
     restart: always
-    env_file: .env
+    env_file: ./VK Service Posting/.env
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -39,17 +50,6 @@ services:
     container_name: redis
     ports:
       - "6379:6379"
-
-  celery:
-    build: ./backend
-    container_name: celery
-    env_file: .env
-    depends_on:
-      - backend
-      - redis
-      - db
-    command: >
-      celery -A app.worker worker --loglevel=info
 
 volumes:
   postgres_data:
