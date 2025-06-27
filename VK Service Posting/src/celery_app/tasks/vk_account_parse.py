@@ -7,7 +7,7 @@ from src.utils.celery_error_handler import mark_vk_account_failure_by_task_id
 from src.vk_api.vk_account import get_vk_account_data
 from asgiref.sync import async_to_sync
 
-async def parse_vk_profile(curl_encrypted: str, vk_account_id_database: int) -> dict:
+def parse_vk_profile(curl_encrypted: str, vk_account_id_database: int) -> dict:
     curl = AuthService().decrypt_data(curl_encrypted)
 
     token = TokenService.get_token_from_curl(curl)
