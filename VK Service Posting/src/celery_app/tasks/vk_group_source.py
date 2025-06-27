@@ -59,7 +59,7 @@ def _add_or_edit_vk_clips_db(session, vk_clip_data: dict, user_id: int,
     if not data_files:
         return
 
-    best_key = best_quality_key()
+    best_key = best_quality_key(data_files)
     files = vk_clip_data["files"][best_key]
     date = datetime.fromtimestamp(vk_clip_data["date"])
     views = vk_clip_data["views"]
