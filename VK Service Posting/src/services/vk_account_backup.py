@@ -150,7 +150,7 @@ class VKAccountBackupService:
         return logins
 
     async def get_random_account_backup_access_token(self):
-        all_vk_accounts_backup = await self.database.vk_account.get_all_filtered(account_type="backup")
+        all_vk_accounts_backup = await self.database.vk_account.get_all_filtered(account_type="backup", flood_control=False)
 
         random_account = random.choice(all_vk_accounts_backup)
 
