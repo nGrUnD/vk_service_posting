@@ -55,8 +55,9 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",
-        "http://127.0.0.1:5173",
+        "http://0.0.0.0:5173",
         "http://79.141.67.73",
+        "http://87.228.102.22",
     ],  # фронтенд-URL
     allow_credentials=True,                   # важно для cookie
     allow_methods=["*"],
@@ -73,4 +74,4 @@ app.include_router(router_clip_list)
 app.include_router(router_workerpost)
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=False)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)
