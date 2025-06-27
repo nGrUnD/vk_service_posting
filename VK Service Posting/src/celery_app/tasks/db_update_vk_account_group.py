@@ -2,10 +2,7 @@ from sqlalchemy import select
 
 from src.celery_app import app
 from src.models.vk_group import VKGroupOrm
-from src.repositories.vk_group import VKGroupRepository
-from src.schemas.vk_group import VKGroupUpdate, VKGroupAdd
 from src.celery_app.celery_db import SyncSessionLocal
-from asgiref.sync import async_to_sync
 
 
 def _add_or_edit_vk_group_db(session, data: dict, vk_account_id_database: int, user_id: int):

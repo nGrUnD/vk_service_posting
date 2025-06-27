@@ -1,11 +1,14 @@
+from sqlalchemy import select
 
 from src.celery_app import app
+from src.models.category import CategoryOrm
+from src.models.schedule_posting import SchedulePostingOrm
+from src.models.vk_group import VKGroupOrm
+from src.models.workerpost import WorkerPostOrm
 
 from src.schemas.schedule_posting import SchedulePostingUpdate
-from src.utils.database_manager import DataBaseManager
 from src.vk_api.vk_posting import download_vk_clip, upload_short_video, get_clip_info, delete_file
-from src.celery_app.celery_db import AsyncSessionLocal
-from asgiref.sync import async_to_sync
+from src.celery_app.celery_db import SyncSessionLocal
 
 
 async def posting_error(schedule_database_id: int, database_manager):
@@ -16,12 +19,24 @@ async def posting_error(schedule_database_id: int, database_manager):
         await database.schedule_posting.edit(schedule_update_data, exclude_unset=True, id=schedule_database_id)
         await database.commit()
 
-async def posting_clip(worker_id: int, token: str, schedule_database_id: int, clip, database_manager):
-    async with database_manager as database:
-        workerpost = await database.workerpost.get_one_or_none(id=worker_id)
-        category = await database.category.get_one_or_none(id=workerpost.category_id)
-        vk_group = await database.vk_group.get_one_or_none(id=workerpost.vk_group_id)
-        vk_group_source = await database.vk_group.get_one_or_none(id=clip['vk_group_id'])
+def posting_clip(worker_id: int, token: str, schedule_database_id: int, clip, database_manager):
+    with SyncSessionLocal() as session:
+        stmt = select(WorkerPostOrm).where(WorkerPostOrm.id == worker_id)
+        result = session.execute(stmt)
+        workerpost = result.scalars().one_or_none()
+
+        stmt = select(CategoryOrm).where(CategoryOrm.id == workerpost.category_id)
+        result = session.execute(stmt)
+        category = result.scalars().one_or_none()
+
+        stmt = select(VKGroupOrm).where(VKGroupOrm.id == workerpost.vk_group_id)
+        result = session.execute(stmt)
+        vk_group = result.scalars().one_or_none()
+
+
+        stmt = select(VKGroupOrm).where(VKGroupOrm.id == clip['vk_group_id'])
+        result = session.execute(stmt)
+        vk_group_source = result.scalars().one_or_none()
 
         vk_clip_owner_id = -vk_group_source.vk_group_id
         clip_id = clip['vk_id']
@@ -41,19 +56,19 @@ async def posting_clip(worker_id: int, token: str, schedule_database_id: int, cl
 
         delete_file(clip_filename)
 
-        schedule_update_data = SchedulePostingUpdate(
-            clip_id = clip_id,
-            status = "success",
-        )
+        stmt = select(SchedulePostingOrm).where(SchedulePostingOrm.id == schedule_database_id)
+        result = session.execute(stmt)
+        schedule_update_data = result.scalars().one_or_none()
 
-        await database.schedule_posting.edit(schedule_update_data, exclude_unset=True, id=schedule_database_id)
-        await database.commit()
+        schedule_update_data.clip_id = clip_id
+        schedule_update_data.status = "success"
+
+        session.commit()
 
 @app.task
 def create_post(worker_id: int, token: str, schedule_id: int, clip):
-    database_manager = DataBaseManager(AsyncSessionLocal)
     try:
-        async_to_sync(posting_clip)(worker_id, token, schedule_id, clip, database_manager)
+        posting_clip(worker_id, token, schedule_id, clip)
     except Exception as e:
         print(f"create_post error: {e}")
-        async_to_sync(posting_error)(schedule_id, database_manager)
+        #async_to_sync(posting_error)(schedule_id, database_manager)

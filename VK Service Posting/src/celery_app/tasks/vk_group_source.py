@@ -2,15 +2,19 @@ import re
 from typing import Dict, Optional, List
 
 from asgiref.sync import async_to_sync
+from sqlalchemy import select
+
 from src.celery_app import app
 from datetime import datetime, timezone
 
+from src.models.celery_task import CeleryTaskOrm
+from src.models.vk_clip import VKClipOrm
 from src.repositories.celery_task import CeleryTaskRepository
 from src.repositories.vk_clip import VKClipRepository
 from src.schemas.celery_task import CeleryTaskUpdate
 from src.schemas.vk_clip import VKClipAdd
 from src.vk_api.vk_clip import get_all_owner_short_videos
-from src.celery_app.celery_db import AsyncSessionLocal
+from src.celery_app.celery_db import SyncSessionLocal
 
 
 def best_quality_key(files: Dict[str, str]) -> Optional[str]:
@@ -47,9 +51,8 @@ def best_quality_key(files: Dict[str, str]) -> Optional[str]:
     return next(iter(files), None)
 
 
-async def _add_or_edit_vk_clips_db(session, vk_clip_data: dict, user_id: int,
+def _add_or_edit_vk_clips_db(session, vk_clip_data: dict, user_id: int,
                                    clip_list_id: int, vk_group_database_id: int):
-    repo = VKClipRepository(session)
 
     #print(f"group data: {vk_clip_data}")
     vk_id = vk_clip_data["id"]
@@ -59,10 +62,13 @@ async def _add_or_edit_vk_clips_db(session, vk_clip_data: dict, user_id: int,
     views = vk_clip_data["views"]
     #frames = vk_clip_data["timeline_thumbs"]["links"][0]
     frames = ""
-    get_vk_clip = await repo.get_one_or_none(vk_id=vk_id, vk_group_id=vk_group_database_id)
+
+    stmt = select(VKClipOrm).where(VKClipOrm.vk_id == vk_id, VKClipOrm.vk_group_id == vk_group_database_id)
+    result = session.execute(stmt)
+    get_vk_clip = result.scalars().one_or_none()
 
     if not get_vk_clip:
-        group_new = VKClipAdd(
+        group_new = VKClipOrm(
             user_id=user_id,
             clip_list_id=clip_list_id,
             vk_group_id=vk_group_database_id,
@@ -74,23 +80,24 @@ async def _add_or_edit_vk_clips_db(session, vk_clip_data: dict, user_id: int,
             parse_status="success",
             task_id=""
         )
-        await repo.add(group_new)
+        session.add(group_new)
 
-async def update_vk_clips_db(clips, user_id, clip_list_id, task_id: int, vk_group_database_id: int):
-    async with AsyncSessionLocal() as session:
-        celery_task_repo = CeleryTaskRepository(session)
+def update_vk_clips_db(clips, user_id, clip_list_id, task_id: int, vk_group_database_id: int):
+    with SyncSessionLocal() as session:
+        stmt = select(CeleryTaskOrm).where(CeleryTaskOrm.task_id == task_id)
+        result = session.execute(stmt)
+        celery_task = result.scalars().one_or_none()
+
         if not clips:
-            celery_task_update = CeleryTaskUpdate(status="empty")
-            await celery_task_repo.edit(celery_task_update, exclude_unset=True, task_id=task_id)
-            await session.commit()
+            celery_task.status = "empty"
+            session.commit()
             return
 
         for clip in clips:
-            await _add_or_edit_vk_clips_db(session, clip, user_id, clip_list_id, vk_group_database_id)
+            _add_or_edit_vk_clips_db(session, clip, user_id, clip_list_id, vk_group_database_id)
 
-        celery_task_update = CeleryTaskUpdate(status="success")
-        await celery_task_repo.edit(celery_task_update, exclude_unset=True, task_id=task_id)
-        await session.commit()
+        celery_task.status = "success"
+        session.commit()
 
 
 def filter_clips(clips: List[Dict], min_views: int, published_after: Optional[datetime] = None) -> List[Dict]:
@@ -131,15 +138,17 @@ def parse_vk_group_clips_sync(self, vk_group_id: int, access_token: str,
         filtred_clips = filter_clips(clips, viewers, mindate)
 
         # Асинхронно обновляем БД
-        async_to_sync(update_vk_clips_db)(filtred_clips, user_id, clip_list_id, task_id, vk_group_database_id)
+        update_vk_clips_db(filtred_clips, user_id, clip_list_id, task_id, vk_group_database_id)
 
     except Exception as e:
-        async def update_status_failure():
-            async with AsyncSessionLocal() as session:
-                celery_task_repo = CeleryTaskRepository(session)
-                celery_task_update = CeleryTaskUpdate(status="failed")
-                await celery_task_repo.edit(celery_task_update, exclude_unset=True, task_id=task_id)
-                await session.commit()
+        def update_status_failure():
+            with SyncSessionLocal() as session:
+                stmt = select(CeleryTaskOrm).where(CeleryTaskOrm.task_id == task_id)
+                result = session.execute(stmt)
+                celery_task = result.scalars().one_or_none()
 
-        async_to_sync(update_status_failure)()
+                celery_task.status = "failed"
+                session.commit()
+
+        update_status_failure()
         raise e

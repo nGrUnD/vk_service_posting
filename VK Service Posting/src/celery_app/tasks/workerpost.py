@@ -1,4 +1,11 @@
+from sqlalchemy import select
+
 from src.celery_app import app
+from src.models.category import CategoryOrm
+from src.models.celery_task import CeleryTaskOrm
+from src.models.vk_account import VKAccountOrm
+from src.models.vk_group import VKGroupOrm
+from src.models.workerpost import WorkerPostOrm
 from src.schemas.celery_task import CeleryTaskUpdate
 from src.schemas.vk_account import VKAccountUpdate
 from src.schemas.workerpost import WorkerPostAdd
@@ -8,13 +15,15 @@ from src.utils.database_manager import DataBaseManager
 from src.vk_api.vk_account import get_vk_account_data
 from src.vk_api.vk_group import join_group, assign_editor_role
 from src.vk_api.vk_selenium import get_vk_account_curl_from_browser
-from src.celery_app.celery_db import AsyncSessionLocal
+from src.celery_app.celery_db import SyncSessionLocal
 from asgiref.sync import async_to_sync
 
-async def _update_vk_account_db(account_id_database: int, account_update_data: dict, encrypted_curl: str, database_manager,):
+def _update_vk_account_db(account_id_database: int, account_update_data: dict, encrypted_curl: str, database_manager,):
     # assume get_one_or_none is async
-    async with database_manager as database:
-        account = await database.vk_account.get_one_or_none(id=account_id_database)
+    with database_manager as session:
+        stmt = select(VKAccountOrm).where(VKAccountOrm.id == account_id_database)
+        result = session.execute(stmt)
+        account = result.scalars().one_or_none()
 
         if not account:
             raise ValueError(f"Account {account_id_database} not found")
@@ -26,9 +35,10 @@ async def _update_vk_account_db(account_id_database: int, account_update_data: d
 
         account_update_data.parse_status = "success"
 
-        await database.vk_account.edit(account_update_data, exclude_unset=True, id=account_id_database)
+        for field, value in account_update_data.model_dump(exclude_unset=True).items():
+            setattr(account, field, value)
 
-        await database.commit()
+        session.commit()
 
 
 async def parse_vk_profile(curl_encrypted: str, vk_account_id_database: int) -> dict:
@@ -61,7 +71,7 @@ async def parse_vk_profile(curl_encrypted: str, vk_account_id_database: int) -> 
     }
     return data
 
-async def create_workpost(
+def create_workpost(
         user_id: int,
         account_id_database: int,
         main_account_id_database: int,
@@ -70,11 +80,22 @@ async def create_workpost(
         account_token: str,
         database_manager,
 ):
-    async with database_manager as database:
-        vk_account_database = await database.vk_account.get_one_or_none(id=account_id_database)
-        vk_main_account_database = await database.vk_account.get_one_or_none(id=main_account_id_database)
-        vk_group_database = await database.vk_group.get_one_or_none(id=vk_group_id_database)
-        category_database = await database.category.get_one_or_none(id=category_id_database)
+    with database_manager as session:
+        stmt = select(VKAccountOrm).where(VKAccountOrm.id == account_id_database)
+        result = session.execute(stmt)
+        vk_account_database = result.scalars().one_or_none()
+
+        stmt = select(VKAccountOrm).where(VKAccountOrm.id == main_account_id_database)
+        result = session.execute(stmt)
+        vk_main_account_database = result.scalars().one_or_none()
+
+        stmt = select(VKGroupOrm).where(VKGroupOrm.id == vk_group_id_database)
+        result = session.execute(stmt)
+        vk_group_database = result.scalars().one_or_none()
+
+        stmt = select(CategoryOrm).where(CategoryOrm.id == category_id_database)
+        result = session.execute(stmt)
+        category_database = result.scalars().one_or_none()
 
         join_group(vk_group_database.vk_group_id, account_token)
 
@@ -83,7 +104,7 @@ async def create_workpost(
 
         assign_editor_role(vk_group_database.vk_group_id, vk_account_database.vk_account_id, main_account_token)
 
-        workerpost_add = WorkerPostAdd(
+        workerpost_add = WorkerPostOrm(
             user_id=user_id,
             vk_group_id=vk_group_database.id,
             vk_account_id=vk_account_database.id,
@@ -92,23 +113,21 @@ async def create_workpost(
             last_post_at=None,
         )
 
-        await database.workerpost.add(workerpost_add)
-        await database.commit()
+        session.add(workerpost_add)
+        session.commit()
 
-async def update_celery_task_status(
+def update_celery_task_status(
     account_id_database: int,
     new_status: str,
     database_manager,
 ):
+    with database_manager as session:
+        stmt = select(CeleryTaskOrm).where(CeleryTaskOrm.vk_account_id == account_id_database)
+        result = session.execute(stmt)
+        celery_task = result.scalars().one_or_none()
 
-    async with database_manager as database:
-        celery_task = await database.celery_task.get_one_or_none(vk_account_id=account_id_database)
-
-        celery_task_update = CeleryTaskUpdate(
-            status=new_status
-        )
-        await database.celery_task.edit(celery_task_update, exclude_unset=True, id=celery_task.id)
-        await database.commit()
+        celery_task.status = new_status
+        session.commit()
 
 @app.task
 def create_workpost_account(
@@ -121,7 +140,7 @@ def create_workpost_account(
         password: str,
 ):
     print("Задача началась!")
-    database_manager = DataBaseManager(AsyncSessionLocal)
+    database_manager = DataBaseManager(SyncSessionLocal)
     try:
         curl = async_to_sync(get_vk_account_curl_from_browser)(login, password)
         encrypted_curl = AuthService().encrypt_data(curl)
@@ -131,9 +150,9 @@ def create_workpost_account(
         # vk_account_id
         # vk_account_id_database
         # vk_account_data
-        async_to_sync(_update_vk_account_db)(account_id_database, vk_account_parse_data['vk_account_data'], encrypted_curl, database_manager)
+        _update_vk_account_db(account_id_database, vk_account_parse_data['vk_account_data'], encrypted_curl, database_manager)
 
-        async_to_sync(create_workpost)(
+        create_workpost(
             user_id,
             account_id_database,
             main_account_id_database,
@@ -143,9 +162,9 @@ def create_workpost_account(
             database_manager
         )
 
-        async_to_sync(update_celery_task_status)(account_id_database, "success", database_manager)
+        update_celery_task_status(account_id_database, "success", database_manager)
 
 
     except Exception as e:
-        async_to_sync(update_celery_task_status)(account_id_database, "failed", database_manager)
+        update_celery_task_status(account_id_database, "failed", database_manager)
         raise
