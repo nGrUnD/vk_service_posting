@@ -7,7 +7,7 @@ import random
 
 from src.celery_app import app as celery_app
 from src.celery_app.tasks import parse_vk_group_sync
-from src.celery_app.tasks.db_update_vk_account_group import update_db_group_sync
+from src.celery_app.tasks.db_update_vk_account_group import update_db_group_async
 from src.models.celery_task import CeleryTaskOrm
 from src.models.vk_account import VKAccountOrm
 from src.models.vk_account_cred import VKAccountCredOrm
@@ -102,7 +102,7 @@ class VKAccountBackupService:
                 parse_vk_profile_sync.s(),
                 parse_vk_group_sync.s(),
                 update_db_sync.s(vk_account.id),
-                update_db_group_sync.s(vk_account.id, user_id),  # ← data будет первым аргументом
+                update_db_group_async.s(vk_account.id, user_id),  # ← data будет первым аргументом
             ).apply_async()
 
             await self.database.vk_account.edit(
