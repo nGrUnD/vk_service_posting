@@ -66,8 +66,6 @@ class VKAccountMainService:
             update_db_group_async.s(vk_account.id, user_id),  # ← data будет первым аргументом
         )
         task_chain.apply_async(task_id=task_id)
-
-
         return vk_account
 
     async def create_account(self, user_id: int, vk_cred_id: int) -> VKAccount:

@@ -44,8 +44,8 @@ def parse_vk_profile_sync(self, data: dict):
     curl_enc = data["encrypted_curl"]
     vk_account_id_database = data["vk_account_id_database"]  # Если добавишь в return
     try:
-        result = async_to_sync(parse_vk_profile)(curl_enc, vk_account_id_database)
+        result = parse_vk_profile(curl_enc, vk_account_id_database)
         return result
     except Exception as e:
-        async_to_sync(mark_vk_account_failure_by_task_id)(vk_account_id_database)
+        mark_vk_account_failure_by_task_id(vk_account_id_database)
         raise
