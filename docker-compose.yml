@@ -27,9 +27,8 @@ services:
     build: "./VK Service Posting"
     env_file: "./VK Service Posting/.env"
     depends_on:
-      - backend
-      - redis
-      - postgres
+      backend:
+        condition: service_healthy
     volumes:
       - "./VK Service Posting:/app"
     working_dir: /app
