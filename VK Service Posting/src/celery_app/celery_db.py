@@ -1,12 +1,10 @@
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 from src.config import settings
 
-engine = create_async_engine(
-    settings.DB_URL,
-    pool_size=5,          # Можно меньше, чем в FastAPI
-    max_overflow=2,
-    pool_timeout=30,
-    pool_recycle=1800
+engine = create_engine(
+    settings.DB_URL.replace('+asyncpg', ''),  # Убираем async
+    pool_pre_ping=True
 )
 
-AsyncSessionLocal = async_sessionmaker(bind=engine, expire_on_commit=False)
+SyncSessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)

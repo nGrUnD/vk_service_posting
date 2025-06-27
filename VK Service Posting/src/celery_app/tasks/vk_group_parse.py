@@ -21,4 +21,4 @@ def parse_vk_group_sync(self, data: dict):
             "vk_account_data": data,
         }
     except Exception as e:
-        raise
+        raise e

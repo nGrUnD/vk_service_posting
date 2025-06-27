@@ -1,11 +1,14 @@
+from sqlalchemy import select
+
 from src.celery_app import app
+from src.models.vk_group import VKGroupOrm
 from src.repositories.vk_group import VKGroupRepository
 from src.schemas.vk_group import VKGroupUpdate, VKGroupAdd
-from src.celery_app.celery_db import AsyncSessionLocal
+from src.celery_app.celery_db import SyncSessionLocal
 from asgiref.sync import async_to_sync
 
-async def _add_or_edit_vk_group_db(session, data: dict, vk_account_id_database: int, user_id: int):
-    repo = VKGroupRepository(session)
+
+def _add_or_edit_vk_group_db(session, data: dict, vk_account_id_database: int, user_id: int):
 
     print(f"group data: {data}")
     vk_group_id = data["group_id"]
@@ -13,10 +16,13 @@ async def _add_or_edit_vk_group_db(session, data: dict, vk_account_id_database: 
     avatar_url = data["avatar_url"]
     name = data["name"]
     clips_count = data["clips_count"]
-    get_group = await repo.get_one_or_none(vk_group_id=vk_group_id)
 
-    if not get_group:
-        group_new = VKGroupAdd(
+    stmt = select(VKGroupOrm).where(VKGroupOrm.vk_group_id == vk_group_id)
+    result = session.execute(stmt)
+    group = result.scalars().one_or_none()
+
+    if not group:
+        group_new = VKGroupOrm(
             user_id=user_id,
             vk_group_id=vk_group_id,
             vk_admin_main_id=vk_account_id_database,
@@ -28,39 +34,27 @@ async def _add_or_edit_vk_group_db(session, data: dict, vk_account_id_database: 
             parse_status="success",
             task_id=""
         )
-        group_new.parse_status = "success"
-        group_new.vk_admin_main_id=vk_account_id_database
 
-        await repo.add(group_new)
-        await session.commit()
-
+        session.add(group_new)
         return
 
-    group_update = VKGroupUpdate(
-        user_id=user_id,
-        vk_group_id=vk_group_id,
-        vk_admin_main_id=vk_account_id_database,
-        vk_group_type="main",
-        vk_group_url=vk_group_url,
-        avatar_url=avatar_url,
-        name=name,
-        clips_count=clips_count,
-        parse_status="success",
-    )
+    group.user_id = user_id
+    group.vk_admin_main_id = vk_account_id_database
+    group.vk_group_url = vk_group_url
+    group.avatar_url = avatar_url
+    group.name = name
+    group.clips_count = clips_count
+    group.vk_group_type = "main"
+    group.parse_status = "success"
 
-    group_update.parse_status = "success"
+def _update_vk_account_group_db(groups_data: dict, vk_account_id_database: int, user_id: int):
+    async with SyncSessionLocal() as session:
+        for group_data in groups_data:
+            _add_or_edit_vk_group_db(session, group_data, vk_account_id_database, user_id)
+            session.commit()
 
-    await repo.edit(group_update, exclude_unset=True, vk_group_id=vk_group_id)
-
-
-async def _update_vk_account_group_db(groups_data: dict, vk_account_id_database: int, user_id: int):
-    async with AsyncSessionLocal() as session:
-        async with session.begin():
-            for group_data in groups_data:
-                await _add_or_edit_vk_group_db(session, group_data, vk_account_id_database, user_id)
-            await session.commit()
 
 @app.task
 def update_db_group_async(data: dict, vk_account_id_database: int, user_id: int):
-    async_to_sync(_update_vk_account_group_db)(data["groups_data"]["groups"], vk_account_id_database, user_id)
+    _update_vk_account_group_db(data["groups_data"]["groups"], vk_account_id_database, user_id)
     return data

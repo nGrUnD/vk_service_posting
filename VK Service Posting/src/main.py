@@ -11,7 +11,6 @@ from starlette.middleware.cors import CORSMiddleware
 
 sys.path.append(str(Path(__file__).parent.parent))
 
-from src.config import settings
 from src.database import *
 from src.api.user_auth import router as router_user_auth
 from src.api.vk_account_cred import router as router_vk_account_cred
@@ -22,9 +21,6 @@ from src.api.clip_list import router as router_clip_list
 from src.api.workerpost import router as router_workerpost
 
 from src.services.posting_service import PostingService
-from src.utils.database_manager import DataBaseManager
-from src.api.dependencies import get_database, get_database_manager
-from src.repositories.vk_account import VKAccountRepository
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
