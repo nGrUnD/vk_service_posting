@@ -1,23 +1,19 @@
 from functools import wraps
 from asgiref.sync import async_to_sync
+from sqlalchemy import select
 
-from src.schemas.vk_account import VKAccountUpdate
-from src.repositories.vk_account import VKAccountRepository
-from src.celery_app.celery_db import AsyncSessionLocal
+from src.celery_app.celery_db import SyncSessionLocal
+from src.models.vk_account import VKAccountOrm
 
 
-async def mark_vk_account_failure_by_task_id(vk_account_id: int):
-    async with AsyncSessionLocal() as session:
-        repo = VKAccountRepository(session)
-        data = {
-            "parse_status": "failure"
-        }
-        data_update = VKAccountUpdate(**data)
+def mark_vk_account_failure_by_task_id(vk_account_id: int):
+    with SyncSessionLocal() as session:
+        stmt = select(VKAccountOrm).where(VKAccountOrm.id == vk_account_id)
+        result = session.execute(stmt)
+        account = result.scalars().one_or_none()
+        account.parse_status = "failure"
         print(f"vk_account: {vk_account_id}")
-        await repo.edit(data_update, exclude_unset=True, id=vk_account_id)
-
-        await session.commit()
-    AsyncSessionLocal.close_all()
+        session.commit()
 
 
 def celery_task_with_db_failure_status(update_status_by_task_id_fn):
@@ -31,7 +27,7 @@ def celery_task_with_db_failure_status(update_status_by_task_id_fn):
                 try:
                     vk_account_id = kwargs.get("vk_account_id")
                     if vk_account_id is not None:
-                        async_to_sync(update_status_by_task_id_fn)(vk_account_id)
+                        update_status_by_task_id_fn(vk_account_id)
                 except Exception as inner:
                     print(f"[DB update failure] Could not mark task_id failure: {inner}")
                 raise e
