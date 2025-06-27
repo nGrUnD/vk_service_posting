@@ -5,6 +5,8 @@ from fastapi import HTTPException
 from src.celery_app import app as celery_app
 from src.celery_app.tasks import parse_vk_group_sync
 from src.celery_app.tasks.db_update_vk_account_group import update_db_group_async
+from src.models.celery_task import CeleryTaskOrm
+from src.models.vk_group import VKGroupOrm
 from src.services.auth import AuthService
 from src.schemas.vk_account import VKAccountAdd, VKAccountUpdate, VKAccount, AccountType
 from src.celery_app.tasks.vk_api import get_vk_account_curl
@@ -18,6 +20,10 @@ class VKAccountMainService:
         self.database = database
 
     async def create_account_curl(self, user_id: int, curl: str, account_type: str):
+        vk_account = self.database.vk_account.get_one_or_none(account_type="main")
+        if vk_account:
+            await self.delete_account(vk_account)
+
         encrypted_curl = AuthService().encrypt_data(curl)
 
         new_data = VKAccountAdd(
@@ -128,6 +134,9 @@ class VKAccountMainService:
         # 3. Взять зашифрованный curl
         encrypted_curl = vk_account.encrypted_curl
 
+        await self.create_account_curl(user_id, encrypted_curl, "main")
+        return
+
         # 4. Сгенерировать новый task_id
         first_task = parse_vk_profile_sync.s(encrypted_curl, vk_account.id)
         new_task_id = first_task.freeze().id
@@ -150,3 +159,19 @@ class VKAccountMainService:
         task_chain.apply_async(task_id=new_task_id)
 
         return {"status": "retry_started", "task_id": new_task_id}
+
+    async def delete_account(self, db_vk_account: VKAccount):
+        creds = await self.database.vk_account_cred.get_one_or_none(id=db_vk_account.vk_cred_id)
+
+        await self.database.vk_group.delete_where(VKGroupOrm.vk_admin_main_id == db_vk_account.id)
+        await self.database.celery_task.delete_where(CeleryTaskOrm.vk_account_id == db_vk_account.id)
+
+        # Удаляем связанные аккаунты
+        await self.database.vk_account.delete(id=db_vk_account.id)
+
+        # Удаляем сами креды
+        await self.database.vk_account_cred.delete(id=creds.id)
+
+        await self.database.commit()
+        return True
+
