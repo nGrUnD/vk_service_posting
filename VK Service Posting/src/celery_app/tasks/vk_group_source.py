@@ -3,11 +3,8 @@ from typing import Dict, Optional, List
 
 from asgiref.sync import async_to_sync
 from src.celery_app import app
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
 from datetime import datetime, timezone
 
-from src.config import settings
 from src.repositories.celery_task import CeleryTaskRepository
 from src.repositories.vk_clip import VKClipRepository
 from src.schemas.celery_task import CeleryTaskUpdate
@@ -122,7 +119,7 @@ def filter_clips(clips: List[Dict], min_views: int, published_after: Optional[da
 
 
 @app.task(bind=True, name="src.tasks.parse_vk_group_clips_sync")
-async def parse_vk_group_clips_sync(self, vk_group_id: int, access_token: str,
+def parse_vk_group_clips_sync(self, vk_group_id: int, access_token: str,
                               user_id: int, clip_list_id: int, vk_group_database_id: int, viewers: int, mindate: datetime):
     task_id = self.request.id
     try:
@@ -134,7 +131,7 @@ async def parse_vk_group_clips_sync(self, vk_group_id: int, access_token: str,
         filtred_clips = filter_clips(clips, viewers, mindate)
 
         # Асинхронно обновляем БД
-        await update_vk_clips_db(filtred_clips, user_id, clip_list_id, task_id, vk_group_database_id)
+        async_to_sync(update_vk_clips_db)(filtred_clips, user_id, clip_list_id, task_id, vk_group_database_id)
 
     except Exception as e:
         async def update_status_failure():
@@ -144,5 +141,5 @@ async def parse_vk_group_clips_sync(self, vk_group_id: int, access_token: str,
                 await celery_task_repo.edit(celery_task_update, exclude_unset=True, task_id=task_id)
                 await session.commit()
 
-        await update_status_failure()
+        async_to_sync(update_status_failure)()
         raise e

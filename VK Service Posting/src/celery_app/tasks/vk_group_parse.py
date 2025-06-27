@@ -1,7 +1,7 @@
 
 from src.celery_app import app
 from src.vk_api.vk_account import get_vk_account_admin_groups
-
+from asgiref.sync import async_to_sync
 
 async def parse_vk_group(token: str, vk_account_id: int) -> dict:
 
@@ -10,9 +10,9 @@ async def parse_vk_group(token: str, vk_account_id: int) -> dict:
 
 
 @app.task(bind=True)
-async def parse_vk_group_sync(self, data: dict):
+def parse_vk_group_sync(self, data: dict):
     try:
-        result = await parse_vk_group(
+        result = async_to_sync(parse_vk_group)(
             data["token"],
             data["vk_account_id"]
         )

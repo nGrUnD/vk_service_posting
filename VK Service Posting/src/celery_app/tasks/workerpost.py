@@ -9,6 +9,7 @@ from src.vk_api.vk_account import get_vk_account_data
 from src.vk_api.vk_group import join_group, assign_editor_role
 from src.vk_api.vk_selenium import get_vk_account_curl_from_browser
 from src.celery_app.celery_db import AsyncSessionLocal
+from asgiref.sync import async_to_sync
 
 async def _update_vk_account_db(account_id_database: int, account_update_data: dict, encrypted_curl: str, database_manager,):
     # assume get_one_or_none is async
@@ -110,7 +111,7 @@ async def update_celery_task_status(
         await database.commit()
 
 @app.task
-async def create_workpost_account(
+def create_workpost_account(
         account_id_database: int,
         main_account_id_database: int,
         vk_group_id_database: int,
@@ -122,17 +123,17 @@ async def create_workpost_account(
     print("Задача началась!")
     database_manager = DataBaseManager(AsyncSessionLocal)
     try:
-        curl = await get_vk_account_curl_from_browser(login, password)
+        curl = async_to_sync(get_vk_account_curl_from_browser)(login, password)
         encrypted_curl = AuthService().encrypt_data(curl)
 
-        vk_account_parse_data = await parse_vk_profile(encrypted_curl, account_id_database)
+        vk_account_parse_data = async_to_sync(parse_vk_profile)(encrypted_curl, account_id_database)
         # token
         # vk_account_id
         # vk_account_id_database
         # vk_account_data
-        await _update_vk_account_db(account_id_database, vk_account_parse_data['vk_account_data'], encrypted_curl, database_manager)
+        async_to_sync(_update_vk_account_db)(account_id_database, vk_account_parse_data['vk_account_data'], encrypted_curl, database_manager)
 
-        await create_workpost(
+        async_to_sync(create_workpost)(
             user_id,
             account_id_database,
             main_account_id_database,
@@ -142,9 +143,9 @@ async def create_workpost_account(
             database_manager
         )
 
-        await update_celery_task_status(account_id_database, "success", database_manager)
+        async_to_sync(update_celery_task_status)(account_id_database, "success", database_manager)
 
 
     except Exception as e:
-        await update_celery_task_status(account_id_database, "failed", database_manager)
+        async_to_sync(update_celery_task_status)(account_id_database, "failed", database_manager)
         raise

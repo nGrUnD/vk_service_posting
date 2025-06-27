@@ -5,6 +5,7 @@ from src.schemas.schedule_posting import SchedulePostingUpdate
 from src.utils.database_manager import DataBaseManager
 from src.vk_api.vk_posting import download_vk_clip, upload_short_video, get_clip_info, delete_file
 from src.celery_app.celery_db import AsyncSessionLocal
+from asgiref.sync import async_to_sync
 
 
 async def posting_error(schedule_database_id: int, database_manager):
@@ -49,10 +50,10 @@ async def posting_clip(worker_id: int, token: str, schedule_database_id: int, cl
         await database.commit()
 
 @app.task
-async def create_post(worker_id: int, token: str, schedule_id: int, clip):
+def create_post(worker_id: int, token: str, schedule_id: int, clip):
     database_manager = DataBaseManager(AsyncSessionLocal)
     try:
-        await posting_clip(worker_id, token, schedule_id, clip, database_manager)
+        async_to_sync(posting_clip)(worker_id, token, schedule_id, clip, database_manager)
     except Exception as e:
         print(f"create_post error: {e}")
-        await posting_error(schedule_id, database_manager)
+        async_to_sync(posting_error)(schedule_id, database_manager)

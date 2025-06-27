@@ -1,12 +1,8 @@
-from asgiref.sync import async_to_sync
 from src.celery_app import app
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
-from src.config import settings
-
 from src.repositories.vk_group import VKGroupRepository
 from src.schemas.vk_group import VKGroupUpdate, VKGroupAdd
 from src.celery_app.celery_db import AsyncSessionLocal
+from asgiref.sync import async_to_sync
 
 async def _add_or_edit_vk_group_db(session, data: dict, vk_account_id_database: int, user_id: int):
     repo = VKGroupRepository(session)
@@ -65,6 +61,6 @@ async def _update_vk_account_group_db(groups_data: dict, vk_account_id_database:
             await session.commit()
 
 @app.task
-async def update_db_group_async(data: dict, vk_account_id_database: int, user_id: int):
-    await _update_vk_account_group_db(data["groups_data"]["groups"], vk_account_id_database, user_id)
+def update_db_group_async(data: dict, vk_account_id_database: int, user_id: int):
+    async_to_sync(_update_vk_account_group_db)(data["groups_data"]["groups"], vk_account_id_database, user_id)
     return data
