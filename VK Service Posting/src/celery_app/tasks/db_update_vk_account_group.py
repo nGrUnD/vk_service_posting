@@ -6,7 +6,7 @@ from src.config import settings
 
 from src.repositories.vk_group import VKGroupRepository
 from src.schemas.vk_group import VKGroupUpdate, VKGroupAdd
-
+from src.celery_app.celery_db import AsyncSessionLocal
 
 async def _add_or_edit_vk_group_db(session, data: dict, vk_account_id_database: int, user_id: int):
     repo = VKGroupRepository(session)
@@ -58,14 +58,13 @@ async def _add_or_edit_vk_group_db(session, data: dict, vk_account_id_database: 
 
 
 async def _update_vk_account_group_db(groups_data: dict, vk_account_id_database: int, user_id: int):
-    engine = create_async_engine(settings.DB_URL, future=True)
-    AsyncSessionLocal = sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
     async with AsyncSessionLocal() as session:
-        for group_data in groups_data:
-            await _add_or_edit_vk_group_db(session, group_data, vk_account_id_database, user_id)
-        await session.commit()
+        async with session.begin():
+            for group_data in groups_data:
+                await _add_or_edit_vk_group_db(session, group_data, vk_account_id_database, user_id)
+            await session.commit()
 
 @app.task
-def update_db_group_sync(data: dict, vk_account_id_database: int, user_id: int):
-    async_to_sync(_update_vk_account_group_db)(data["groups_data"]["groups"], vk_account_id_database, user_id)
+async def update_db_group_async(data: dict, vk_account_id_database: int, user_id: int):
+    await _update_vk_account_group_db(data["groups_data"]["groups"], vk_account_id_database, user_id)
     return data
