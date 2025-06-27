@@ -6,9 +6,7 @@ from src.models.celery_task import CeleryTaskOrm
 from src.models.vk_account import VKAccountOrm
 from src.models.vk_group import VKGroupOrm
 from src.models.workerpost import WorkerPostOrm
-from src.schemas.celery_task import CeleryTaskUpdate
 from src.schemas.vk_account import VKAccountUpdate
-from src.schemas.workerpost import WorkerPostAdd
 from src.services.auth import AuthService
 from src.services.vk_token_service import TokenService
 from src.utils.database_manager import DataBaseManager
@@ -16,7 +14,6 @@ from src.vk_api.vk_account import get_vk_account_data
 from src.vk_api.vk_group import join_group, assign_editor_role
 from src.vk_api.vk_selenium import get_vk_account_curl_from_browser
 from src.celery_app.celery_db import SyncSessionLocal
-from asgiref.sync import async_to_sync
 
 def _update_vk_account_db(account_id_database: int, account_update_data: dict, encrypted_curl: str, database_manager,):
     # assume get_one_or_none is async
@@ -41,7 +38,7 @@ def _update_vk_account_db(account_id_database: int, account_update_data: dict, e
         session.commit()
 
 
-async def parse_vk_profile(curl_encrypted: str, vk_account_id_database: int) -> dict:
+def parse_vk_profile(curl_encrypted: str, vk_account_id_database: int) -> dict:
     curl = AuthService().decrypt_data(curl_encrypted)
 
     token = TokenService.get_token_from_curl(curl)
@@ -145,7 +142,7 @@ def create_workpost_account(
         curl = get_vk_account_curl_from_browser(login, password)
         encrypted_curl = AuthService().encrypt_data(curl)
 
-        vk_account_parse_data = async_to_sync(parse_vk_profile)(encrypted_curl, account_id_database)
+        vk_account_parse_data = parse_vk_profile(encrypted_curl, account_id_database)
         # token
         # vk_account_id
         # vk_account_id_database
