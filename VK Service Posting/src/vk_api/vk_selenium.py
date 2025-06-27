@@ -53,7 +53,7 @@ def get_vk_curl(driver, timeout: int = 60) -> str:
 
 def vk_manual_login(driver, login, password):
     print("login")
-    wait = WebDriverWait(driver, 10)
+    wait = WebDriverWait(driver, 30)
     # Открываем страницу входа VK
     driver.get("https://login.vk.com/")
 
@@ -113,10 +113,10 @@ def vk_manual_login(driver, login, password):
     time.sleep(3)
     print("Авторизация успешна!")
 
-async def get_vk_account_curl_from_browser(login: str, password: str) -> str:
+def get_vk_account_curl_from_browser(login: str, password: str) -> str:
     # 1) Настраиваем фильтры для random_user_agent
 
-    async def async_wrapper():
+    def async_wrapper():
         # Конфигурация ChromeOptions
 
         options = Options()
@@ -143,11 +143,11 @@ async def get_vk_account_curl_from_browser(login: str, password: str) -> str:
             #    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
             #})
 
-            await asyncio.to_thread(vk_manual_login, driver, login, password)
-            curl = await asyncio.to_thread(get_vk_curl, driver)
+            vk_manual_login(driver, login, password)
+            curl = get_vk_curl(driver)
+            driver.quit()
             return curl
         finally:
-            # Асинхронное закрытие браузера
-            await asyncio.to_thread(driver.quit)
+            driver.quit()
 
-    return await async_wrapper()
+    async_wrapper()

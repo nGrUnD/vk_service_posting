@@ -2,13 +2,12 @@ from src.celery_app import app
 from src.celery_app.tasks.db_update_vk_account import _update_vk_account_db
 from src.vk_api.vk_selenium import get_vk_account_curl_from_browser
 from src.services.auth import AuthService
-from asgiref.sync import async_to_sync
 
 
 @app.task(bind=True)
 def get_vk_account_curl(self, account_id_database: int, login: str, password: str) -> dict:
     try:
-        curl = async_to_sync(get_vk_account_curl_from_browser)(login, password)
+        curl = get_vk_account_curl_from_browser(login, password)
         encrypted_curl = AuthService().encrypt_data(curl)
 
         data = {
