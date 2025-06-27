@@ -150,4 +150,4 @@ def get_vk_account_curl_from_browser(login: str, password: str) -> str:
         finally:
             driver.quit()
 
-    async_wrapper()
+    return async_wrapper()
