@@ -147,9 +147,9 @@ def parse_vk_group_clips_sync(self, vk_group_id: int, access_token: str,
                 stmt = select(CeleryTaskOrm).where(CeleryTaskOrm.task_id == task_id)
                 result = session.execute(stmt)
                 celery_task = result.scalars().one_or_none()
-
-                celery_task.status = "failed"
-                session.commit()
+                if celery_task:
+                    celery_task.status = "failed"
+                    session.commit()
 
         update_status_failure()
         raise e
