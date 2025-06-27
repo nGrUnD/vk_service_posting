@@ -40,7 +40,6 @@ async def parse_vk_profile(curl_encrypted: str, vk_account_id_database: int) -> 
 
 
 @app.task(bind=True)
-@celery_task_with_db_failure_status(mark_vk_account_failure_by_task_id)
 async def parse_vk_profile_sync(self, data: dict):
     curl_enc = data["encrypted_curl"]
     vk_account_id_database = data["vk_account_id_database"]  # Если добавишь в return
