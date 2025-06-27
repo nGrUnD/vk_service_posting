@@ -1,13 +1,4 @@
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
-
-from src.api.dependencies import get_database
 from src.celery_app import app
-from asgiref.sync import async_to_sync
-
-from src.config import settings
-from src.repositories.vk_account import VKAccountRepository
-from src.repositories.vk_group import VKGroupRepository
 from src.schemas.celery_task import CeleryTaskUpdate
 from src.schemas.vk_account import VKAccountUpdate
 from src.schemas.workerpost import WorkerPostAdd
@@ -17,12 +8,10 @@ from src.utils.database_manager import DataBaseManager
 from src.vk_api.vk_account import get_vk_account_data
 from src.vk_api.vk_group import join_group, assign_editor_role
 from src.vk_api.vk_selenium import get_vk_account_curl_from_browser
+from src.celery_app.celery_db import AsyncSessionLocal
 
-async def _update_vk_account_db(account_id_database: int, account_update_data: dict, encrypted_curl: str):
+async def _update_vk_account_db(account_id_database: int, account_update_data: dict, encrypted_curl: str, database_manager,):
     # assume get_one_or_none is async
-    engine = create_async_engine(settings.DB_URL, future=True)
-    AsyncSessionLocal = sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
-    database_manager = DataBaseManager(AsyncSessionLocal)
     async with database_manager as database:
         account = await database.vk_account.get_one_or_none(id=account_id_database)
 
@@ -78,11 +67,8 @@ async def create_workpost(
         vk_group_id_database: int,
         category_id_database: int,
         account_token: str,
+        database_manager,
 ):
-
-    engine = create_async_engine(settings.DB_URL, future=True)
-    AsyncSessionLocal = sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
-    database_manager = DataBaseManager(AsyncSessionLocal)
     async with database_manager as database:
         vk_account_database = await database.vk_account.get_one_or_none(id=account_id_database)
         vk_main_account_database = await database.vk_account.get_one_or_none(id=main_account_id_database)
@@ -111,10 +97,9 @@ async def create_workpost(
 async def update_celery_task_status(
     account_id_database: int,
     new_status: str,
+    database_manager,
 ):
-    engine = create_async_engine(settings.DB_URL, future=True)
-    AsyncSessionLocal = sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
-    database_manager = DataBaseManager(AsyncSessionLocal)
+
     async with database_manager as database:
         celery_task = await database.celery_task.get_one_or_none(vk_account_id=account_id_database)
 
@@ -125,7 +110,7 @@ async def update_celery_task_status(
         await database.commit()
 
 @app.task
-def create_workpost_account(
+async def create_workpost_account(
         account_id_database: int,
         main_account_id_database: int,
         vk_group_id_database: int,
@@ -135,29 +120,31 @@ def create_workpost_account(
         password: str,
 ):
     print("Задача началась!")
+    database_manager = DataBaseManager(AsyncSessionLocal)
     try:
-        curl = async_to_sync(get_vk_account_curl_from_browser)(login, password)
+        curl = await get_vk_account_curl_from_browser(login, password)
         encrypted_curl = AuthService().encrypt_data(curl)
 
-        vk_account_parse_data = async_to_sync(parse_vk_profile)(encrypted_curl, account_id_database)
+        vk_account_parse_data = await parse_vk_profile(encrypted_curl, account_id_database)
         # token
         # vk_account_id
         # vk_account_id_database
         # vk_account_data
-        async_to_sync(_update_vk_account_db)(account_id_database, vk_account_parse_data['vk_account_data'], encrypted_curl)
+        await _update_vk_account_db(account_id_database, vk_account_parse_data['vk_account_data'], encrypted_curl, database_manager)
 
-        async_to_sync(create_workpost)(
+        await create_workpost(
             user_id,
             account_id_database,
             main_account_id_database,
             vk_group_id_database,
             category_id_database,
             vk_account_parse_data['token'],
+            database_manager
         )
 
-        async_to_sync(update_celery_task_status)(account_id_database, "success")
+        await update_celery_task_status(account_id_database, "success", database_manager)
 
 
     except Exception as e:
-        async_to_sync(update_celery_task_status)(account_id_database, "failed")
+        await update_celery_task_status(account_id_database, "failed", database_manager)
         raise

@@ -1,16 +1,12 @@
 from functools import wraps
 from asgiref.sync import async_to_sync
 
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from src.schemas.vk_account import VKAccountUpdate
-from sqlalchemy.orm import sessionmaker
-from src.config import settings
 from src.repositories.vk_account import VKAccountRepository
+from src.celery_app.celery_db import AsyncSessionLocal
 
 
 async def mark_vk_account_failure_by_task_id(vk_account_id: int):
-    engine = create_async_engine(settings.DB_URL, future=True)
-    AsyncSessionLocal = sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
     async with AsyncSessionLocal() as session:
         repo = VKAccountRepository(session)
         data = {

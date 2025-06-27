@@ -1,10 +1,10 @@
-from asgiref.sync import async_to_sync
+
 from src.celery_app import app
 
 from src.services.auth import AuthService
 from src.services.vk_token_service import TokenService
 from src.utils.celery_error_handler import celery_task_with_db_failure_status, mark_vk_account_failure_by_task_id
-from src.vk_api.vk_account import get_vk_account_data, get_vk_account_admin_groups
+from src.vk_api.vk_account import get_vk_account_data
 
 
 async def parse_vk_profile(curl_encrypted: str, vk_account_id_database: int) -> dict:
@@ -41,12 +41,12 @@ async def parse_vk_profile(curl_encrypted: str, vk_account_id_database: int) -> 
 
 @app.task(bind=True)
 @celery_task_with_db_failure_status(mark_vk_account_failure_by_task_id)
-def parse_vk_profile_sync(self, data: dict):
+async def parse_vk_profile_sync(self, data: dict):
     curl_enc = data["encrypted_curl"]
     vk_account_id_database = data["vk_account_id_database"]  # Если добавишь в return
     try:
-        result = async_to_sync(parse_vk_profile)(curl_enc, vk_account_id_database)
+        result = await parse_vk_profile(curl_enc, vk_account_id_database)
         return result
     except Exception as e:
-        async_to_sync(mark_vk_account_failure_by_task_id)(vk_account_id_database)
+        await mark_vk_account_failure_by_task_id(vk_account_id_database)
         raise

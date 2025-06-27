@@ -1,18 +1,13 @@
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
-from src.celery_app import app
-from asgiref.sync import async_to_sync
 
-from src.config import settings
+from src.celery_app import app
+
 from src.schemas.schedule_posting import SchedulePostingUpdate
 from src.utils.database_manager import DataBaseManager
 from src.vk_api.vk_posting import download_vk_clip, upload_short_video, get_clip_info, delete_file
+from src.celery_app.celery_db import AsyncSessionLocal
 
 
-async def posting_error(schedule_database_id: int):
-    engine = create_async_engine(settings.DB_URL, future=True)
-    AsyncSessionLocal = sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
-    database_manager = DataBaseManager(AsyncSessionLocal)
+async def posting_error(schedule_database_id: int, database_manager):
     async with database_manager as database:
         schedule_update_data = SchedulePostingUpdate(
             status = "failed",
@@ -20,10 +15,7 @@ async def posting_error(schedule_database_id: int):
         await database.schedule_posting.edit(schedule_update_data, exclude_unset=True, id=schedule_database_id)
         await database.commit()
 
-async def posting_clip(worker_id: int, token: str, schedule_database_id: int, clip):
-    engine = create_async_engine(settings.DB_URL, future=True)
-    AsyncSessionLocal = sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
-    database_manager = DataBaseManager(AsyncSessionLocal)
+async def posting_clip(worker_id: int, token: str, schedule_database_id: int, clip, database_manager):
     async with database_manager as database:
         workerpost = await database.workerpost.get_one_or_none(id=worker_id)
         category = await database.category.get_one_or_none(id=workerpost.category_id)
@@ -57,9 +49,10 @@ async def posting_clip(worker_id: int, token: str, schedule_database_id: int, cl
         await database.commit()
 
 @app.task
-def create_post(worker_id: int, token: str, schedule_id: int, clip):
+async def create_post(worker_id: int, token: str, schedule_id: int, clip):
+    database_manager = DataBaseManager(AsyncSessionLocal)
     try:
-        async_to_sync(posting_clip)(worker_id, token, schedule_id, clip)
+        await posting_clip(worker_id, token, schedule_id, clip, database_manager)
     except Exception as e:
         print(f"create_post error: {e}")
-        async_to_sync(posting_error)(schedule_id)
+        await posting_error(schedule_id, database_manager)

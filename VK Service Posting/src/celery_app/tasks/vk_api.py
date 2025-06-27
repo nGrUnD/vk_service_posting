@@ -1,17 +1,13 @@
-from celery.result import AsyncResult
-
 from src.celery_app import app
 from src.celery_app.tasks.db_update_vk_account import _update_vk_account_db
-from src.schemas.vk_account import VKAccountUpdate
 from src.vk_api.vk_selenium import get_vk_account_curl_from_browser
 from src.services.auth import AuthService
-from asgiref.sync import async_to_sync
 
 
 @app.task(bind=True)
-def get_vk_account_curl(self, account_id_database: int, login: str, password: str) -> dict:
+async def get_vk_account_curl(self, account_id_database: int, login: str, password: str) -> dict:
     try:
-        curl = async_to_sync(get_vk_account_curl_from_browser)(login, password)
+        curl = await get_vk_account_curl_from_browser(login, password)
         encrypted_curl = AuthService().encrypt_data(curl)
 
         data = {
@@ -19,7 +15,7 @@ def get_vk_account_curl(self, account_id_database: int, login: str, password: st
             "vk_account_id_database": account_id_database,
         }
 
-        async_to_sync(_update_vk_account_db)(account_id_database=account_id_database, account_update_data=data, groups_count=0)
+        await _update_vk_account_db(account_id_database=account_id_database, account_update_data=data, groups_count=0)
 
         return data
 
@@ -30,7 +26,7 @@ def get_vk_account_curl(self, account_id_database: int, login: str, password: st
             "name": "failed",
             "second_name": "failed",
         }
-        async_to_sync(_update_vk_account_db)(account_id_database=account_id_database, account_update_data=error_data, groups_count=0)
+        await _update_vk_account_db(account_id_database=account_id_database, account_update_data=error_data, groups_count=0)
 
         # Можно логировать ошибку, например:
         #self.retry(exc=exc, countdown=60, max_retries=3)  # если хотите повторять задачу
