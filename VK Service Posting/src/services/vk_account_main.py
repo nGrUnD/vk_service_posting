@@ -161,7 +161,6 @@ class VKAccountMainService:
         return {"status": "retry_started", "task_id": new_task_id}
 
     async def delete_account(self, db_vk_account: VKAccount):
-        creds = await self.database.vk_account_cred.get_one_or_none(id=db_vk_account.vk_cred_id)
 
         await self.database.vk_group.delete_where(VKGroupOrm.vk_admin_main_id == db_vk_account.id)
         await self.database.celery_task.delete_where(CeleryTaskOrm.vk_account_id == db_vk_account.id)
@@ -170,7 +169,7 @@ class VKAccountMainService:
         await self.database.vk_account.delete(id=db_vk_account.id)
 
         # Удаляем сами креды
-        await self.database.vk_account_cred.delete(id=creds.id)
+        #await self.database.vk_account_cred.delete(id=creds.id)
 
         await self.database.commit()
         return True
