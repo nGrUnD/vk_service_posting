@@ -7,7 +7,7 @@ from src.utils.celery_error_handler import celery_task_with_db_failure_status, m
 from src.vk_api.vk_account import get_vk_account_data
 
 
-async def parse_vk_profile(curl_encrypted: str, vk_account_id_database: int) -> dict:
+def parse_vk_profile(curl_encrypted: str, vk_account_id_database: int) -> dict:
     curl = AuthService().decrypt_data(curl_encrypted)
 
     token = TokenService.get_token_from_curl(curl)
@@ -44,7 +44,7 @@ async def parse_vk_profile_sync(self, data: dict):
     curl_enc = data["encrypted_curl"]
     vk_account_id_database = data["vk_account_id_database"]  # Если добавишь в return
     try:
-        result = await parse_vk_profile(curl_enc, vk_account_id_database)
+        result = parse_vk_profile(curl_enc, vk_account_id_database)
         return result
     except Exception as e:
         await mark_vk_account_failure_by_task_id(vk_account_id_database)
