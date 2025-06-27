@@ -16,7 +16,7 @@ def get_vk_account_curl(self, account_id_database: int, login: str, password: st
             "vk_account_id_database": account_id_database,
         }
 
-        async_to_sync(_update_vk_account_db)(account_id_database=account_id_database, account_update_data=data, groups_count=0)
+        _update_vk_account_db(account_id_database=account_id_database, account_update_data=data, groups_count=0)
 
         return data
 
@@ -27,7 +27,7 @@ def get_vk_account_curl(self, account_id_database: int, login: str, password: st
             "name": "failed",
             "second_name": "failed",
         }
-        async_to_sync(_update_vk_account_db)(account_id_database=account_id_database, account_update_data=error_data, groups_count=0)
+        _update_vk_account_db(account_id_database=account_id_database, account_update_data=error_data, groups_count=0)
 
         # Можно логировать ошибку, например:
         #self.retry(exc=exc, countdown=60, max_retries=3)  # если хотите повторять задачу
