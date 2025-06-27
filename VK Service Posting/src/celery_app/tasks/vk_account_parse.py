@@ -5,7 +5,7 @@ from src.services.auth import AuthService
 from src.services.vk_token_service import TokenService
 from src.utils.celery_error_handler import celery_task_with_db_failure_status, mark_vk_account_failure_by_task_id
 from src.vk_api.vk_account import get_vk_account_data
-
+import asyncio
 
 def parse_vk_profile(curl_encrypted: str, vk_account_id_database: int) -> dict:
     curl = AuthService().decrypt_data(curl_encrypted)
@@ -44,7 +44,7 @@ async def parse_vk_profile_sync(self, data: dict):
     curl_enc = data["encrypted_curl"]
     vk_account_id_database = data["vk_account_id_database"]  # Если добавишь в return
     try:
-        result = parse_vk_profile(curl_enc, vk_account_id_database)
+        result = await asyncio.to_thread(parse_vk_profile, curl_enc, vk_account_id_database)
         return result
     except Exception as e:
         await mark_vk_account_failure_by_task_id(vk_account_id_database)
