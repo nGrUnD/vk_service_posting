@@ -55,7 +55,11 @@ def _add_or_edit_vk_clips_db(session, vk_clip_data: dict, user_id: int,
                              clip_list_id: int, vk_group_database_id: int):
     print(f"group data: {vk_clip_data}")
     vk_id = vk_clip_data["id"]
-    best_key = best_quality_key(vk_clip_data["files"])
+    data_files = vk_clip_data["files"]
+    if not data_files:
+        return
+
+    best_key = best_quality_key()
     files = vk_clip_data["files"][best_key]
     date = datetime.fromtimestamp(vk_clip_data["date"])
     views = vk_clip_data["views"]
