@@ -16,6 +16,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install gunicorn
 
 ENV PYTHONPATH=/app/src \
     CHROME_BIN=/usr/bin/chromium \
