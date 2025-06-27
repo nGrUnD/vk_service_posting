@@ -71,7 +71,6 @@ async def create_vk_accounts(
         database: DataBaseDep,
         vk_groups_request: VKGroupRequestAddUrl,
 ):
-    """Добавляет новый VK аккаунт для парсинга данных"""
     user = await database.user.get_one_or_none(id=user_id)
     if not user:
         raise HTTPException(
@@ -87,7 +86,6 @@ async def create_vk_accounts(
 
     try:
         detail = await VKGroupSourceService(database).create_groups(user_id, vk_groups_request)
-        #detail = await VKAccountBackupService(database).create_accounts(user_id, groups_url)
         return {"status": "OK", "detail": detail}
     except ValueError as e:
         raise HTTPException(

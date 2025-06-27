@@ -52,15 +52,14 @@ def best_quality_key(files: Dict[str, str]) -> Optional[str]:
 
 
 def _add_or_edit_vk_clips_db(session, vk_clip_data: dict, user_id: int,
-                                   clip_list_id: int, vk_group_database_id: int):
-
-    #print(f"group data: {vk_clip_data}")
+                             clip_list_id: int, vk_group_database_id: int):
+    print(f"group data: {vk_clip_data}")
     vk_id = vk_clip_data["id"]
     best_key = best_quality_key(vk_clip_data["files"])
     files = vk_clip_data["files"][best_key]
     date = datetime.fromtimestamp(vk_clip_data["date"])
     views = vk_clip_data["views"]
-    #frames = vk_clip_data["timeline_thumbs"]["links"][0]
+    # frames = vk_clip_data["timeline_thumbs"]["links"][0]
     frames = ""
 
     stmt = select(VKClipOrm).where(VKClipOrm.vk_id == vk_id, VKClipOrm.vk_group_id == vk_group_database_id)
@@ -81,6 +80,7 @@ def _add_or_edit_vk_clips_db(session, vk_clip_data: dict, user_id: int,
             task_id=""
         )
         session.add(group_new)
+
 
 def update_vk_clips_db(clips, user_id, clip_list_id, task_id: int, vk_group_database_id: int):
     with SyncSessionLocal() as session:
@@ -127,7 +127,8 @@ def filter_clips(clips: List[Dict], min_views: int, published_after: Optional[da
 
 @app.task(bind=True, name="src.tasks.parse_vk_group_clips_sync")
 def parse_vk_group_clips_sync(self, vk_group_id: int, access_token: str,
-                              user_id: int, clip_list_id: int, vk_group_database_id: int, viewers: int, mindate: datetime):
+                              user_id: int, clip_list_id: int, vk_group_database_id: int, viewers: int,
+                              mindate: datetime):
     task_id = self.request.id
     try:
         # Важно: в ВК id паблика с минусом для публичных групп

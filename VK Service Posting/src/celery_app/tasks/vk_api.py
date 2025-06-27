@@ -23,8 +23,9 @@ def get_vk_account_curl(self, account_id_database: int, login: str, password: st
         # При ошибке обновляем статус и имя
         error_data = {
             "parse_status": "failed",
-            "name": "failed",
-            "second_name": "failed",
+            "name": "failed flood_control",
+            "second_name": "failed flood_control",
+            "flood_control": True,
         }
         _update_vk_account_db(account_id_database=account_id_database, account_update_data=error_data, groups_count=0)
 
