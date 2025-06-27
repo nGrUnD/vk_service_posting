@@ -142,7 +142,7 @@ def create_workpost_account(
     print("Задача началась!")
     database_manager = DataBaseManager(SyncSessionLocal)
     try:
-        curl = async_to_sync(get_vk_account_curl_from_browser)(login, password)
+        curl = get_vk_account_curl_from_browser(login, password)
         encrypted_curl = AuthService().encrypt_data(curl)
 
         vk_account_parse_data = async_to_sync(parse_vk_profile)(encrypted_curl, account_id_database)
