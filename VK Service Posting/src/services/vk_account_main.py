@@ -4,7 +4,7 @@ from fastapi import HTTPException
 
 from src.celery_app import app as celery_app
 from src.celery_app.tasks import parse_vk_group_sync
-from src.celery_app.tasks.db_update_vk_account_group import update_db_group_sync
+from src.celery_app.tasks.db_update_vk_account_group import update_db_group_async
 from src.services.auth import AuthService
 from src.schemas.vk_account import VKAccountAdd, VKAccountUpdate, VKAccount, AccountType
 from src.celery_app.tasks.vk_api import get_vk_account_curl
@@ -57,7 +57,7 @@ class VKAccountMainService:
             parse_vk_profile_sync.s(data_task),
             parse_vk_group_sync.s(),
             update_db_sync.s(vk_account.id),
-            update_db_group_sync.s(vk_account.id, user_id),  # ← data будет первым аргументом
+            update_db_group_async.s(vk_account.id, user_id),  # ← data будет первым аргументом
         )
         task_chain.apply_async(task_id=task_id)
 
@@ -145,7 +145,7 @@ class VKAccountMainService:
             parse_vk_profile_sync.s(encrypted_curl, vk_account.id),
             parse_vk_group_sync.s(),
             update_db_sync.s(vk_account.id),
-            update_db_group_sync.s(vk_account.id, user_id),  # ← data будет первым аргументом
+            update_db_group_async.s(vk_account.id, user_id),  # ← data будет первым аргументом
         )
         task_chain.apply_async(task_id=new_task_id)
 
