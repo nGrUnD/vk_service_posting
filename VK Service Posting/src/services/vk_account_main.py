@@ -133,7 +133,7 @@ class VKAccountMainService:
         encrypted_curl = vk_account.encrypted_curl
 
         await self.create_account_curl(user_id, encrypted_curl, "main")
-        return
+        return {"status": "retry_started", "task_id": new_task_id}
 
         # 4. Сгенерировать новый task_id
         first_task = parse_vk_profile_sync.s(encrypted_curl, vk_account.id)
