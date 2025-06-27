@@ -35,7 +35,7 @@ services:
     working_dir: /app
     environment:
       - PYTHONPATH=/app/src
-    command: celery -A src.celery_app worker --loglevel=info --pool=asyncio
+    command: celery -A src.celery_app worker --loglevel=info
 
   frontend:
     build: "./VK Service Posting frontend"
