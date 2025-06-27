@@ -20,7 +20,7 @@ class VKAccountMainService:
         self.database = database
 
     async def create_account_curl(self, user_id: int, curl: str, account_type: str):
-        vk_account = self.database.vk_account.get_one_or_none(account_type="main")
+        vk_account = await self.database.vk_account.get_one_or_none(account_type="main")
         if vk_account:
             await self.delete_account(vk_account)
 
