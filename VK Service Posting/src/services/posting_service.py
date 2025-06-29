@@ -5,6 +5,7 @@ from src.celery_app.tasks import create_post
 
 from src.repositories.category import CategoryRepository
 from src.repositories.clip_list import ClipListRepository
+from src.repositories.proxy import ProxyRepository
 from src.repositories.schedule_posting import SchedulePostingRepository
 from src.repositories.vk_account import VKAccountRepository
 from src.repositories.vk_clip import VKClipRepository
@@ -26,6 +27,7 @@ class PostingService:
         self.clip_list = ClipListRepository(self.session)
         self.vk_clip = VKClipRepository(self.session)
         self.vk_account_repo = VKAccountRepository(self.session)
+        self.proxy = ProxyRepository(self.session)
 
         return self
 
@@ -44,7 +46,12 @@ class PostingService:
     async def check_and_schedule(self, minute: int):
         #print(minute)
         workposts = await self.workpost_repo.get_all()
+        proxies = await self.proxy.get_all()
+        index_proxy = random.randint(0, len(proxies))
+
         for workpost in workposts:
+            proxy = proxies[index_proxy % len(proxies)]
+            index_proxy+=1
             #print(workpost)
             category = await self.category_repo.get_one_or_none(id=workpost.category_id)
             #print(category)
@@ -84,7 +91,7 @@ class PostingService:
             access_token = TokenService.get_token_from_curl(curl)
 
             task = create_post.delay(
-                workpost.id, access_token, schedule_posting.id, clip_data
+                workpost.id, access_token, schedule_posting.id, clip_data, proxy.http
             )
 
             schedule_posting_update_data = SchedulePostingUpdate(

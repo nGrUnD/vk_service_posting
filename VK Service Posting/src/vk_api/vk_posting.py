@@ -8,7 +8,7 @@ import requests
 from vk_api import ApiError
 
 
-def get_clip_info(owner_id: int, video_id: int, access_token: str) -> dict:
+def get_clip_info(owner_id: int, video_id: int, access_token: str, proxy: str) -> dict:
     """
     Получить полную информацию о конкретном клипе (с файлами).
     """
@@ -22,8 +22,11 @@ def get_clip_info(owner_id: int, video_id: int, access_token: str) -> dict:
         "access_token": access_token,
         "v": "5.253"
     }
-
-    response = requests.post(url, data=payload)
+    proxy_response = {
+        "http": proxy,
+        "https": proxy,
+    }
+    response = requests.post(url, data=payload, proxies=proxy_response)
     data = response.json()
     if "error" in data:
         raise Exception(data["error"]["error_msg"])
@@ -35,6 +38,7 @@ def get_clip_info(owner_id: int, video_id: int, access_token: str) -> dict:
 def download_vk_clip(files: dict[str, str],
                      vk_group_id: int,
                      vk_clip_id: int,
+                     proxy: str,
                      save_dir: str = ".",
                      filename: str = None) -> str:
     """
@@ -84,13 +88,18 @@ def download_vk_clip(files: dict[str, str],
 
     quality = best_quality_key(files)
 
+    proxy_response = {
+        "http": proxy,
+        "https": proxy,
+    }
+
     url = files[quality]
     if filename is None:
         ext = "mp4"
         filename = f"vk_clip_{vk_group_id}_{vk_clip_id}_{quality}.{ext}"
     path = os.path.join(save_dir, filename)
 
-    with requests.get(url, stream=True) as r:
+    with requests.get(url, stream=True, proxies=proxy_response) as r:
         r.raise_for_status()
         with open(path, "wb") as f:
             for chunk in r.iter_content(chunk_size=8192):
@@ -99,7 +108,7 @@ def download_vk_clip(files: dict[str, str],
     return path
 
 
-def wait_for_processing(vk, video_id, owner_id, timeout=60, interval=5):
+def wait_for_processing(vk, video_id, owner_id, proxy, timeout=60, interval=5):
     """
     Ожидает завершения обработки видео.
     Проверяет каждую `interval` секунду, максимум `timeout` секунд.
@@ -129,9 +138,19 @@ def get_need_wall_post(wall_post: bool) -> int:
         return 1
     return 0
 
-def upload_short_video(token: str, group_id: int, video_path: str, description: str, wall_post: bool):
+def upload_short_video(token: str, group_id: int, video_path: str, description: str, wall_post: bool, proxy: str):
     try:
-        vk = vk_api.VkApi(token=token).get_api()
+        proxy_response = {
+            "http": proxy,
+            "https": proxy,
+        }
+        session = requests.Session()
+        session.proxies.update({
+            'http': proxy,
+            'https': proxy
+        })
+
+        vk = vk_api.VkApi(token=token, session=session).get_api()
         file_size = os.path.getsize(video_path)
         # например, -12345 для паблика
         # 1. Получаем upload URL
@@ -144,13 +163,13 @@ def upload_short_video(token: str, group_id: int, video_path: str, description: 
         # 2. Загружаем шортс
         print("2. Загружаем шортс...")
         with open(video_path, 'rb') as f:
-            response = requests.post(upload_data['upload_url'], files={'file': f})
+            response = requests.post(upload_data['upload_url'], files={'file': f}, proxies=proxy_response)
         video_info = response.json()
 
         # 3. ВАЖНО: Добавляем задержку для обработки видео
         print("3. Ждем обработки шортс...")
         time.sleep(30)
-        wait_for_processing(vk, video_info['video_id'], video_info['owner_id'], 3)
+        wait_for_processing(vk, video_info['video_id'], video_info['owner_id'], proxy_response, 3)
 
         # 3.5 Редактируем описание
         print("3.5 Редактируем описание...")
