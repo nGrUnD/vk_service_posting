@@ -68,7 +68,7 @@ class TokenService:
         return TokenRequest(url, headers, data, cookies)
 
     @staticmethod
-    def get_token_from_curl(curl_cmd: str) -> str:
+    def get_token_from_curl(curl_cmd: str, proxy: str = None) -> str:
         """
         Парсит curl_cmd, выполняет POST (с передачей cookies) и возвращает access_token.
         """
@@ -82,12 +82,20 @@ class TokenService:
         # print("DATA:", req.data)
         # print("COOKIES:", req.cookies)
 
+        proxy_request = None
+        if not proxy:
+            proxy_response = {
+                "http": proxy,
+                "https": proxy,
+            }
+
         # Выполняем запрос, передавая cookies отдельно
         resp = requests.post(
             req.url,
             headers=req.headers,
             data=req.data,
-            cookies=req.cookies
+            cookies=req.cookies,
+            proxies=proxy_request,
         )
         resp.raise_for_status()
         json_resp = resp.json()
