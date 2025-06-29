@@ -66,9 +66,12 @@ class WorkerPostService:
 
         proxies = await self.database.proxy.get_all()
 
+        index_proxy = 0
+
         for account_log_pass, vk_group_id in zip(added_accounts_log_pass, vk_groups_ids):
 
-            proxy = random.choice(proxies)
+            proxy = proxies[index_proxy % len(proxies)]
+            index_proxy+=1
             category_database = await self.database.category.get_one_or_none(id=request_add.category_id)
 
             current_cred = await self.database.vk_account_cred.get_one_or_none(
