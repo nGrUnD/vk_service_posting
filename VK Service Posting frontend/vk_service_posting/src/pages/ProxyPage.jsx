@@ -45,9 +45,6 @@ export default function ProxyPage() {
 
     const handleConnect = async () => {
         const newProxies = inputProxies
-            .split('\n')
-            .map(line => line.trim())
-            .filter(line => line);
 
         if (!newProxies.length) {
             messageApi.warning('Введите список прокси.');
