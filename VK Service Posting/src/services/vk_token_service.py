@@ -82,7 +82,7 @@ class TokenService:
         # print("DATA:", req.data)
         # print("COOKIES:", req.cookies)
 
-        proxy_request = None
+        proxy_response = None
         if not proxy:
             proxy_response = {
                 "http": proxy,
@@ -95,7 +95,7 @@ class TokenService:
             headers=req.headers,
             data=req.data,
             cookies=req.cookies,
-            proxies=proxy_request,
+            proxies=proxy_response,
         )
         resp.raise_for_status()
         json_resp = resp.json()
