@@ -88,7 +88,7 @@ class PostingService:
             schedule_posting = await self.schedule_posting.add(schedule_posting_add)
 
             curl = AuthService().decrypt_data(vk_account.encrypted_curl)
-            access_token = TokenService.get_token_from_curl(curl)
+            access_token = TokenService.get_token_from_curl(curl, proxy.http)
 
             task = create_post.delay(
                 workpost.id, access_token, schedule_posting.id, clip_data, proxy.http
