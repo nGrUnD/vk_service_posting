@@ -163,13 +163,13 @@ class WorkerPostService:
             vk_group = await self.database.vk_group.get_one_or_none(id=workpost.vk_group_id)
             vk_account = await self.database.vk_account.get_one_or_none(id=workpost.vk_account_id)
             category = await self.database.category.get_one_or_none(id=workpost.category_id)
-            clip_list = await self.database.clip_list.get_one_or_none(id=category.clip_list_id)
+            #clip_list = await self.database.clip_list.get_one_or_none(id=category.clip_list_id)
             info = {
                 "workpost": workpost,
                 "vk_group": vk_group,
                 "vk_account": vk_account,
                 "category": category,
-                "clip_list": clip_list,
+                #"clip_list": clip_list,
             }
             workposts_info.append(info)
 
