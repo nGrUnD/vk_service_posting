@@ -19,6 +19,7 @@ from src.api.category import router as router_category
 from src.api.vk_group import router as router_group
 from src.api.clip_list import router as router_clip_list
 from src.api.workerpost import router as router_workerpost
+from src.api.proxy import router as router_proxy
 
 from src.services.posting_service import PostingService
 
@@ -68,6 +69,7 @@ app.include_router(router_category)
 app.include_router(router_group)
 app.include_router(router_clip_list)
 app.include_router(router_workerpost)
+app.include_router(router_proxy)
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)

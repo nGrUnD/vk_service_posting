@@ -1,6 +1,7 @@
 from src.repositories.category import CategoryRepository
 from src.repositories.celery_task import CeleryTaskRepository
 from src.repositories.clip_list import ClipListRepository
+from src.repositories.proxy import ProxyRepository
 from src.repositories.schedule_posting import SchedulePostingRepository
 from src.repositories.user import UserRepository
 from src.repositories.vk_account import VKAccountRepository
@@ -27,6 +28,7 @@ class DataBaseManager:
         self.vk_clip = VKClipRepository(self.session)
         self.workerpost = WorkerPostRepository(self.session)
         self.schedule_posting = SchedulePostingRepository(self.session)
+        self.proxy = ProxyRepository(self.session)
 
         return self
 

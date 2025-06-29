@@ -43,6 +43,29 @@ def upgrade() -> None:
         sa.UniqueConstraint("email"),
     )
     op.create_table(
+        "proxy",
+        sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
+        sa.Column("user_id", sa.BigInteger(), nullable=False),
+        sa.Column("http", sa.String(length=200), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.TIMESTAMP(timezone=True),
+            server_default="NOW()",
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.TIMESTAMP(timezone=True),
+            server_default="NOW()",
+            nullable=False,
+        ),
+        sa.ForeignKeyConstraint(
+            ["user_id"],
+            ["user.id"],
+        ),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_table(
         "clip_list",
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
         sa.Column("name", sa.String(), nullable=False),

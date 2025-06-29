@@ -14,6 +14,7 @@ import ConnectBackupAccountPage from './pages/ConnectBackupAccountPage.jsx';
 import SourceGroupPage from './pages/SourceGroupPage.jsx';
 import CatergorySettingsPage from './pages/CatergorySettingsPage.jsx';
 import WorkflowStatusPage from './pages/WorkflowStatusPage.jsx';
+import ProxyPage from './pages/ProxyPage.jsx';
 
 import 'antd/dist/reset.css';
 import './index.css';
@@ -47,6 +48,7 @@ root.render(
                         <Route path="connect-source-group" element={<SourceGroupPage />} />
                         <Route path="category-settings" element={<CatergorySettingsPage />} />
                         <Route path="workflow-status" element={<WorkflowStatusPage />} />
+                        <Route path="proxy" element={<ProxyPage />} />
                     </Route>
                 </Routes>
             </BrowserRouter>

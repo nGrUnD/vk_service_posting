@@ -40,6 +40,10 @@ export default function MainTab() {
             label: 'Статус рабочего процесса',
             key: 'workflow-status',
         },
+        {
+            label: 'Прокси',
+            key: 'proxy',
+        },
     ];
 
     return (
