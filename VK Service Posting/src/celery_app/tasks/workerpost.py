@@ -135,11 +135,12 @@ def create_workpost_account(
         user_id: int,
         login: str,
         password: str,
+        proxy: str,
 ):
     print("Задача началась!")
     database_manager = DataBaseManager(SyncSessionLocal)
     try:
-        curl = get_vk_account_curl_from_browser(login, password)
+        curl = get_vk_account_curl_from_browser(login, password, proxy)
         encrypted_curl = AuthService().encrypt_data(curl)
 
         vk_account_parse_data = parse_vk_profile(encrypted_curl, account_id_database)

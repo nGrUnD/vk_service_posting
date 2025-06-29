@@ -113,7 +113,7 @@ def vk_manual_login(driver, login, password):
     time.sleep(3)
     print("Авторизация успешна!")
 
-def get_vk_account_curl_from_browser(login: str, password: str) -> str:
+def get_vk_account_curl_from_browser(login: str, password: str, proxy: str) -> str:
     # 1) Настраиваем фильтры для random_user_agent
 
     def async_wrapper():
@@ -129,7 +129,12 @@ def get_vk_account_curl_from_browser(login: str, password: str) -> str:
         options.add_argument(f'--user-agent={get_random_user_agent()}')
 
         seleniumwire_options = {
-            'disable_encoding': True
+            'proxy': {
+                'http': proxy,
+                'https': proxy,
+                'no_proxy': 'localhost,127.0.0.1'
+            },
+            'disable_encoding': True,
         }
 
         driver = webdriver.Chrome(

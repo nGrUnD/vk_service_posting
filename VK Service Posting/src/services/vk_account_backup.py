@@ -73,7 +73,10 @@ class VKAccountBackupService:
         print(f"Аккаунты записаны в базу данных: {added_accounts_log_pass}")
         print(f"Аккаунты failed (уже есть в базе): {failed_accounts_log_pass}")
 
+        proxies = await self.database.proxy.get_all()
+
         for account_log_pass in added_accounts_log_pass:
+            proxy = random.choice(proxies)
             current_cred = await self.database.vk_account_cred.get_one_or_none(
                 user_id=user_id,
                 login=account_log_pass.login,
@@ -98,7 +101,7 @@ class VKAccountBackupService:
 
             task = chain(
                 get_vk_account_curl.s(vk_account.id, account_log_pass.login,
-                                      AuthService().decrypt_data(current_cred.encrypted_password)),
+                                      AuthService().decrypt_data(current_cred.encrypted_password), proxy.http),
                 parse_vk_profile_sync.s(),
                 parse_vk_group_sync.s(),
                 update_db_sync.s(vk_account.id),

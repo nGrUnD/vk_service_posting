@@ -5,9 +5,9 @@ from src.services.auth import AuthService
 
 
 @app.task(bind=True)
-def get_vk_account_curl(self, account_id_database: int, login: str, password: str) -> dict:
+def get_vk_account_curl(self, account_id_database: int, login: str, password: str, proxy: str) -> dict:
     try:
-        curl = get_vk_account_curl_from_browser(login, password)
+        curl = get_vk_account_curl_from_browser(login, password, proxy)
         encrypted_curl = AuthService().encrypt_data(curl)
 
         data = {

@@ -1,3 +1,4 @@
+import random
 import re
 from typing import List
 
@@ -62,8 +63,12 @@ class WorkerPostService:
         main_vk_account_database = await self.database.vk_account.get_one_or_none(account_type="main")
         failed_account_log_pass = []
         failed_group_ids = []
+
+        proxies = await self.database.proxy.get_all()
+
         for account_log_pass, vk_group_id in zip(added_accounts_log_pass, vk_groups_ids):
 
+            proxy = random.choice(proxies)
             category_database = await self.database.category.get_one_or_none(id=request_add.category_id)
 
             current_cred = await self.database.vk_account_cred.get_one_or_none(
@@ -107,6 +112,7 @@ class WorkerPostService:
                 user_id=user_id,
                 login=account_log_pass.login,
                 password=account_log_pass.password,
+                proxy=proxy.http
             )
 
             await self.database.vk_account.edit(
