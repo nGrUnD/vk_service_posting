@@ -4,6 +4,9 @@ from datetime import datetime
 class ProxyRequestAdd(BaseModel):
     proxys: str
 
+class ProxyRequestDelete(BaseModel):
+    proxys: list[str]
+
 class ProxyAdd(BaseModel):
     user_id: int
     http: str

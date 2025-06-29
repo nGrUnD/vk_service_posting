@@ -6,9 +6,10 @@ import {
     Button,
     List,
     message,
-    Space
+    Space,
+    Checkbox
 } from 'antd';
-import { ReloadOutlined } from '@ant-design/icons';
+import { ReloadOutlined, DeleteOutlined } from '@ant-design/icons';
 import api from '../api/axios';
 
 const { Title } = Typography;
@@ -18,6 +19,7 @@ export default function ProxyPage() {
     const [messageApi, contextHolder] = message.useMessage();
     const [inputProxies, setInputProxies] = useState('');
     const [loadedProxies, setLoadedProxies] = useState([]);
+    const [selected, setSelected] = useState({});
     const [loading, setLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
 
@@ -43,6 +45,9 @@ export default function ProxyPage() {
 
     const handleConnect = async () => {
         const newProxies = inputProxies
+            .split('\n')
+            .map(line => line.trim())
+            .filter(line => line);
 
         if (!newProxies.length) {
             messageApi.warning('Введите список прокси.');
@@ -69,6 +74,43 @@ export default function ProxyPage() {
         setLoading(false);
     };
 
+    const toggleSelection = (proxyId) => {
+        setSelected(prev => ({ ...prev, [proxyId]: !prev[proxyId] }));
+    };
+
+    const handleDeleteSelected = async () => {
+        const toDelete = Object.entries(selected)
+            .filter(([_, checked]) => checked)
+            .map(([id]) => {
+                const found = loadedProxies.find(p => p.id === parseInt(id));
+                return found?.http;
+            })
+            .filter(Boolean);
+
+        if (!toDelete.length) {
+            messageApi.info('Выберите прокси для удаления.');
+            return;
+        }
+
+        setLoading(true);
+
+        try {
+            await api.delete('/proxy/{user_id}/delete_list', {
+                data: { proxys: toDelete },
+                headers: { 'Content-Type': 'application/json' }
+            });
+
+            messageApi.success('Выбранные прокси удалены.');
+            await fetchLoadedProxies();
+            setSelected({});
+        } catch (error) {
+            console.error(error);
+            messageApi.error('Ошибка при удалении прокси.');
+        }
+
+        setLoading(false);
+    };
+
     return (
         <div className="">
             {contextHolder}
@@ -83,7 +125,7 @@ export default function ProxyPage() {
                             <TextArea
                                 className="flex-1"
                                 rows={16}
-                                placeholder={'127.0.0.1:8080\nlogin:pass@host:port'}
+                                placeholder={'http://login:pass@127.0.0.1:8080\nhttp://login:pass@host:port'}
                                 value={inputProxies}
                                 onChange={e => setInputProxies(e.target.value)}
                             />
@@ -93,14 +135,25 @@ export default function ProxyPage() {
                         <div className="flex-1 flex flex-col">
                             <div className="flex justify-between items-center mb-2">
                                 <Title level={5}>Загруженные прокси</Title>
-                                <Button
-                                    icon={<ReloadOutlined />}
-                                    size="small"
-                                    onClick={fetchLoadedProxies}
-                                    loading={refreshing}
-                                >
-                                    Обновить
-                                </Button>
+                                <Space>
+                                    <Button
+                                        icon={<ReloadOutlined />}
+                                        size="small"
+                                        onClick={fetchLoadedProxies}
+                                        loading={refreshing}
+                                    >
+                                        Обновить
+                                    </Button>
+                                    <Button
+                                        icon={<DeleteOutlined />}
+                                        type="link"
+                                        danger
+                                        onClick={handleDeleteSelected}
+                                        loading={loading}
+                                    >
+                                        Удалить выбранные
+                                    </Button>
+                                </Space>
                             </div>
 
                             <div className="overflow-y-auto border border-gray-200 rounded p-2 max-h-[320px]">
@@ -110,7 +163,14 @@ export default function ProxyPage() {
                                     dataSource={loadedProxies}
                                     locale={{ emptyText: 'Нет прокси' }}
                                     renderItem={item => (
-                                        <List.Item>{item.http}</List.Item>
+                                        <List.Item>
+                                            <Checkbox
+                                                checked={selected[item.id]}
+                                                onChange={() => toggleSelection(item.id)}
+                                            >
+                                                {item.http}
+                                            </Checkbox>
+                                        </List.Item>
                                     )}
                                 />
                             </div>

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Body
 
 from src.api.dependencies import DataBaseDep, UserIdDep
-from src.schemas.proxy import ProxyRequestAdd
+from src.schemas.proxy import ProxyRequestAdd, ProxyRequestDelete
 from src.schemas.vk_account_cred import VKAccountCredRequestAdd, VKAccountCredAdd
 from src.services.auth import AuthService
 from src.services.service_proxy import ProxyService
@@ -32,3 +32,13 @@ async def delete_proxy(
     await database.commit()
 
     return {"status": "OK"}
+
+@router.delete("/{user_id}/delete_list")
+async def delete_proxy_list(
+    user_id: UserIdDep,
+    database: DataBaseDep,
+    list_proxy: ProxyRequestDelete = Body(...),
+):
+    await ProxyService(database, user_id).remove_proxies(list_proxy.proxys)
+
+    return {"status": "OK", "deleted_logins": list_proxy}

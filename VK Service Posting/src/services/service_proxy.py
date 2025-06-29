@@ -1,3 +1,4 @@
+from src.models.proxy import ProxyOrm
 from src.schemas.proxy import ProxyAdd
 from src.utils.database_manager import DataBaseManager
 
@@ -22,3 +23,7 @@ class ProxyService:
         await self.database.commit()
 
         return proxies
+
+    async def remove_proxies(self, proxys: list[str]):
+        await self.database.proxy.delete_where(ProxyOrm.http.in_(proxys))
+        await self.database.commit()
