@@ -44,7 +44,7 @@ class WorkerPostService:
                 login=account_log_pass.login,
             )
             if current_cred:
-                added_accounts_log_pass.append(account_log_pass)
+                failed_accounts_log_pass.append(account_log_pass)
                 continue
 
             encrypted_password = AuthService().encrypt_data(account_log_pass.password)
