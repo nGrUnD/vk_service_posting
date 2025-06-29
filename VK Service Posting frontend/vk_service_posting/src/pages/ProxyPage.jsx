@@ -1,356 +1,129 @@
-import React, {useState, useEffect} from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Card,
     Typography,
-    Table,
-    Space,
+    Input,
     Button,
-    Input, Modal, Popconfirm, Switch, Select, message,
+    List,
+    message,
+    Space
 } from 'antd';
+import { ReloadOutlined } from '@ant-design/icons';
 import api from '../api/axios';
-import {ReloadOutlined, SearchOutlined, SettingOutlined} from '@ant-design/icons';
 
-const {Title} = Typography;
+const { Title } = Typography;
+const { TextArea } = Input;
 
 export default function ProxyPage() {
     const [messageApi, contextHolder] = message.useMessage();
-    const [data, setData] = useState([]);
-    const [searchText, setSearchText] = useState('');
+    const [inputProxies, setInputProxies] = useState('');
+    const [loadedProxies, setLoadedProxies] = useState([]);
     const [loading, setLoading] = useState(false);
-    const [currentPage, setCurrentPage] = useState(1);
-    const [pageSize, setPageSize] = useState(5)
-    const [modalOpen, setModalOpen] = useState(false);
-    const [editingCategory, setEditingCategory] = useState(null);
-    const [clipLists, setClipLists] = useState([]);
-    const [loadingClips, setLoadingClips] = useState(false);
-    const [categories, setCategories] = useState([]);
-    const [editingCategoryFull, setEditingCategoryFull] = useState(null);
+    const [refreshing, setRefreshing] = useState(false);
 
+    useEffect(() => {
+        fetchLoadedProxies();
+    }, []);
 
-    const fetchData = async () => {
-        setLoading(true);
+    const fetchLoadedProxies = async () => {
+        setRefreshing(true);
         try {
-            const response = await api.get(`/users/{user_id}/workerpost/all`);
-            if (response.status !== 200) {
-                throw new Error('Ошибка загрузки данных');
+            const response = await api.get('/users/{user_id}/proxies');
+            if (Array.isArray(response.data)) {
+                setLoadedProxies(response.data);
+            } else {
+                messageApi.error('Ошибка при получении прокси.');
             }
-
-            // Используем response.data вместо response.json()
-            const json = response.data;
-
-            const tableData = json.map((item) => {
-                const {workpost, vk_group, vk_account, category, clip_list} = item;
-
-                return {
-                    key: workpost.id,
-                    groupName: vk_group.name,
-                    groupUrl: vk_group.vk_group_url,
-                    accountName: `${vk_account.name} ${vk_account.second_name || ''}`.trim(),
-                    accountUrl: vk_account.vk_account_url,
-                    clipSources: clip_list ? [clip_list.name] : [],
-                    category: {
-                        id: category.id,
-                        name: category.name,
-                        clipsPerHour: category.hourly_limit,
-                        description: category.description,
-                        repost: category.repost_enabled,
-                        inWork: category.is_active,
-                    },
-                    floodControl: vk_account.flood_control ? 'Да' : 'Нет',
-                };
-            });
-
-            setData(tableData);
         } catch (error) {
             console.error(error);
-        } finally {
-            setLoading(false);
+            messageApi.error('Ошибка при загрузке прокси.');
         }
+        setRefreshing(false);
     };
 
-    const [form, setForm] = useState({
-        name: '',
-        description: '',
-        repost_enabled: false,
-        daily_limit: 0,
-        hourly_limit: 0,
-        is_active: false,
-        clip_list_id: null,
-    });
+    const handleConnect = async () => {
+        const newProxies = inputProxies
+            .split('\n')
+            .map(line => line.trim())
+            .filter(line => line);
 
-    const loadClipLists = async () => {
-        setLoadingClips(true);
+        if (!newProxies.length) {
+            messageApi.warning('Введите список прокси.');
+            return;
+        }
+
+        setLoading(true);
+
         try {
-            const res = await api.get('/users/{user_id}/clip_list/get_all');
-            setClipLists(res.data);
-        } catch {
-            messageApi.error('Не удалось загрузить списки клипов');
-        } finally {
-            setLoadingClips(false);
+            await api.post(
+                '/users/{user_id}/proxies/create_list',
+                { proxies: newProxies },
+                { headers: { 'Content-Type': 'application/json' } }
+            );
+
+            messageApi.success('Прокси успешно добавлены.');
+            setInputProxies('');
+            await fetchLoadedProxies();
+        } catch (error) {
+            console.error(error);
+            messageApi.error('Ошибка при добавлении прокси.');
         }
+
+        setLoading(false);
     };
-
-    const loadCategories = async () => {
-        try {
-            const res = await api.get('/users/{user_id}/categories/get_all');
-            setCategories(res.data);
-        } catch {
-            messageApi.error('Не удалось загрузить категории');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const openModal = (categoryKey) => {
-        // categoryKey — id категории, или весь объект категории, зависит от вызова
-        if (categoryKey) {
-            // Ищем полный объект категории по id из списка categories
-            const fullCategory = categories.find(c => c.id === categoryKey.id || c.id === categoryKey);
-            setEditingCategoryFull(fullCategory);
-            if (fullCategory) {
-                setForm({
-                    name: fullCategory.name || '',
-                    description: fullCategory.description || '',
-                    repost_enabled: fullCategory.repost_enabled || false,
-                    daily_limit: fullCategory.daily_limit || 0,
-                    hourly_limit: fullCategory.hourly_limit || 0,
-                    is_active: fullCategory.is_active || false,
-                    clip_list_id: fullCategory.clip_list_id ?? null,
-                });
-            }
-        } else {
-            console.error("Не нашло category id")
-        }
-        setModalOpen(true);
-    };
-
-    const handleSave = async () => {
-        try {
-            await api.put(`/users/{user_id}/categories/edit/${editingCategoryFull.id}`, {
-                ...form,
-                repost_enabled: form.repost_enabled ?? false,
-            });
-            messageApi.success('Категория обновлена');
-            setModalOpen(false);
-            loadCategories();
-            fetchData();
-        } catch {
-            messageApi.error('Ошибка при сохранении категории');
-        }
-    };
-
-    useEffect(() => {
-        loadCategories();
-        loadClipLists(); // ← Загрузим списки при монтировании
-    }, []);
-
-    useEffect(() => {
-        fetchData();
-    }, []);
-
-    const resetFilters = () => {
-        setSearchText('');
-        setCurrentPage(1);
-    };
-
-    const filteredData = data.filter((item) =>
-        item.groupName.toLowerCase().includes(searchText.toLowerCase())
-    );
-
-    const columns = [
-        {
-            title: 'ВК группа',
-            dataIndex: 'groupName',
-            key: 'groupName',
-            render: (text, record) => (
-                <a href={record.groupUrl} target="_blank" rel="noreferrer">
-                    {text}
-                </a>
-            ),
-            sorter: (a, b) => a.groupName.localeCompare(b.groupName),
-        },
-        {
-            title: 'ВК аккаунт',
-            dataIndex: 'accountName',
-            key: 'accountName',
-            render: (text, record) => (
-                <a href={record.accountUrl} target="_blank" rel="noreferrer">
-                    {text}
-                </a>
-            ),
-            sorter: (a, b) => a.accountName.localeCompare(b.accountName),
-        },
-        {
-            title: 'Список источников',
-            dataIndex: 'clipSources',
-            key: 'clipSources',
-            render: (sources) => sources.join(', '),
-        },
-        {
-            title: 'Клипов в час',
-            dataIndex: ['category', 'clipsPerHour'],
-            key: 'clipsPerHour',
-            sorter: (a, b) => a.category.clipsPerHour - b.category.clipsPerHour,
-        },
-        {
-            title: 'Описание',
-            dataIndex: ['category', 'description'],
-            key: 'description',
-        },
-        {
-            title: 'Репост',
-            dataIndex: ['category', 'repost'],
-            key: 'repost',
-            render: (val) => (val ? 'Да' : 'Нет'),
-        },
-        {
-            title: 'Флудконтроль',
-            dataIndex: 'floodControl',
-            key: 'floodControl',
-        },
-        {
-            title: 'В работе',
-            dataIndex: ['category', 'inWork'],
-            key: 'inWork',
-            render: (val) => (val ? 'Да' : 'Нет'),
-        },
-        {
-            title: 'Настройки',
-            key: 'settings',
-            render: (_, record) => (
-                <Button
-                    icon={<SettingOutlined/>}
-                    onClick={() => openModal(record.category)}
-                    type="primary"
-                    size="small"
-                >
-                    Настроить
-                </Button>
-            ),
-        },
-    ];
 
     return (
-        <div>
+        <div className="">
             {contextHolder}
 
-            <div className="min-h-screen bg-gray-50 p-6">
-                <Card className="max-w-full">
-                    <div className="flex flex-col gap-6">
-                        <div className="flex justify-between items-center flex-wrap gap-2">
-                            <Title level={3} className="!mb-0">
-                                Статус рабочего процесса
-                            </Title>
-                            <Space>
-                                <Button icon={<ReloadOutlined/>} onClick={fetchData} loading={loading}/>
-                                <Button onClick={resetFilters}>Сбросить фильтры</Button>
-                            </Space>
+            <div className="min-h-screen w-screen bg-gray-50 p-4">
+                <Title level={3} className="text-center mb-6">Подключить прокси</Title>
+                <Card className="h-full w-full" styles={{ body: { padding: 24 } }}>
+                    <div className="flex flex-col xl:flex-row gap-6 mt-6 h-[calc(80vh-240px)] w-full">
+                        {/* Левая часть: Ввод прокси */}
+                        <div className="flex-[2] flex flex-col">
+                            <Title level={5}>Добавить прокси (по одному на строку)</Title>
+                            <TextArea
+                                className="flex-1"
+                                rows={16}
+                                placeholder={'127.0.0.1:8080\nlogin:pass@host:port'}
+                                value={inputProxies}
+                                onChange={e => setInputProxies(e.target.value)}
+                            />
                         </div>
 
-                        <Space direction="horizontal" wrap>
-                            <Input
-                                allowClear
-                                placeholder="Поиск по названию группы"
-                                prefix={<SearchOutlined/>}
-                                value={searchText}
-                                onChange={(e) => {
-                                    setSearchText(e.target.value);
-                                    setCurrentPage(1);
-                                }}
-                            />
-                        </Space>
-
-                        <Table
-                            dataSource={filteredData}
-                            columns={columns}
-                            loading={loading}
-                            pagination={{
-                                current: currentPage,
-                                pageSize: pageSize,
-                                onChange: (page, size) => {
-                                    setCurrentPage(page);
-                                    setPageSize(size);
-                                },
-                                showSizeChanger: true,
-                                pageSizeOptions: ['5', '10', '20', '50'],
-                                showTotal: (total, range) => `${range[0]}-${range[1]} из ${total} записей`,
-                            }}
-                        />
-
-                        <Modal
-                            open={modalOpen}
-                            onCancel={() => setModalOpen(false)}
-                            title={editingCategory ? 'Редактирование категории' : 'Создание категории'}
-                            footer={[
-                                editingCategory,
-                                <Button key="cancel" onClick={() => setModalOpen(false)}>
-                                    Отмена
-                                </Button>,
-                                <Button key="save" type="primary" onClick={handleSave}>
-                                    Сохранить
-                                </Button>,
-                            ]}
-                        >
-                            <div className="flex flex-col gap-4">
-                                <Input
-                                    className="w-full"
-                                    placeholder="Название"
-                                    value={form.name}
-                                    onChange={e => setForm({...form, name: e.target.value})}
-                                />
-                                <Input.TextArea
-                                    className="w-full"
-                                    placeholder="Описание"
-                                    value={form.description}
-                                    onChange={e => setForm({...form, description: e.target.value})}
-                                />
-                                <div className="flex items-center justify-between">
-                                    <span>Репост (на стену):</span>
-                                    <Switch
-                                        checked={form.repost_enabled}
-                                        onChange={checked => setForm({...form, repost_enabled: checked})}
-                                    />
-                                </div>
-                                <div className="flex gap-4">
-                                    <div className="flex flex-col w-full">
-                                        <label className="text-sm text-gray-600 mb-1">Лимит в сутки</label>
-                                        <Input
-                                            type="number"
-                                            value={form.daily_limit}
-                                            onChange={e => setForm({...form, daily_limit: Number(e.target.value)})}
-                                        />
-                                    </div>
-                                    <div className="flex flex-col w-full">
-                                        <label className="text-sm text-gray-600 mb-1">Лимит в час</label>
-                                        <Input
-                                            type="number"
-                                            value={form.hourly_limit}
-                                            onChange={e => setForm({...form, hourly_limit: Number(e.target.value)})}
-                                        />
-                                    </div>
-                                </div>
-                                <Select
-                                    placeholder="Выберите список клипов"
-                                    value={form.clip_list_id}
-                                    onChange={value => setForm({...form, clip_list_id: value})}
-                                    allowClear
-                                    loading={loadingClips}
-                                    options={clipLists.map(list => ({
-                                        label: list.name,
-                                        value: list.id
-                                    }))}
-                                />
-
-                                <div className="flex items-center justify-between">
-                                    <span>В расписании / В работе:</span>
-                                    <Switch
-                                        checked={form.is_active}
-                                        onChange={checked => setForm({...form, is_active: checked})}
-                                    />
-                                </div>
+                        {/* Правая часть: Загруженные прокси */}
+                        <div className="flex-1 flex flex-col">
+                            <div className="flex justify-between items-center mb-2">
+                                <Title level={5}>Загруженные прокси</Title>
+                                <Button
+                                    icon={<ReloadOutlined />}
+                                    size="small"
+                                    onClick={fetchLoadedProxies}
+                                    loading={refreshing}
+                                >
+                                    Обновить
+                                </Button>
                             </div>
-                        </Modal>
 
+                            <div className="overflow-y-auto border border-gray-200 rounded p-2 max-h-[320px]">
+                                <List
+                                    bordered
+                                    size="small"
+                                    dataSource={loadedProxies}
+                                    locale={{ emptyText: 'Нет прокси' }}
+                                    renderItem={item => (
+                                        <List.Item>{item.http}</List.Item>
+                                    )}
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="mt-6 text-center">
+                        <Button type="primary" size="large" onClick={handleConnect} loading={loading}>
+                            Подключить
+                        </Button>
                     </div>
                 </Card>
             </div>
