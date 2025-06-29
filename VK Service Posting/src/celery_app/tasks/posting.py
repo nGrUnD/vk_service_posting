@@ -19,7 +19,7 @@ async def posting_error(schedule_database_id: int, database_manager):
         await database.schedule_posting.edit(schedule_update_data, exclude_unset=True, id=schedule_database_id)
         await database.commit()
 
-def posting_clip(worker_id: int, token: str, schedule_database_id: int, clip, database_manager):
+def posting_clip(worker_id: int, token: str, schedule_database_id: int, clip):
     with SyncSessionLocal() as session:
         stmt = select(WorkerPostOrm).where(WorkerPostOrm.id == worker_id)
         result = session.execute(stmt)
