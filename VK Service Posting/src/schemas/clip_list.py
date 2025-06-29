@@ -2,8 +2,6 @@ from typing import Optional, List
 
 from pydantic import BaseModel, ConfigDict
 
-from src.schemas.vk_clip import VKClipOut
-
 
 class ClipListAddRequest(BaseModel):
     name: str
@@ -20,8 +18,6 @@ class ClipList(BaseModel):
     name: str
     parse_status: str
     task_id: str
-
-    clips: List[VKClipOut] = []  # Список вложенных объектов VKClipOut
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -20,7 +20,15 @@ async def create(clip_list_request: ClipListAddRequest, database: DataBaseDep, u
 
 @router.get("/get_all", summary="Получить все списки клипов пользователя")
 async def read_all(database: DataBaseDep, user_id: UserIdDep):
-    return await database.clip_list.get_all_filtered(user_id=user_id)
+    result = []
+    clip_lists = await database.clip_list.get_all_filtered(user_id=user_id)
+    for clip_list in clip_lists:
+        clips = await database.vk_clip.get_all_filtered(clip_list_id=clip_list.id)
+        # Преобразуем clip_list в dict, если это ORM-объект
+        clip_list_dict = clip_list.dict() if hasattr(clip_list, "dict") else clip_list.__dict__.copy()
+        clip_list_dict["count"] = len(clips)
+        result.append(clip_list_dict)
+    return result
 
 @router.get("/get/{clip_list_id}", summary="Получить конкретный список клипов пользователя")
 async def read(clip_list_id: int, database: DataBaseDep, user_id: UserIdDep):

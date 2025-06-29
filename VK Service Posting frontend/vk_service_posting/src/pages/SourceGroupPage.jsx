@@ -222,7 +222,7 @@ export default function SourceGroupPage() {
                                     >
                                         <div className="flex justify-between w-full">
                                             <span>{item.name}</span>
-                                            <span className="text-gray-500">{item.clips?.length ?? 0} клипов</span>
+                                            <span className="text-gray-500">{item.count ?? 0} клипов</span>
                                         </div>
                                     </List.Item>
                                 )}

@@ -11,7 +11,6 @@ from sqlalchemy.orm import (
     mapped_column, relationship,
 )
 from src.database import Base
-from src.models.vk_clip import VKClipOrm
 
 
 class ClipListOrm(Base):
@@ -24,8 +23,6 @@ class ClipListOrm(Base):
 
     parse_status: Mapped[str]
     task_id: Mapped[str]
-
-    clips = relationship("VKClipOrm", backref="clip_list", lazy="selectin")
 
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True),
