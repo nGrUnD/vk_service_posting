@@ -28,7 +28,7 @@ export default function ProxyPage() {
     const fetchLoadedProxies = async () => {
         setRefreshing(true);
         try {
-            const response = await api.get('/users/{user_id}/proxies');
+            const response = await api.get('/proxy/{user_id}/get');
             if (Array.isArray(response.data)) {
                 setLoadedProxies(response.data);
             } else {
@@ -43,9 +43,6 @@ export default function ProxyPage() {
 
     const handleConnect = async () => {
         const newProxies = inputProxies
-            .split('\n')
-            .map(line => line.trim())
-            .filter(line => line);
 
         if (!newProxies.length) {
             messageApi.warning('Введите список прокси.');
@@ -56,8 +53,8 @@ export default function ProxyPage() {
 
         try {
             await api.post(
-                '/users/{user_id}/proxies/create_list',
-                { proxies: newProxies },
+                '/proxy/{user_id}/add',
+                { proxys: newProxies },
                 { headers: { 'Content-Type': 'application/json' } }
             );
 
