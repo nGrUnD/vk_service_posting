@@ -66,7 +66,7 @@ class WorkerPostService:
 
         proxies = await self.database.proxy.get_all()
 
-        index_proxy = 0
+        index_proxy = random.randint(0, len(proxies))
 
         for account_log_pass, vk_group_id in zip(added_accounts_log_pass, vk_groups_ids):
 
