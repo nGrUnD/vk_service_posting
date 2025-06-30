@@ -89,22 +89,10 @@ def get_vk_account_admin_groups(access_token: str, user_id: int, proxy: str, cur
     all_items.extend(data["items"])
 
     # Остальные запросы
-    while len(all_items) < total_count:
-        print(f"total count: {total_count} of {len(all_items)}")
+    while offset + count_per_request < total_count:
         offset += count_per_request
         params["offset"] = offset
         time.sleep(delay)
-
-        params = {
-            "access_token": access_token,
-            "v": version,
-            "extended": 1,
-            "user_id": user_id,
-            "filter": "admin",
-            "count": count_per_request,
-            "offset": offset,
-            "fields": "photo_200"
-        }
 
         response = requests.get(url, params=params, headers=headers, proxies=proxy_response)
         response_json = response.json()
@@ -112,24 +100,21 @@ def get_vk_account_admin_groups(access_token: str, user_id: int, proxy: str, cur
         if "error" in response_json:
             if "access_token has expired" in response_json['error']['error_msg']:
                 access_token = TokenService().get_token_from_curl(curl)
-                params = {
-                    "access_token": access_token,
-                    "v": version,
-                    "extended": 1,
-                    "user_id": user_id,
-                    "filter": "admin",
-                    "count": count_per_request,
-                    "offset": offset,
-                    "fields": "photo_200"
-                }
-
+                params["access_token"] = access_token
                 response = requests.get(url, params=params, headers=headers, proxies=proxy_response)
                 response_json = response.json()
             else:
                 raise Exception(f"Ошибка при получении данных (offset={offset}): {response_json['error']['error_msg']}")
 
         data = response_json["response"]
-        all_items.extend(data["items"])
+        new_items = data.get("items", [])
+
+        if not new_items:
+            print("⚠️ Пустой ответ, останавливаемся.")
+            break
+
+        all_items.extend(new_items)
+        print(f"Получено {len(all_items)} из {total_count}")
 
     # Форматируем результат
     groups = []
