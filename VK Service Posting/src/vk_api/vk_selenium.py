@@ -7,7 +7,7 @@ from src.utils.rand_user_agent import get_random_user_agent
 import asyncio
 import time
 
-def get_vk_curl(driver, timeout: int = 60) -> str:
+def get_vk_curl(driver, timeout: int = 300) -> str:
     """
     Ждём в driver.requests появления запроса к login.vk.com/?act=web_token
     и возвращаем cURL команду этого запроса.
