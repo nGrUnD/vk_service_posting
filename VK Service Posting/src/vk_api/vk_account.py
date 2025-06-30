@@ -5,7 +5,7 @@ from src.utils.rand_user_agent import get_random_user_agent
 from src.vk_api.vk_clip import get_clips_counts_for_groups
 
 
-def get_vk_account_data(access_token: str):
+def get_vk_account_data(access_token: str, proxy: str = None):
     # URL для запроса данных аккаунта
     url = "https://api.vk.com/method/users.get"
 
@@ -16,9 +16,16 @@ def get_vk_account_data(access_token: str):
         "fields": "photo_200"  # Поля, которые нужно получить
     }
 
+    proxy_response = None
+    if proxy is not None:
+        proxy_response = {
+            "http": proxy,
+            "https": proxy,
+        }
+
     # Отправка запроса
     headers = {"User-Agent": get_random_user_agent()}
-    response = requests.get(url, params=params, headers=headers)
+    response = requests.get(url, params=params, headers=headers, proxies=proxy_response)
     data = response.json()
 
     # Проверка на ошибки
@@ -40,13 +47,19 @@ def get_vk_account_data(access_token: str):
         "avatar_url": avatar_url,
     }
 
-def get_vk_account_admin_groups(access_token: str, user_id: int) -> dict:
+def get_vk_account_admin_groups(access_token: str, user_id: int, proxy: str) -> dict:
     url = "https://api.vk.com/method/groups.get"
     version = "5.131"
     delay = 0.34
     count_per_request = 1000
 
     headers = {"User-Agent": get_random_user_agent()}
+    proxy_response = None
+    if proxy is not None:
+        proxy_response = {
+            "http": proxy,
+            "https": proxy,
+        }
 
     all_items = []
     offset = 0
@@ -63,7 +76,7 @@ def get_vk_account_admin_groups(access_token: str, user_id: int) -> dict:
     }
 
     # Первый запрос
-    response = requests.get(url, params=params, headers=headers)
+    response = requests.get(url, params=params, headers=headers, proxies=proxy_response)
     response_json = response.json()
 
     if "error" in response_json:
@@ -79,7 +92,7 @@ def get_vk_account_admin_groups(access_token: str, user_id: int) -> dict:
         params["offset"] = offset
         time.sleep(delay)
 
-        response = requests.get(url, params=params, headers=headers)
+        response = requests.get(url, params=params, headers=headers, proxies=proxy_response)
         response_json = response.json()
 
         if "error" in response_json:
@@ -96,7 +109,7 @@ def get_vk_account_admin_groups(access_token: str, user_id: int) -> dict:
         group_ids = [g["id"] for g in batch]
 
         try:
-            clips_count_map = get_clips_counts_for_groups(group_ids, access_token)
+            clips_count_map = get_clips_counts_for_groups(group_ids, access_token, proxy)
         except Exception as e:
             clips_count_map = {gid: 0 for gid in group_ids}  # fallback
 

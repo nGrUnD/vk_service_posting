@@ -27,12 +27,18 @@ def get_owner_short_videos(owner_id: int, access_token: str) -> dict:
 
     #return [API.shortVideo.getOwnerVideos({"owner_id":-226848921"count":10}),
     #        API.shortVideo.getOwnerVideos({"owner_id":-226848921"count":10})]
-def get_clips_counts_for_groups(group_ids: list[int], access_token: str) -> dict[int, int]:
+def get_clips_counts_for_groups(group_ids: list[int], access_token: str, proxy: str) -> dict[int, int]:
     """
     Использует VK API `execute`, чтобы получить clips_count для каждой группы.
     Возвращает словарь {group_id: clips_count}.
     """
     assert len(group_ids) <= 25, "Максимум 25 групп за один вызов execute"
+    proxy_response = None
+    if proxy is not None:
+        proxy_response = {
+            "http": proxy,
+            "https": proxy,
+        }
 
     # Формируем список вызовов API.shortVideo.getOwnerVideos
     code_calls = ','.join(
@@ -52,7 +58,7 @@ def get_clips_counts_for_groups(group_ids: list[int], access_token: str) -> dict
         "User-Agent": get_random_user_agent()
     }
 
-    response = requests.post(url, data=params, headers=headers)
+    response = requests.post(url, data=params, headers=headers, proxies=proxy_response)
     data = response.json()
     #print(data)
 

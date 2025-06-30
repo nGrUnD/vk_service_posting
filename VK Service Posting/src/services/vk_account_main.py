@@ -1,3 +1,5 @@
+import random
+
 from celery.result import AsyncResult
 from celery import chain
 from fastapi import HTTPException
@@ -43,6 +45,10 @@ class VKAccountMainService:
         vk_account = await self.database.vk_account.add(new_data)
         await self.database.commit()
 
+        proxies = await self.database.proxy.get_all()
+        index_proxy = random.randint(0, len(proxies))
+        proxy = proxies[index_proxy % len(proxies)]
+
         first_task = parse_vk_profile_sync.s(encrypted_curl, vk_account.id)
 
         # 2. Получи её task_id (еще не отправляя)
@@ -58,6 +64,7 @@ class VKAccountMainService:
         data_task = {
             "encrypted_curl": encrypted_curl,
             "vk_account_id_database": vk_account.id,
+            "proxy": proxy.http,
         }
         task_chain = chain(
             parse_vk_profile_sync.s(data_task),
