@@ -13,6 +13,7 @@ def get_vk_account_curl(self, account_id_database: int, login: str, password: st
         data = {
             "encrypted_curl": encrypted_curl,
             "vk_account_id_database": account_id_database,
+            "proxy": proxy,
         }
 
         _update_vk_account_db(account_id_database=account_id_database, account_update_data=data, groups_count=0)
