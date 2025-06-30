@@ -83,7 +83,7 @@ class TokenService:
         # print("COOKIES:", req.cookies)
 
         proxy_response = None
-        if proxy:
+        if proxy is not None:
             proxy_response = {
                 "http": proxy,
                 "https": proxy,

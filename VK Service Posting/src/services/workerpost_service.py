@@ -60,7 +60,7 @@ class WorkerPostService:
         print(f"Аккаунты записаны в базу данных: {added_accounts_log_pass}")
         print(f"Аккаунты failed (уже есть в базе): {failed_accounts_log_pass}")
 
-        main_vk_account_database = await self.database.vk_account.get_one_or_none(account_type="main")
+        main_vk_account_database = await self.database.vk_account.get_one_or_none(account_type="main", user_id=user_id)
         failed_account_log_pass = []
         failed_group_ids = []
 

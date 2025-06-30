@@ -48,7 +48,7 @@ def _update_vk_account_group_db(groups_data: dict, vk_account_id_database: int, 
     with SyncSessionLocal() as session:
         for group_data in groups_data:
             _add_or_edit_vk_group_db(session, group_data, vk_account_id_database, user_id)
-            session.commit()
+        session.commit()
 
 
 @app.task
