@@ -1,6 +1,8 @@
 import time
 
 import requests
+
+from src.services.vk_token_service import TokenService
 from src.utils.rand_user_agent import get_random_user_agent
 from src.vk_api.vk_clip import get_clips_counts_for_groups
 
@@ -47,7 +49,7 @@ def get_vk_account_data(access_token: str, proxy: str = None):
         "avatar_url": avatar_url,
     }
 
-def get_vk_account_admin_groups(access_token: str, user_id: int, proxy: str) -> dict:
+def get_vk_account_admin_groups(access_token: str, user_id: int, proxy: str, curl: str) -> dict:
     url = "https://api.vk.com/method/groups.get"
     version = "5.131"
     delay = 0.34
@@ -88,15 +90,43 @@ def get_vk_account_admin_groups(access_token: str, user_id: int, proxy: str) -> 
 
     # Остальные запросы
     while len(all_items) < total_count:
+        print(f"total count: {total_count} of {len(all_items)}")
         offset += count_per_request
         params["offset"] = offset
         time.sleep(delay)
+
+        params = {
+            "access_token": access_token,
+            "v": version,
+            "extended": 1,
+            "user_id": user_id,
+            "filter": "admin",
+            "count": count_per_request,
+            "offset": offset,
+            "fields": "photo_200"
+        }
 
         response = requests.get(url, params=params, headers=headers, proxies=proxy_response)
         response_json = response.json()
 
         if "error" in response_json:
-            raise Exception(f"Ошибка при получении данных (offset={offset}): {response_json['error']['error_msg']}")
+            if "access_token has expired" in response_json['error']['error_msg']:
+                access_token = TokenService().get_token_from_curl(curl)
+                params = {
+                    "access_token": access_token,
+                    "v": version,
+                    "extended": 1,
+                    "user_id": user_id,
+                    "filter": "admin",
+                    "count": count_per_request,
+                    "offset": offset,
+                    "fields": "photo_200"
+                }
+
+                response = requests.get(url, params=params, headers=headers, proxies=proxy_response)
+                response_json = response.json()
+            else:
+                raise Exception(f"Ошибка при получении данных (offset={offset}): {response_json['error']['error_msg']}")
 
         data = response_json["response"]
         all_items.extend(data["items"])
@@ -105,6 +135,7 @@ def get_vk_account_admin_groups(access_token: str, user_id: int, proxy: str) -> 
     groups = []
     batch_size = 25
     for i in range(0, len(all_items), batch_size):
+        print(f"group admin get: {i} of {len(all_items)}")
         batch = all_items[i:i + batch_size]
         group_ids = [g["id"] for g in batch]
 

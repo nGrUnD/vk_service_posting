@@ -35,6 +35,7 @@ def parse_vk_profile(curl_encrypted: str, vk_account_id_database: int, proxy: st
         "vk_account_id_database": vk_account_id_database,
         "vk_account_data": vk_account_data,
         "proxy": proxy,
+        "curl": curl_encrypted
     }
 
     return data
