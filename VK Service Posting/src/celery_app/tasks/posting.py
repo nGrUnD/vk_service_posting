@@ -11,13 +11,13 @@ from src.vk_api.vk_posting import download_vk_clip, upload_short_video, get_clip
 from src.celery_app.celery_db import SyncSessionLocal
 
 
-async def posting_error(schedule_database_id: int, database_manager):
-    async with database_manager as database:
-        schedule_update_data = SchedulePostingUpdate(
-            status = "failed",
-        )
-        await database.schedule_posting.edit(schedule_update_data, exclude_unset=True, id=schedule_database_id)
-        await database.commit()
+def posting_error(schedule_database_id: int, database_manager):
+    with SyncSessionLocal() as session:
+        #schedule_update_data = SchedulePostingUpdate(
+        #    status = "failed",
+        #)
+        #session.schedule_posting.edit(schedule_update_data, exclude_unset=True, id=schedule_database_id)
+        session.commit()
 
 def posting_clip(worker_id: int, token: str, schedule_database_id: int, clip, proxy: str):
     with SyncSessionLocal() as session:
@@ -67,7 +67,7 @@ def posting_clip(worker_id: int, token: str, schedule_database_id: int, clip, pr
         session.commit()
 
 @app.task
-def create_post(worker_id: int, token: str, schedule_id: int, clip, proxy: str):
+def create_post(worker_id: int, token: str, schedule_id: int, clip: dict, proxy: str):
     try:
         posting_clip(worker_id, token, schedule_id, clip, proxy)
     except Exception as e:

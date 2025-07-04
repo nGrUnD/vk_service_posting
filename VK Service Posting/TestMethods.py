@@ -140,6 +140,7 @@ def get_clip_from_group(access_token: str, owner_id: int):
     clip_files = clip_data['files']
     saved = download_vk_clip(clip_files)
     print(f"Видео сохранено в: {saved}")
+    return clip_files
 
 
 def join_group(group_id: int, access_token: str):
@@ -175,8 +176,8 @@ def assign_editor_role(group_id: int, user_id: int, access_token: str):
 
 def get_clips_from_group(token = ""):
     # Пример параметров из вашего вопроса
-    owner_id = -229278954
-    owner_id_2 = 181861199
+    owner_id = -226882140
+    owner_id_download_clip = -223170164
     count = 1
     #access_token = read_token_from_file()
     #login, pswd = get_single_vk_account()
@@ -192,27 +193,26 @@ def get_clips_from_group(token = ""):
     #access_token = get_vk_access_token_from_file("curl.txt")
     user_id = 1037099911
     curl = get_curl_from_file()
-    curl2 = get_curl_from_file('curl2.txt')
 
     access_token = src.services.vk_token_service.TokenService.get_token_from_curl(curl)
-    access_token2 = src.services.vk_token_service.TokenService.get_token_from_curl(curl2)
 
     vk_data = get_vk_account_data(access_token)
     print(f"vk data: {vk_data}")
 
-    vk_groups_data = get_vk_account_group_data(access_token, vk_data['id'])
-    print(f"vk_groups_data: {vk_groups_data}")
+    #vk_groups_data = get_vk_account_group_data(access_token, vk_data['id'])
+    #print(f"vk_groups_data: {vk_groups_data}")
 
-    get_clip_from_group(access_token, owner_id)
+    clip_files = get_clip_from_group(access_token, owner_id_download_clip)
 
-    clips = get_all_owner_short_videos(owner_id, access_token, max_count=50)
+    #clips = get_all_owner_short_videos(owner_id_download_clip, access_token, max_count=50)
+    #print(f"clips: {len(clips)}")
 
+    saved = download_vk_clip(clip_files)
     #join_group(owner_id_2, access_token)
     #assign_editor_role(owner_id_2, user_id, access_token2)
-    print(f"clips: {len(clips)}")
     #print(clips)
 
-    #upload_short_video(access_token, owner_id*-1, saved)
+    upload_short_video(access_token, owner_id*-1, saved)
 
     #data = get_all_owner_short_videos(owner_id, access_token)
     #print(data)

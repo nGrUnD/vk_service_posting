@@ -154,12 +154,10 @@ class VKAccountBackupService:
         await self.database.commit()
         return logins
 
-    async def get_random_account_backup_access_token(self):
+    async def get_random_account_backup_curl(self):
         all_vk_accounts_backup = await self.database.vk_account.get_all_filtered(account_type="backup", flood_control=False)
 
         random_account = random.choice(all_vk_accounts_backup)
 
         curl = AuthService().decrypt_data(random_account.encrypted_curl)
-
-        access_token = TokenService.get_token_from_curl(curl)
-        return access_token, random_account.id
+        return curl, random_account.id

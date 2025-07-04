@@ -1,7 +1,6 @@
 import re
 from typing import Dict, Optional, List
 
-from asgiref.sync import async_to_sync
 from sqlalchemy import select
 
 from src.celery_app import app
@@ -9,28 +8,14 @@ from datetime import datetime, timezone
 
 from src.models.celery_task import CeleryTaskOrm
 from src.models.vk_clip import VKClipOrm
-from src.repositories.celery_task import CeleryTaskRepository
-from src.repositories.vk_clip import VKClipRepository
-from src.schemas.celery_task import CeleryTaskUpdate
-from src.schemas.vk_clip import VKClipAdd
 from src.vk_api.vk_clip import get_all_owner_short_videos
 from src.celery_app.celery_db import SyncSessionLocal
 
 
 def best_quality_key(files: Dict[str, str]) -> Optional[str]:
-    """
-    Из словаря files выбирает ключ с наибольшим разрешением (mp4_NN).
-    Если mp4_* ключей нет — возвращает 'hls' (если есть), иначе первый ключ.
-
-    :param files: dict, например {
-        'mp4_144': '…', 'mp4_240': '…', 'hls': '…', …
-    }
-    :return: ключ с наибольшим NN, например 'mp4_480'
-    """
     best_k = None
     best_res = -1
 
-    # Ищём все mp4_{число} ключи
     for k in files:
         m = re.match(r'^mp4_(\d+)$', k)
         if not m:
@@ -42,65 +27,76 @@ def best_quality_key(files: Dict[str, str]) -> Optional[str]:
 
     if best_k:
         return best_k
-
-    # fallback: если нет mp4_*, берём hls, если есть
     if 'hls' in files:
         return 'hls'
-
-    # иначе просто первый ключ
     return next(iter(files), None)
 
 
-def _add_or_edit_vk_clips_db(session, vk_clip_data: dict, user_id: int,
-                             clip_list_id: int, vk_group_database_id: int):
-    print(f"group data: {vk_clip_data}")
-    vk_id = vk_clip_data["id"]
-    data_files = vk_clip_data["files"]
-    if not data_files:
-        return
-
-    best_key = best_quality_key(data_files)
-    files = vk_clip_data["files"][best_key]
-    date = datetime.fromtimestamp(vk_clip_data["date"])
-    views = vk_clip_data["views"]
-    # frames = vk_clip_data["timeline_thumbs"]["links"][0]
-    frames = ""
-
-    stmt = select(VKClipOrm).where(VKClipOrm.vk_id == vk_id, VKClipOrm.vk_group_id == vk_group_database_id)
-    result = session.execute(stmt)
-    get_vk_clip = result.scalars().one_or_none()
-
-    if not get_vk_clip:
-        group_new = VKClipOrm(
-            user_id=user_id,
-            clip_list_id=clip_list_id,
-            vk_group_id=vk_group_database_id,
-            vk_id=vk_id,
-            files=files,
-            views=views,
-            date=date,
-            frames_file=frames,
-            parse_status="success",
-            task_id=""
-        )
-        session.add(group_new)
-
-
-def update_vk_clips_db(clips, user_id, clip_list_id, task_id: int, vk_group_database_id: int):
+def update_vk_clips_db(clips: List[dict], user_id: int, clip_list_id: int, task_id: int, vk_group_database_id: int):
     with SyncSessionLocal() as session:
+        # 1. Получаем объект задачи Celery
         stmt = select(CeleryTaskOrm).where(CeleryTaskOrm.task_id == task_id)
-        result = session.execute(stmt)
-        celery_task = result.scalars().one_or_none()
+        celery_task = session.execute(stmt).scalars().one_or_none()
 
         if not clips:
-            celery_task.status = "empty"
-            session.commit()
+            if celery_task:
+                celery_task.status = "empty"
+                session.commit()
             return
 
-        for clip in clips:
-            _add_or_edit_vk_clips_db(session, clip, user_id, clip_list_id, vk_group_database_id)
+        # 2. Получаем уже существующие vk_id по этой группе
+        existing_stmt = select(VKClipOrm.vk_id).where(VKClipOrm.vk_group_id == vk_group_database_id)
+        existing_vk_ids = {row[0] for row in session.execute(existing_stmt).all()}
 
-        celery_task.status = "success"
+        # 3. Готовим список новых объектов
+        new_clips = []
+
+        for clip_data in clips:
+            vk_id = clip_data.get("id")
+            if not vk_id or vk_id in existing_vk_ids:
+                continue
+
+            files = clip_data.get("files", {})
+            if not files:
+                continue
+
+            best_key = best_quality_key(files)
+            if not best_key:
+                continue
+
+            file_url = files.get(best_key)
+            if not file_url:
+                continue
+
+            date_ts = clip_data.get("date")
+            views = clip_data.get("views", 0)
+
+            try:
+                dt = datetime.fromtimestamp(date_ts)
+            except Exception:
+                continue
+
+            new_clips.append(VKClipOrm(
+                user_id=user_id,
+                clip_list_id=clip_list_id,
+                vk_group_id=vk_group_database_id,
+                vk_id=vk_id,
+                files=file_url,
+                views=views,
+                date=dt,
+                frames_file="",  # опционально можно сюда timeline_thumbs
+                parse_status="success",
+                task_id=""
+            ))
+
+        # 4. Массовая вставка
+        if new_clips:
+            session.bulk_save_objects(new_clips)
+
+        # 5. Обновляем статус задачи
+        if celery_task:
+            celery_task.status = "success"
+
         session.commit()
 
 
@@ -130,7 +126,7 @@ def filter_clips(clips: List[Dict], min_views: int, published_after: Optional[da
 
 
 @app.task(bind=True, name="src.tasks.parse_vk_group_clips_sync")
-def parse_vk_group_clips_sync(self, vk_group_id: int, access_token: str,
+def parse_vk_group_clips_sync(self, vk_group_id: int, curl: str,
                               user_id: int, clip_list_id: int, vk_group_database_id: int, viewers: int,
                               mindate: datetime):
     task_id = self.request.id
@@ -138,7 +134,7 @@ def parse_vk_group_clips_sync(self, vk_group_id: int, access_token: str,
         # Важно: в ВК id паблика с минусом для публичных групп
         owner_id = -vk_group_id if not str(vk_group_id).startswith("-") else vk_group_id
 
-        clips = get_all_owner_short_videos(owner_id, access_token)
+        clips = get_all_owner_short_videos(owner_id, curl)
 
         filtred_clips = filter_clips(clips, viewers, mindate)
 

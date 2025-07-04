@@ -2,7 +2,25 @@ from typing import List, Dict, Any
 
 import requests
 import time
+
+from src.services.vk_token_service import TokenService
 from src.utils.rand_user_agent import get_random_user_agent
+
+def is_token_expired(access_token: str) -> bool:
+    """
+    Проверка валидности токена VK.
+    Делает запрос к методу users.get — если ошибка 5 (User authorization failed), значит токен протух.
+    """
+    params = {
+        'access_token': access_token,
+        'v': '5.251',
+        'user_ids': '1'
+    }
+    response = requests.get('https://api.vk.com/method/users.get', params=params)
+    data = response.json()
+    if 'error' in data and data['error']['error_code'] == 5:
+        return True
+    return False
 
 def get_owner_short_videos(owner_id: int, access_token: str) -> dict:
     url = "https://api.vk.com/method/video.get"
@@ -102,7 +120,7 @@ def get_owner_short_videos_page(owner_id: int,
 
 
 def get_all_owner_short_videos(owner_id: int,
-                               access_token: str,
+                               curl: str,
                                api_version: str = '5.251',
                                page_size: int = 100,
                                delay: float = 0.34) -> List[Dict[str, Any]]:
@@ -120,9 +138,14 @@ def get_all_owner_short_videos(owner_id: int,
     all_items: List[Dict[str, Any]] = []
     start_from: str = None
     total_count: int = None
-
+    access_token = TokenService.get_token_from_curl(curl)
     while True:
-        print(total_count)
+        #print(total_count)
+
+        if is_token_expired(access_token):
+            access_token = TokenService.get_token_from_curl(curl)
+            print("Токен обновлён")
+
         resp = get_owner_short_videos_page(
             owner_id=owner_id,
             count=page_size,

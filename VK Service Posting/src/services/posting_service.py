@@ -55,7 +55,7 @@ class PostingService:
             #print(workpost)
             category = await self.category_repo.get_one_or_none(id=workpost.category_id)
             #print(category)
-            if not category.is_active:
+            if not category and not category.is_active:
                 continue
 
             hourly_limit = category.hourly_limit
@@ -70,14 +70,29 @@ class PostingService:
             clip_list = await self.clip_list.get_one_or_none(id=category.clip_list_id)
             vk_account = await self.vk_account_repo.get_one_or_none(id=workpost.vk_account_id)
 
-            clips = await self.vk_clip.get_all_filtered(clip_list_id=clip_list.id)
-
-            random_clip = self.get_random_clip(clips)
+            random_clip = await self.vk_clip.get_random_one(clip_list_id=clip_list.id)
             if not random_clip:
                 print("Не удалось получить случайный клип")
                 continue
 
-            clip_data = random_clip.model_dump() if random_clip else None
+            clip_data = {
+                "id": random_clip.id,
+                "user_id": random_clip.user_id,
+                "clip_list_id": random_clip.clip_list_id,
+                "vk_group_id": random_clip.vk_group_id,
+
+                "vk_id": random_clip.vk_id,
+                "files": random_clip.files,
+                "views": random_clip.views,
+                "date": random_clip.date.isoformat(),
+                "frames_file": random_clip.frames_file,
+
+                "parse_status": random_clip.parse_status,
+                "task_id": random_clip.task_id,
+
+                "created_at": random_clip.created_at,
+                "updated_at": random_clip.updated_at,
+            }
             schedule_posting_add = SchedulePostingAdd(
                 workpost_id=workpost.id,
                 clip_id=random_clip.id,

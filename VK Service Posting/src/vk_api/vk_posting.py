@@ -108,35 +108,32 @@ def download_vk_clip(files: dict[str, str],
     return path
 
 
-def wait_for_processing(vk, video_id, owner_id, proxy, timeout=60, interval=5):
-    """
-    Ожидает завершения обработки видео.
-    Проверяет каждую `interval` секунду, максимум `timeout` секунд.
-    """
-    elapsed = 0
-    while elapsed < timeout:
-        try:
-            # Попытка получить видео или отредактировать описание как проверка готовности
-            vk.shortVideo.edit(
-                video_id=video_id,
-                owner_id=owner_id,
-                description="",  # пустое описание, просто проверить доступность
-            )
-            print("Видео обработано и готово!")
-            return True
-        except ApiError as e:
-            if e.code == 3001:
-                print(f"Видео еще не обработано, ждем {interval} сек...")
-                time.sleep(interval)
-                elapsed += interval
-            else:
-                raise
-    raise TimeoutError("Видео не обработалось за отведенное время")
-
 def get_need_wall_post(wall_post: bool) -> int:
     if wall_post:
         return 1
     return 0
+
+def wait_for_encoding(vk, video_id: int, owner_id: int, video_hash: str, proxy: dict, max_retries=20, delay: float = 3):
+    for i in range(max_retries):
+        try:
+            resp = vk.shortVideo.encodeProgress(video_id=video_id, owner_id=owner_id, hash=video_hash)
+        except ApiError as e:
+            print(f"VK API error {e.code}: {e.error['error_msg']}")
+            time.sleep(delay)
+            continue
+
+        is_ready = resp.get('is_ready', False)
+        percents = resp.get('percents', 0)
+        print(f"[{i+1}/{max_retries}] Обработка видео: {percents}%")
+
+        if is_ready:
+            print("Видео готово!")
+            return
+
+        time.sleep(delay)
+
+    raise TimeoutError("Видео не обработано за заданный интервал времени")
+
 
 def upload_short_video(token: str, group_id: int, video_path: str, description: str, wall_post: bool, proxy: str):
     try:
@@ -168,8 +165,7 @@ def upload_short_video(token: str, group_id: int, video_path: str, description: 
 
         # 3. ВАЖНО: Добавляем задержку для обработки видео
         print("3. Ждем обработки шортс...")
-        time.sleep(30)
-        wait_for_processing(vk, video_info['video_id'], video_info['owner_id'], proxy_response, 3)
+        wait_for_encoding(vk, video_info['video_id'], video_info['owner_id'], video_info['video_hash'], proxy_response, 20, 3)
 
         # 3.5 Редактируем описание
         print("3.5 Редактируем описание...")

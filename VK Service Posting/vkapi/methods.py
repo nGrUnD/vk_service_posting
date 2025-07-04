@@ -180,6 +180,27 @@ def download_vk_clip(files: Dict[str, str],
                     f.write(chunk)
     return path
 
+def wait_for_encoding(vk, video_id: int, owner_id: int, video_hash: str, max_retries=20, delay: float = 3):
+    for i in range(max_retries):
+        try:
+            resp = vk.shortVideo.encodeProgress(video_id=video_id, owner_id=owner_id, hash=video_hash)
+        except ApiError as e:
+            print(f"VK API error {e.code}: {e.error['error_msg']}")
+            time.sleep(delay)
+            continue
+
+        is_ready = resp.get('is_ready', False)
+        percents = resp.get('percents', 0)
+        print(f"[{i+1}/{max_retries}] Обработка видео: {percents}%")
+
+        if is_ready:
+            print("Видео готово!")
+            return
+
+        time.sleep(delay)
+
+    raise TimeoutError("Видео не обработано за заданный интервал времени")
+
 
 def upload_short_video(token: str, group_id: int, video_path: str):
     try:
@@ -200,8 +221,13 @@ def upload_short_video(token: str, group_id: int, video_path: str):
         video_info = response.json()
 
         # 3. ВАЖНО: Добавляем задержку для обработки видео
-        print("3. Ждем обработки шортс (10 сек)...")
-        time.sleep(10)
+        print("▶️ Ждём обработки...")
+        print(video_info['owner_id'])
+        print(video_info)
+        wait_for_encoding(vk, video_info['video_id'], video_info['owner_id'], video_info['video_hash'], max_retries=20, delay=3)
+        #print("3. Ждем обработки шортс (10 сек)...")
+        #time.sleep(10)
+
 
         # 3.5 Редактируем описание
         print("3.5 Редактируем описание...")

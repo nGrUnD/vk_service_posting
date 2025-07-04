@@ -2,7 +2,6 @@ import re
 from typing import List
 
 from src.celery_app import app  # твой celery app
-from src.celery_app.tasks import parse_vk_group_clips_sync
 from src.schemas.vk_group import VKGroupRequestAddUrl, VKGroupAdd
 from src.services.celery_task import CeleryTaskService
 from src.services.vk_account_backup import VKAccountBackupService
@@ -54,10 +53,10 @@ class VKGroupSourceService:
                 vk_group_database = await self.database.vk_group.add(group_new)
 
             vk_group_database_id = vk_group_database.id
-            access_token, vk_account_id = await VKAccountBackupService(self.database).get_random_account_backup_access_token()
+            curl, vk_account_id = await VKAccountBackupService(self.database).get_random_account_backup_curl()
             task = app.send_task(
                 'src.tasks.parse_vk_group_clips_sync',  # имя таски, как зарегистрирована
-                args=[vk_group_id, access_token, user_id, vk_group_urls_request.clip_list_id, vk_group_database_id, vk_group_urls_request.min_views, vk_group_urls_request.date_range]
+                args=[vk_group_id, curl, user_id, vk_group_urls_request.clip_list_id, vk_group_database_id, vk_group_urls_request.min_views, vk_group_urls_request.date_range]
             )
             task_ids.append(task.id)
             await (CeleryTaskService(self.database).
