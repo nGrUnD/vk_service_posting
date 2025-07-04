@@ -5,6 +5,6 @@ result_serializer = 'json'
 accept_content = ['json']
 timezone = 'Europe/Moscow'
 enable_utc = True
-worker_concurrency = 10  # Работает до 50 задач параллельно в каждом worker
+worker_concurrency = 15  # Работает до 50 задач параллельно в каждом worker
 worker_prefetch_multiplier = 5  # Берёт 5 задачи за раз, пока обрабатывает
 worker_max_tasks_per_child = 100  # Перезапускает процесс после 100 задач nano VK Service Posting/src/celery_app/celery_config.py
