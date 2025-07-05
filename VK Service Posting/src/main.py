@@ -40,7 +40,7 @@ async def lifespan(app: FastAPI):
 
             if minutes >= 60:
                 minutes = 0
-                #print(f"обнуление минут: {minutes}")
+                print(f"обнуление минут: {minutes}")
 
     scheduler_task = asyncio.create_task(scheduler_loop())
     yield

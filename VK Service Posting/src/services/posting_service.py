@@ -46,7 +46,7 @@ class PostingService:
         return random.choice(clips)
 
     async def check_and_schedule(self, minute: int):
-        #print(minute)
+        print(minute)
         workposts = await self.workpost_repo.get_all()
         proxies = await self.proxy.get_all()
         index_proxy = random.randint(0, len(proxies)-1)
@@ -58,6 +58,7 @@ class PostingService:
             category = await self.category_repo.get_one_or_none(id=workpost.category_id)
             #print(category)
             if not category or not category.is_active:
+                print("Нет категории или не активно")
                 continue
 
             hourly_limit = category.hourly_limit
