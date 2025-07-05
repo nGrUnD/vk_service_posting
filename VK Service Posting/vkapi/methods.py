@@ -1,5 +1,5 @@
 import gzip
-
+import yt_dlp
 import requests
 import time
 import os
@@ -10,6 +10,76 @@ import shlex
 from typing import List, Dict, Any, Optional
 import vk_api
 from vk_api.exceptions import ApiError
+
+def download_clip_by_url(url: str, out_dir=".") -> str:
+    downloaded_file = None
+
+    def hook(d):
+        nonlocal downloaded_file
+        if d['status'] == 'finished':
+            downloaded_file = d['filename']  # полный путь к файлу
+
+    ydl_opts = {
+        "outtmpl": f"{out_dir}/%(title)s.%(ext)s",
+        "format": "best",
+        "progress_hooks": [hook],
+        "quiet": True,
+        "no_warnings": True,
+    }
+
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        ydl.download([url])
+
+    return downloaded_file
+
+
+def get_access_token_vk(token: str):
+    url = "https://login.vk.com/?act=web_token"
+    payload = {
+        "version": "1",
+        "app_id": "6222115",
+        "access_token": token,
+    }
+
+    headers = {
+        ":authority": "login.vk.com",
+        ":method": "POST",
+        ":path": "/?act=web_token",
+        ":scheme": "https",
+        "accept": "*/*",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "ru,en-GB;q=0.9,en;q=0.8,ru-RU;q=0.7,en-US;q=0.6",
+        "content-type": "application/x-www-form-urlencoded",
+        "origin": "https://vk.com",
+        "referer": "https://vk.com/",
+        "sec-ch-ua": '"Google Chrome";v="137", "Chromium";v="137", "Not/A)Brand";v="24"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+        "sec-fetch-dest": "empty",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "same-site",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36"
+    }
+
+    # Удаляем недопустимые псевдо-заголовки (они валидны только в HTTP/2, requests их не поддерживает)
+    headers = {k: v for k, v in headers.items() if not k.startswith(":")}
+
+    response = requests.post(url, data=payload, headers=headers)
+
+    try:
+        return response.json()
+    except Exception:
+        return {"status_code": response.status_code, "text": response.text}
+
+
+def vk_api_get_owner_short_videos(owner_id: int, vk_session, count: int = 1, api_version: str = '5.251'):
+    vk = vk_session.get_api()
+    data = vk.shortVideo.getOwnerVideos(
+        owner_id=owner_id,
+        count=count,
+    )
+    print(f"shortvideo data: {data}")
+    return data
 
 def get_owner_short_videos(owner_id: int, access_token: str, count: int = 1, api_version: str = '5.251'):
     """
@@ -113,6 +183,7 @@ def get_all_owner_short_videos(owner_id: int,
 
     print(f"Finished: collected {len(all_items)} of {total_count} items.")
     return all_items
+
 
 
 def download_vk_clip(files: Dict[str, str],
@@ -279,6 +350,22 @@ def upload_short_video(token: str, group_id: int, video_path: str):
     except Exception as e:
         print(f"\n❌ Критическая ошибка: {str(e)}")
 
+def get_vk_session_by_log_pass(login: str, password: str):
+    print(login, password)
+    vk_session = vk_api.VkApi(login=login, password=password)
+    vk_session.api_version="5.251"
+    vk_session.app_id=6287487
+    vk_session.token = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01234"
+    try:
+        vk_session.auth()
+    except vk_api.AuthError as error_msg:
+        print(error_msg)
+        raise error_msg
+
+    print(vk_session.api_version)
+    print(vk_session.app_id)
+    #vk = vk_auth.get_api()
+    return vk_session
 
 def get_vk_access_token_from_curl(curl_str: str, timeout: int = 30) -> str:
     cmd_list = shlex.split(curl_str)
