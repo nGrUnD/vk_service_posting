@@ -154,7 +154,6 @@ def get_all_owner_short_videos(owner_id: int,
     vk_session = vk_api.VkApi(token=access_token)
     vk_session.api_version="5.251"
     vk_session.app_id=6287487
-    vk_session.auth()
     vk = vk_session.get_api()
 
     while True:

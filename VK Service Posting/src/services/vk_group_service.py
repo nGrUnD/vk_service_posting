@@ -67,7 +67,8 @@ class VKGroupSourceService:
             password = AuthService().decrypt_data(current_cred.encrypted_password) # current_cred.encrypted_password
             vk_session = vk_api.VkApi(login, password)
 
-            token = vk_session.token
+            token_data = vk_session.token
+            token = token_data['access_token']
 
             task = app.send_task(
                 'src.tasks.parse_vk_group_clips_sync',  # имя таски, как зарегистрирована
