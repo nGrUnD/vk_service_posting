@@ -1,7 +1,6 @@
 import asyncio
 
 from fastapi import FastAPI
-from contextlib import asynccontextmanager
 import uvicorn
 
 import sys
@@ -22,10 +21,13 @@ from src.api.workerpost import router as router_workerpost
 from src.api.proxy import router as router_proxy
 
 from src.services.posting_service import PostingService
+import logging
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 async def scheduler_loop():
-    print("loop_started")
+    logger.info("✅ Scheduler loop started")
     minutes = 0
     while True:
         await asyncio.sleep(60)  # каждые 60 секунд
@@ -40,8 +42,7 @@ async def scheduler_loop():
 
         if minutes >= 60:
             minutes = 0
-            print(f"обнуление минут: {minutes}")
-
+            logger.info("✅ Обновление минут")
 
 app = FastAPI()
 
