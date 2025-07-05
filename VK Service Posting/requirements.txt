@@ -99,7 +99,6 @@ urllib3==2.4.0
 uvicorn==0.34.2
 vbuild==0.8.2
 vine==5.1.0
-vk_api @ git+https://github.com/python273/vk_api.git@495ecb73b2e3308cc6e128e376753d5451f95b47
 wait_for2==0.3.2
 watchfiles==1.0.5
 wcwidth==0.2.13
