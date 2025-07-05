@@ -121,8 +121,7 @@ def get_owner_short_videos_page(owner_id: int,
         raise RuntimeError(f"VK API error: {data['error']}")
     return data['response']
 
-def vk_api_get_owner_short_videos(owner_id: int, vk_session, count: int = 1, start_from: str = None, api_version: str = '5.251'):
-    vk = vk_session.get_api()
+def vk_api_get_owner_short_videos(owner_id: int, vk, count: int = 1, start_from: str = None, api_version: str = '5.251'):
     data = vk.shortVideo.getOwnerVideos(
         owner_id=owner_id,
         count=count,
@@ -155,6 +154,8 @@ def get_all_owner_short_videos(owner_id: int,
     vk_session = vk_api.VkApi(token=access_token)
     vk_session.api_version="5.251"
     vk_session.app_id=6287487
+    vk_session.auth()
+    vk = vk_session.get_api()
 
     while True:
         #print(total_count)
@@ -166,7 +167,7 @@ def get_all_owner_short_videos(owner_id: int,
         resp = vk_api_get_owner_short_videos(
             owner_id=owner_id,
             count=page_size,
-            vk_session=vk_session,
+            vk=vk,
             start_from=start_from
         )
 

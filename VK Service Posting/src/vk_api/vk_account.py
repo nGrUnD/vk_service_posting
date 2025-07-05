@@ -20,6 +20,12 @@ def get_vk_session_by_token(token: str, proxy: str = None):
 
     vk_session.api_version="5.251"
     vk_session.app_id=6287487
+    try:
+        vk_session.auth()
+    except vk_api.AuthError as error_msg:
+        print(error_msg)
+        raise error_msg
+
     return vk_session
 
 def get_vk_session_by_log_pass(login: str, password: str, proxy: str = None):
