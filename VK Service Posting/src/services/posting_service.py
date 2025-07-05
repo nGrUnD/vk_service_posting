@@ -14,7 +14,6 @@ from src.repositories.workerpost import WorkerPostRepository
 from src.schemas.schedule_posting import SchedulePostingAdd, SchedulePostingUpdate
 from src.schemas.vk_clip import VKClipOut
 from src.services.auth import AuthService
-from src.services.vk_token_service import TokenService
 from src.vk_api.vk_account import get_vk_session_by_log_pass
 
 
@@ -50,7 +49,7 @@ class PostingService:
         #print(minute)
         workposts = await self.workpost_repo.get_all()
         proxies = await self.proxy.get_all()
-        index_proxy = random.randint(0, len(proxies))
+        index_proxy = random.randint(0, len(proxies)-1)
 
         for workpost in workposts:
             proxy = proxies[index_proxy % len(proxies)]
@@ -58,7 +57,7 @@ class PostingService:
             #print(workpost)
             category = await self.category_repo.get_one_or_none(id=workpost.category_id)
             #print(category)
-            if not category and not category.is_active:
+            if not category or not category.is_active:
                 continue
 
             hourly_limit = category.hourly_limit
@@ -69,7 +68,7 @@ class PostingService:
             if not is_can_post:
                 continue
 
-            #print("post")
+            print("post")
             clip_list = await self.clip_list.get_one_or_none(id=category.clip_list_id)
             vk_account = await self.vk_account_repo.get_one_or_none(id=workpost.vk_account_id)
             vk_cred = await self.vk_cred.get_one_or_none(id=vk_account.vk_cred_id)
