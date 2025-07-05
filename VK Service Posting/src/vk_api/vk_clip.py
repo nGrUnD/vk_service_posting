@@ -122,15 +122,18 @@ def get_owner_short_videos_page(owner_id: int,
     return data['response']
 
 def vk_api_get_owner_short_videos(owner_id: int, vk, count: int = 1, start_from: str = None, api_version: str = '5.251'):
-    params = {
-        'owner_id': owner_id,
-        'count': count
-    }
-    if start_from:
-        params['start_from'] = start_from
+    if not start_from:
+        data = vk.shortVideo.getOwnerVideos(
+            owner_id=owner_id,
+            count=count,
+        )
+    else:
+        data = vk.shortVideo.getOwnerVideos(
+            owner_id=owner_id,
+            count=count,
+            start_from=start_from,
+        )
 
-
-    data = vk.shortVideo.getOwnerVideos(**params)
     print(f"shortvideo data: {data}")
     return data
 
