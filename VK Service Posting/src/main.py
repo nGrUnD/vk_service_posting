@@ -69,6 +69,9 @@ app.include_router(router_clip_list)
 app.include_router(router_workerpost)
 app.include_router(router_proxy)
 
+@app.on_event("startup")
+async def start_scheduler():
+    asyncio.create_task(scheduler_loop())
+
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)
-    asyncio.run(scheduler_loop())
