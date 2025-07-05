@@ -30,12 +30,15 @@ async def scheduler_loop():
     logger.info("✅ Scheduler loop started")
     minutes = 0
     while True:
+        logger.info("✅ sleep 60 sec")
         await asyncio.sleep(60)  # каждые 60 секунд
         minutes += 1
-
+        
+        logger.info("✅ try connect database")
         async with async_session_maker() as session:
             async with PostingService(session) as serivce:
                 try:
+                    logger.info("✅ check_and_schedule")
                     await serivce.check_and_schedule(minutes)
                 except Exception as e:
                     print(e)
