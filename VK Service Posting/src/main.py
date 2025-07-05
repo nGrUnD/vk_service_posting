@@ -23,31 +23,27 @@ from src.api.proxy import router as router_proxy
 
 from src.services.posting_service import PostingService
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    async def scheduler_loop():
-        print("loop_started")
-        minutes = 0
-        while True:
-            await asyncio.sleep(60)  # каждые 60 секунд
-            minutes += 1
 
-            async with async_session_maker() as session:
-                async with PostingService(session) as serivce:
-                    try:
-                        await serivce.check_and_schedule(minutes)
-                    except Exception as e:
-                        print(e)
+async def scheduler_loop():
+    print("loop_started")
+    minutes = 0
+    while True:
+        await asyncio.sleep(60)  # каждые 60 секунд
+        minutes += 1
 
-            if minutes >= 60:
-                minutes = 0
-                print(f"обнуление минут: {minutes}")
+        async with async_session_maker() as session:
+            async with PostingService(session) as serivce:
+                try:
+                    await serivce.check_and_schedule(minutes)
+                except Exception as e:
+                    print(e)
 
-    scheduler_task = asyncio.create_task(scheduler_loop())
-    yield
-    scheduler_task.cancel()  # корректно отменяем при завершении приложения
+        if minutes >= 60:
+            minutes = 0
+            print(f"обнуление минут: {minutes}")
 
-app = FastAPI(lifespan=lifespan)
+
+app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
@@ -74,3 +70,4 @@ app.include_router(router_proxy)
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)
+    asyncio.run(scheduler_loop())

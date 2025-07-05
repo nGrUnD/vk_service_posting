@@ -350,9 +350,25 @@ def upload_short_video(token: str, group_id: int, video_path: str):
     except Exception as e:
         print(f"\n❌ Критическая ошибка: {str(e)}")
 
-def get_vk_session_by_log_pass(login: str, password: str):
+def get_vk_session_by_log_pass(login: str, password: str, proxy: str):
     #print(login, password)
-    vk_session = vk_api.VkApi(login=login, password=password)
+    if proxy:
+        session = requests.Session()
+        session.proxies.update({
+            "http": proxy,
+            "https": proxy
+        })
+        session.headers.update({
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/115.0.0.0 Safari/537.36"
+            )
+        })
+
+        vk_session = vk_api.VkApi(login=login, password=password, session=session)
+    else:
+        vk_session = vk_api.VkApi(login=login, password=password)
     vk_session.api_version="5.251"
     vk_session.app_id=6287487
     vk_session.token = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01234"

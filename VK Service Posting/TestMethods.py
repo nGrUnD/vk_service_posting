@@ -210,11 +210,16 @@ def get_clips_from_group(token = ""):
     user_id = 1037099911
     curl = get_curl_from_file()
 
+    with open("proxy.txt", "r", encoding="utf-8") as f:
+        line = f.readline().strip()  # читаем первую строку и убираем \n
+        proxy_http=line
+
     with open("file.txt", "r", encoding="utf-8") as f:
         line = f.readline().strip()  # читаем первую строку и убираем \n
         login, password = line.split(":")
 
-    vk_session = get_vk_session_by_log_pass(login, password)
+    proxy_http = None
+    vk_session = get_vk_session_by_log_pass(login, password, proxy_http)
     token_data = vk_session.token
     print(token_data['access_token'])
     session_token = token_data['access_token']
