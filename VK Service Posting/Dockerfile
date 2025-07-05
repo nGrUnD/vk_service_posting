@@ -17,6 +17,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --no-cache-dir -r requirements.txt
+RUN pip uninstall -y vk-api
 RUN pip install --no-cache-dir git+https://github.com/python273/vk_api.git@master
 RUN pip install gunicorn
 

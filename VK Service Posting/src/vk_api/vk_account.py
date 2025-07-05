@@ -24,12 +24,15 @@ def get_vk_session_by_token(token: str, proxy: str = None):
 
 def get_vk_session_by_log_pass(login: str, password: str, proxy: str = None):
     #print(login, password)
-    session = requests.Session()
-    session.proxies.update({
-        'http': proxy,
-        'https': proxy
-    })
-    vk_session = vk_api.VkApi(login=login, password=password, session=session)
+    if proxy:
+        session = requests.Session()
+        session.proxies.update({
+            'http': proxy,
+            'https': proxy
+        })
+        vk_session = vk_api.VkApi(login=login, password=password, session=session)
+    else:
+        vk_session = vk_api.VkApi(login=login, password=password)
     vk_session.api_version="5.251"
     vk_session.app_id=6287487
     vk_session.token = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01234"

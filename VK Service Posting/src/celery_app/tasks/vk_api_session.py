@@ -6,6 +6,7 @@ from src.vk_api.vk_account import get_vk_session_by_log_pass
 @app.task(bind=True)
 def get_vk_account_cred(self, account_id_database: int, login: str, password: str, proxy: str) -> dict:
     try:
+        print(f"Proxy: {proxy}")
         vk_session = get_vk_session_by_log_pass(login, password, proxy)
         vk_token = vk_session.token['access_token']
         data = {
