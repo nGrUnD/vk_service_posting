@@ -30,6 +30,9 @@ def get_vk_session_by_log_pass(login: str, password: str, proxy: str = None):
             'http': proxy,
             'https': proxy
         })
+        session.headers.update({
+            "User-Agent": (get_random_user_agent())
+        })
         vk_session = vk_api.VkApi(login=login, password=password, session=session)
     else:
         vk_session = vk_api.VkApi(login=login, password=password)
