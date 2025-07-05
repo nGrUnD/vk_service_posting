@@ -7,6 +7,7 @@ from src.models.vk_group import VKGroupOrm
 from src.models.workerpost import WorkerPostOrm
 
 from src.schemas.schedule_posting import SchedulePostingUpdate
+from src.vk_api.vk_account import get_vk_session_by_log_pass
 from src.vk_api.vk_posting import download_vk_clip, upload_short_video, get_clip_info, delete_file, download_clip_by_url
 from src.celery_app.celery_db import SyncSessionLocal
 
@@ -19,7 +20,7 @@ def posting_error(schedule_database_id: int, database_manager):
         #session.schedule_posting.edit(schedule_update_data, exclude_unset=True, id=schedule_database_id)
         session.commit()
 
-def posting_clip(worker_id: int, token: str, schedule_database_id: int, clip, proxy: str):
+def posting_clip(worker_id: int, login: str, password: str, schedule_database_id: int, clip, proxy: str):
     with SyncSessionLocal() as session:
         stmt = select(WorkerPostOrm).where(WorkerPostOrm.id == worker_id)
         result = session.execute(stmt)
@@ -48,6 +49,10 @@ def posting_clip(worker_id: int, token: str, schedule_database_id: int, clip, pr
 
         clip_filename = download_clip_by_url(clip_url)
 
+        vk_session = get_vk_session_by_log_pass(login, password, proxy)
+        token_data = vk_session.token
+        token = token_data['access_token']
+
         upload_short_video(
             token,
             vk_group.vk_group_id,
@@ -69,9 +74,9 @@ def posting_clip(worker_id: int, token: str, schedule_database_id: int, clip, pr
         session.commit()
 
 @app.task
-def create_post(worker_id: int, token: str, schedule_id: int, clip: dict, proxy: str):
+def create_post(worker_id: int, login: str, password: str, schedule_id: int, clip: dict, proxy: str):
     try:
-        posting_clip(worker_id, token, schedule_id, clip, proxy)
+        posting_clip(worker_id, login, password, schedule_id, clip, proxy)
     except Exception as e:
         print(f"create_post error: {e}")
         #async_to_sync(posting_error)(schedule_id, database_manager)

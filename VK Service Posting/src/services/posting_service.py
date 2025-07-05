@@ -14,7 +14,6 @@ from src.repositories.workerpost import WorkerPostRepository
 from src.schemas.schedule_posting import SchedulePostingAdd, SchedulePostingUpdate
 from src.schemas.vk_clip import VKClipOut
 from src.services.auth import AuthService
-from src.vk_api.vk_account import get_vk_session_by_log_pass
 
 
 class PostingService:
@@ -109,12 +108,8 @@ class PostingService:
             login = vk_cred.login
             password = AuthService().decrypt_data(vk_cred.encrypted_password)
 
-            vk_session = get_vk_session_by_log_pass(login=login, password=password, proxy=proxy)
-            token_data = vk_session.token
-            vk_token = token_data['access_token']
-
             task = create_post.delay(
-                workpost.id, vk_token, schedule_posting.id, clip_data, proxy.http
+                workpost.id, login, password, schedule_posting.id, clip_data, proxy.http
             )
 
             schedule_posting_update_data = SchedulePostingUpdate(
