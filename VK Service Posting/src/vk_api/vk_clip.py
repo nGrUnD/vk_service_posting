@@ -130,7 +130,7 @@ def vk_api_get_owner_short_videos(owner_id: int, vk, count: int = 1, start_from:
         params['start_from'] = start_from
 
 
-    data = vk.shortVideo.getOwnerVideos(params)
+    data = vk.shortVideo.getOwnerVideos(**params)
     print(f"shortvideo data: {data}")
     return data
 
