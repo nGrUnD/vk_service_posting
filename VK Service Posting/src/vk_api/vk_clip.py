@@ -8,6 +8,8 @@ from pycparser.ply.yacc import token
 from src.services.vk_token_service import TokenService
 import vk_api
 from src.utils.rand_user_agent import get_random_user_agent
+from src.vk_api.vk_account import get_vk_session_by_token
+
 
 def is_token_expired(access_token: str) -> bool:
     """
@@ -158,9 +160,7 @@ def get_all_owner_short_videos(owner_id: int,
     start_from: str = None
     total_count: int = None
 
-    vk_session = vk_api.VkApi(token=access_token)
-    vk_session.api_version="5.251"
-    vk_session.app_id=6287487
+    vk_session = get_vk_session_by_token(access_token)
     vk = vk_session.get_api()
 
     while True:

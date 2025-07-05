@@ -1,3 +1,4 @@
+import random
 import re
 from typing import List
 
@@ -37,7 +38,14 @@ class VKGroupSourceService:
 
         task_ids = []
         vk_link_map = dict(zip(vk_groups_ids, vk_group_urls_request.vk_links))
+
+        proxies = await self.database.proxy.get_all()
+        index_proxy = random.randint(0, len(proxies)-1)
+
         for vk_group_id in vk_groups_ids:
+            proxy = proxies[index_proxy % len(proxies)]
+            index_proxy+=1
+
             vk_link = vk_link_map[vk_group_id]
             vk_group_database = await self.database.vk_group.get_one_or_none(vk_group_id=vk_group_id)
             if not vk_group_database:
@@ -65,14 +73,12 @@ class VKGroupSourceService:
 
             login = current_cred.login
             password = AuthService().decrypt_data(current_cred.encrypted_password) # current_cred.encrypted_password
-            vk_session = vk_api.VkApi(login, password)
-
-            token_data = vk_session.token
-            token = token_data['access_token']
+            print(login)
+            print(password)
 
             task = app.send_task(
                 'src.tasks.parse_vk_group_clips_sync',  # имя таски, как зарегистрирована
-                args=[vk_group_id, token, user_id, vk_group_urls_request.clip_list_id, vk_group_database_id, vk_group_urls_request.min_views, vk_group_urls_request.date_range]
+                args=[vk_group_id, login, password, proxy.http, user_id, vk_group_urls_request.clip_list_id, vk_group_database_id, vk_group_urls_request.min_views, vk_group_urls_request.date_range]
             )
             task_ids.append(task.id)
             await (CeleryTaskService(self.database).
