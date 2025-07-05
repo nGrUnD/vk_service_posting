@@ -3,7 +3,10 @@ from typing import List, Dict, Any
 import requests
 import time
 
+from pycparser.ply.yacc import token
+
 from src.services.vk_token_service import TokenService
+import vk_api
 from src.utils.rand_user_agent import get_random_user_agent
 
 def is_token_expired(access_token: str) -> bool:
@@ -118,6 +121,16 @@ def get_owner_short_videos_page(owner_id: int,
         raise RuntimeError(f"VK API error: {data['error']}")
     return data['response']
 
+def vk_api_get_owner_short_videos(owner_id: int, vk_session, count: int = 1, start_from: str = None, api_version: str = '5.251'):
+    vk = vk_session.get_api()
+    data = vk.shortVideo.getOwnerVideos(
+        owner_id=owner_id,
+        count=count,
+        start_from=start_from,
+    )
+    print(f"shortvideo data: {data}")
+    return data
+
 
 def get_all_owner_short_videos(owner_id: int,
                                access_token: str,
@@ -138,6 +151,9 @@ def get_all_owner_short_videos(owner_id: int,
     all_items: List[Dict[str, Any]] = []
     start_from: str = None
     total_count: int = None
+
+    vk_session = vk_api.VkApi(token=access_token)
+
     while True:
         #print(total_count)
 
@@ -145,11 +161,10 @@ def get_all_owner_short_videos(owner_id: int,
             #access_token = TokenService.get_token_from_curl(curl)
             print("Токену пизда пришла")
 
-        resp = get_owner_short_videos_page(
+        resp = vk_api_get_owner_short_videos(
             owner_id=owner_id,
             count=page_size,
-            access_token=access_token,
-            api_version=api_version,
+            vk_session=vk_session,
             start_from=start_from
         )
 
