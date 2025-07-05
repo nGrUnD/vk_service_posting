@@ -7,6 +7,21 @@ from src.utils.rand_user_agent import get_random_user_agent
 from src.vk_api.vk_clip import get_clips_counts_for_groups
 import vk_api
 
+def get_vk_session_by_token(token: str, proxy: str = None):
+    if proxy:
+        session = requests.Session()
+        session.proxies.update({
+            'http': proxy,
+            'https': proxy
+        })
+        vk_session = vk_api.VkApi(token=token, session=session)
+    else:
+        vk_session = vk_api.VkApi(token=token)
+
+    vk_session.api_version="5.251"
+    vk_session.app_id=6287487
+    return vk_session
+
 def get_vk_session_by_log_pass(login: str, password: str, proxy: str = None):
     #print(login, password)
     session = requests.Session()

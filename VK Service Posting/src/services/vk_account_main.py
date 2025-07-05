@@ -3,6 +3,7 @@ import random
 from celery.result import AsyncResult
 from celery import chain
 from fastapi import HTTPException
+from pycparser.ply.yacc import token
 
 from src.celery_app import app as celery_app
 from src.celery_app.tasks import parse_vk_group_sync
@@ -14,7 +15,9 @@ from src.schemas.vk_account import VKAccountAdd, VKAccountUpdate, VKAccount, Acc
 from src.celery_app.tasks.vk_api import get_vk_account_curl
 from src.celery_app.tasks.vk_account_parse import parse_vk_profile_sync
 from src.celery_app.tasks.db_update_vk_account import update_db_sync
+from src.services.vk_token_service import TokenService
 from src.utils.database_manager import DataBaseManager
+from src.vk_api.vk_account import get_vk_session_by_token
 
 
 class VKAccountMainService:
@@ -46,7 +49,7 @@ class VKAccountMainService:
         await self.database.commit()
 
         proxies = await self.database.proxy.get_all()
-        index_proxy = random.randint(0, len(proxies))
+        index_proxy = random.randint(0, len(proxies)-1)
         proxy = proxies[index_proxy % len(proxies)]
 
         first_task = parse_vk_profile_sync.s(encrypted_curl, vk_account.id)
@@ -61,8 +64,10 @@ class VKAccountMainService:
                                             id=vk_account.id)
         await self.database.commit()
 
+        vk_token = TokenService.get_token_from_curl(curl, proxy)
+        vk_session = get_vk_session_by_token(vk_token, proxy)
         data_task = {
-            "encrypted_curl": encrypted_curl,
+            "vk_session": vk_session,
             "vk_account_id_database": vk_account.id,
             "proxy": proxy.http,
         }
