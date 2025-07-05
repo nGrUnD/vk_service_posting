@@ -351,7 +351,7 @@ def upload_short_video(token: str, group_id: int, video_path: str):
         print(f"\n❌ Критическая ошибка: {str(e)}")
 
 def get_vk_session_by_log_pass(login: str, password: str):
-    print(login, password)
+    #print(login, password)
     vk_session = vk_api.VkApi(login=login, password=password)
     vk_session.api_version="5.251"
     vk_session.app_id=6287487

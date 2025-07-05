@@ -7,10 +7,9 @@ from src.utils.celery_error_handler import mark_vk_account_failure_by_task_id
 from src.vk_api.vk_account import get_vk_account_data
 from asgiref.sync import async_to_sync
 
-def parse_vk_profile(curl_encrypted: str, vk_account_id_database: int, proxy: str) -> dict:
-    curl = AuthService().decrypt_data(curl_encrypted)
-
-    token = TokenService.get_token_from_curl(curl, proxy)
+def parse_vk_profile(vk_session, vk_account_id_database: int, proxy: str) -> dict:
+    token_data = vk_session.token
+    token = token_data['access_token']
     if not token:
         raise ValueError("Не удалось получить токен.")
 
@@ -35,7 +34,7 @@ def parse_vk_profile(curl_encrypted: str, vk_account_id_database: int, proxy: st
         "vk_account_id_database": vk_account_id_database,
         "vk_account_data": vk_account_data,
         "proxy": proxy,
-        "curl": curl_encrypted
+        "vk_session": vk_session,
     }
 
     return data
@@ -43,11 +42,11 @@ def parse_vk_profile(curl_encrypted: str, vk_account_id_database: int, proxy: st
 
 @app.task(bind=True)
 def parse_vk_profile_sync(self, data: dict):
-    curl_enc = data["encrypted_curl"]
+    vk_session = data["vk_session"]
     vk_account_id_database = data["vk_account_id_database"]  # Если добавишь в return
     proxy = data["proxy"]
     try:
-        result = parse_vk_profile(curl_enc, vk_account_id_database, proxy)
+        result = parse_vk_profile(vk_session, vk_account_id_database, proxy)
         return result
     except Exception as e:
         mark_vk_account_failure_by_task_id(vk_account_id_database)

@@ -68,11 +68,11 @@ class TokenService:
         return TokenRequest(url, headers, data, cookies)
 
     @staticmethod
-    def get_token_from_curl(curl_cmd: str, proxy: str = None) -> str:
+    def get_token_from_curl(vk_session, proxy: str = None) -> str:
         """
         Парсит curl_cmd, выполняет POST (с передачей cookies) и возвращает access_token.
         """
-        req = TokenService.parse_curl(curl_cmd)
+        req = TokenService.parse_curl(vk_session)
         if not req:
             return None
 

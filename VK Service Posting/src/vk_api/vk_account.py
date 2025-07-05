@@ -5,6 +5,29 @@ import requests
 from src.services.vk_token_service import TokenService
 from src.utils.rand_user_agent import get_random_user_agent
 from src.vk_api.vk_clip import get_clips_counts_for_groups
+import vk_api
+
+def get_vk_session_by_log_pass(login: str, password: str, proxy: str = None):
+    #print(login, password)
+    session = requests.Session()
+    session.proxies.update({
+        'http': proxy,
+        'https': proxy
+    })
+    vk_session = vk_api.VkApi(login=login, password=password, session=session)
+    vk_session.api_version="5.251"
+    vk_session.app_id=6287487
+    vk_session.token = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01234"
+    try:
+        vk_session.auth()
+    except vk_api.AuthError as error_msg:
+        print(error_msg)
+        raise error_msg
+
+    print(vk_session.api_version)
+    print(vk_session.app_id)
+    #vk = vk_auth.get_api()
+    return vk_session
 
 
 def get_vk_account_data(access_token: str, proxy: str = None):
@@ -49,7 +72,7 @@ def get_vk_account_data(access_token: str, proxy: str = None):
         "avatar_url": avatar_url,
     }
 
-def get_vk_account_admin_groups(access_token: str, user_id: int, proxy: str, curl: str) -> dict:
+def get_vk_account_admin_groups(access_token: str, user_id: int, proxy: str, vk_session) -> dict:
     url = "https://api.vk.com/method/groups.get"
     version = "5.131"
     delay = 0.34
@@ -99,7 +122,7 @@ def get_vk_account_admin_groups(access_token: str, user_id: int, proxy: str, cur
 
         if "error" in response_json:
             if "access_token has expired" in response_json['error']['error_msg']:
-                access_token = TokenService().get_token_from_curl(curl)
+                access_token = TokenService().get_token_from_curl(vk_session)
                 params["access_token"] = access_token
                 response = requests.get(url, params=params, headers=headers, proxies=proxy_response)
                 response_json = response.json()

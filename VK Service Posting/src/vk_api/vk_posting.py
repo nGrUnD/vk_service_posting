@@ -3,6 +3,7 @@ import re
 import time
 from typing import Dict, Optional
 
+import yt_dlp
 import vk_api
 import requests
 from vk_api import ApiError
@@ -33,6 +34,29 @@ def get_clip_info(owner_id: int, video_id: int, access_token: str, proxy: str) -
 
     result = data["response"]["items"][0]
     return result
+
+#!===================  Скачивание клипа
+def download_clip_by_url(url: str, out_dir=".") -> str:
+    downloaded_file = None
+
+    def hook(d):
+        nonlocal downloaded_file
+        if d['status'] == 'finished':
+            downloaded_file = d['filename']  # полный путь к файлу
+
+    ydl_opts = {
+        "outtmpl": f"{out_dir}/%(title)s.%(ext)s",
+        "format": "best",
+        "progress_hooks": [hook],
+        "quiet": True,
+        "no_warnings": True,
+    }
+
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        ydl.download([url])
+
+    return downloaded_file
+
 
 
 def download_vk_clip(files: dict[str, str],
