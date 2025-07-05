@@ -39,12 +39,12 @@ def _update_vk_account_db(account_id_database: int, account_update_data: dict, v
         session.commit()
 
 
-def parse_vk_profile(vk_token: str, vk_account_id_database: int) -> dict:
+def parse_vk_profile(vk_token: str, vk_account_id_database: int, proxy: str = None) -> dict:
 
     if not vk_token:
         raise ValueError("Не удалось получить токен.")
 
-    vk_account_data = get_vk_account_data(vk_token)
+    vk_account_data = get_vk_account_data(vk_token, proxy)
     vk_account_id = vk_account_data["id"]
     #vk_groups_data = get_vk_account_admin_groups(token, vk_account_id)
     vk_count_groups = 1
@@ -145,7 +145,7 @@ def create_workpost_account(
         #curl = get_vk_account_curl_from_browser(login, password, proxy)
         #encrypted_curl = AuthService().encrypt_data(curl)
 
-        vk_account_parse_data = parse_vk_profile(vk_token, account_id_database)
+        vk_account_parse_data = parse_vk_profile(vk_token, account_id_database, proxy)
         # token
         # vk_account_id
         # vk_account_id_database

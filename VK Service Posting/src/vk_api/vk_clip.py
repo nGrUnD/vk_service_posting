@@ -135,7 +135,7 @@ def vk_api_get_owner_short_videos(owner_id: int, vk, count: int = 1, start_from:
             start_from=start_from,
         )
 
-    print(f"shortvideo data: {data}")
+    #print(f"shortvideo data: {data}")
     return data
 
 
