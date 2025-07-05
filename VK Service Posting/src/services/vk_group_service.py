@@ -56,7 +56,7 @@ class VKGroupSourceService:
 
 
             vk_group_database_id = vk_group_database.id
-            curl, vk_account_id = await VKAccountBackupService(self.database).get_random_account_backup_curl()
+            vk_account_id = await VKAccountBackupService(self.database).get_random_account_backup_curl()
 
             vk_account_db = await self.database.vk_account.get_one_or_none(id=vk_account_id)
             current_cred = await self.database.vk_account_cred.get_one_or_none(id=vk_account_db.vk_cred_id)

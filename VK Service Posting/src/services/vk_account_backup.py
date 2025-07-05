@@ -155,5 +155,5 @@ class VKAccountBackupService:
 
         random_account = random.choice(all_vk_accounts_backup)
 
-        curl = AuthService().decrypt_data(random_account.encrypted_curl)
-        return curl, random_account.id
+        #curl = AuthService().decrypt_data(random_account.encrypted_curl)
+        return random_account.id
