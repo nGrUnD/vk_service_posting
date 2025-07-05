@@ -153,6 +153,8 @@ def get_all_owner_short_videos(owner_id: int,
     total_count: int = None
 
     vk_session = vk_api.VkApi(token=access_token)
+    vk_session.api_version="5.251"
+    vk_session.app_id=6287487
 
     while True:
         #print(total_count)
