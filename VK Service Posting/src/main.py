@@ -26,6 +26,7 @@ from src.services.posting_service import PostingService
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     async def scheduler_loop():
+        print("loop_started")
         minutes = 0
         while True:
             await asyncio.sleep(60)  # каждые 60 секунд
