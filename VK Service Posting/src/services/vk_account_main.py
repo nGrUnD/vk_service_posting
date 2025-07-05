@@ -65,9 +65,9 @@ class VKAccountMainService:
         await self.database.commit()
 
         vk_token = TokenService.get_token_from_curl(curl, proxy.http)
-        vk_session = get_vk_session_by_token(vk_token, proxy.http)
+        #vk_session = get_vk_session_by_token(vk_token, proxy.http)
         data_task = {
-            "vk_session": vk_session,
+            "token": vk_token,
             "vk_account_id_database": vk_account.id,
             "proxy": proxy.http,
         }

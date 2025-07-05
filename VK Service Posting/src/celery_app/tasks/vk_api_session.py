@@ -7,9 +7,9 @@ from src.vk_api.vk_account import get_vk_session_by_log_pass
 def get_vk_account_cred(self, account_id_database: int, login: str, password: str, proxy: str) -> dict:
     try:
         vk_session = get_vk_session_by_log_pass(login, password, proxy)
-
+        vk_token = vk_session.token['access_token']
         data = {
-            "vk_session": vk_session,
+            "token": vk_token,
             "vk_account_id_database": account_id_database,
             "proxy": proxy,
         }

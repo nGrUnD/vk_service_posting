@@ -87,7 +87,7 @@ def get_vk_account_data(access_token: str, proxy: str = None):
         "avatar_url": avatar_url,
     }
 
-def get_vk_account_admin_groups(access_token: str, user_id: int, proxy: str, vk_session) -> dict:
+def get_vk_account_admin_groups(access_token: str, user_id: int, proxy: str) -> dict:
     url = "https://api.vk.com/method/groups.get"
     version = "5.131"
     delay = 0.34
@@ -137,7 +137,8 @@ def get_vk_account_admin_groups(access_token: str, user_id: int, proxy: str, vk_
 
         if "error" in response_json:
             if "access_token has expired" in response_json['error']['error_msg']:
-                access_token = TokenService().get_token_from_curl(vk_session)
+                #access_token = TokenService().get_token_from_curl(vk_session)
+                print("Пизда токену")
                 params["access_token"] = access_token
                 response = requests.get(url, params=params, headers=headers, proxies=proxy_response)
                 response_json = response.json()
