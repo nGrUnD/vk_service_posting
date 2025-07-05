@@ -120,7 +120,7 @@ def get_owner_short_videos_page(owner_id: int,
 
 
 def get_all_owner_short_videos(owner_id: int,
-                               curl: str,
+                               access_token: str,
                                api_version: str = '5.251',
                                page_size: int = 100,
                                delay: float = 0.34) -> List[Dict[str, Any]]:
@@ -138,13 +138,12 @@ def get_all_owner_short_videos(owner_id: int,
     all_items: List[Dict[str, Any]] = []
     start_from: str = None
     total_count: int = None
-    access_token = TokenService.get_token_from_curl(curl)
     while True:
         #print(total_count)
 
         if is_token_expired(access_token):
-            access_token = TokenService.get_token_from_curl(curl)
-            print("Токен обновлён")
+            #access_token = TokenService.get_token_from_curl(curl)
+            print("Токену пизда пришла")
 
         resp = get_owner_short_videos_page(
             owner_id=owner_id,

@@ -3,9 +3,11 @@ from typing import List
 
 from src.celery_app import app  # твой celery app
 from src.schemas.vk_group import VKGroupRequestAddUrl, VKGroupAdd
+from src.services.auth import AuthService
 from src.services.celery_task import CeleryTaskService
 from src.services.vk_account_backup import VKAccountBackupService
 from src.utils.database_manager import DataBaseManager
+import vk_api
 
 def extract_vk_ids(links: List[str]) -> List[int]:
     """
@@ -52,11 +54,24 @@ class VKGroupSourceService:
                 )
                 vk_group_database = await self.database.vk_group.add(group_new)
 
+
             vk_group_database_id = vk_group_database.id
             curl, vk_account_id = await VKAccountBackupService(self.database).get_random_account_backup_curl()
+
+            vk_account_db = await self.database.vk_account.get_one_or_none(id=vk_account_id)
+            current_cred = await self.database.vk_account_cred.get_one_or_none(id=vk_account_db.vk_cred_id)
+            if not current_cred:
+                continue
+
+            login = current_cred.login
+            password = AuthService().decrypt_data(current_cred.encrypted_password) # current_cred.encrypted_password
+            vk_session = vk_api.VkApi(login, password)
+
+            token = vk_session.token
+
             task = app.send_task(
                 'src.tasks.parse_vk_group_clips_sync',  # имя таски, как зарегистрирована
-                args=[vk_group_id, curl, user_id, vk_group_urls_request.clip_list_id, vk_group_database_id, vk_group_urls_request.min_views, vk_group_urls_request.date_range]
+                args=[vk_group_id, token, user_id, vk_group_urls_request.clip_list_id, vk_group_database_id, vk_group_urls_request.min_views, vk_group_urls_request.date_range]
             )
             task_ids.append(task.id)
             await (CeleryTaskService(self.database).

@@ -3,7 +3,6 @@ import random
 from celery.result import AsyncResult
 from celery import chain
 from fastapi import HTTPException
-from pycparser.ply.yacc import token
 
 from src.celery_app import app as celery_app
 from src.celery_app.tasks import parse_vk_group_sync
@@ -11,13 +10,12 @@ from src.celery_app.tasks.db_update_vk_account_group import update_db_group_asyn
 from src.models.celery_task import CeleryTaskOrm
 from src.models.vk_group import VKGroupOrm
 from src.services.auth import AuthService
-from src.schemas.vk_account import VKAccountAdd, VKAccountUpdate, VKAccount, AccountType
+from src.schemas.vk_account import VKAccountAdd, VKAccountUpdate, VKAccount
 from src.celery_app.tasks.vk_api import get_vk_account_curl
 from src.celery_app.tasks.vk_account_parse import parse_vk_profile_sync
 from src.celery_app.tasks.db_update_vk_account import update_db_sync
 from src.services.vk_token_service import TokenService
 from src.utils.database_manager import DataBaseManager
-from src.vk_api.vk_account import get_vk_session_by_token
 
 
 class VKAccountMainService:

@@ -8,12 +8,14 @@ from src.repositories.clip_list import ClipListRepository
 from src.repositories.proxy import ProxyRepository
 from src.repositories.schedule_posting import SchedulePostingRepository
 from src.repositories.vk_account import VKAccountRepository
+from src.repositories.vk_account_cred import VKAccountCredRepository
 from src.repositories.vk_clip import VKClipRepository
 from src.repositories.workerpost import WorkerPostRepository
 from src.schemas.schedule_posting import SchedulePostingAdd, SchedulePostingUpdate
 from src.schemas.vk_clip import VKClipOut
 from src.services.auth import AuthService
 from src.services.vk_token_service import TokenService
+from src.vk_api.vk_account import get_vk_session_by_log_pass
 
 
 class PostingService:
@@ -28,6 +30,7 @@ class PostingService:
         self.vk_clip = VKClipRepository(self.session)
         self.vk_account_repo = VKAccountRepository(self.session)
         self.proxy = ProxyRepository(self.session)
+        self.vk_cred = VKAccountCredRepository(self.session)
 
         return self
 
@@ -69,6 +72,7 @@ class PostingService:
             #print("post")
             clip_list = await self.clip_list.get_one_or_none(id=category.clip_list_id)
             vk_account = await self.vk_account_repo.get_one_or_none(id=workpost.vk_account_id)
+            vk_cred = await self.vk_cred.get_one_or_none(id=vk_account.vk_cred_id)
 
             random_clip = await self.vk_clip.get_random_one(clip_list_id=clip_list.id)
             if not random_clip:
@@ -102,11 +106,15 @@ class PostingService:
 
             schedule_posting = await self.schedule_posting.add(schedule_posting_add)
 
-            curl = AuthService().decrypt_data(vk_account.encrypted_curl)
-            access_token = TokenService.get_token_from_curl(curl, proxy.http)
+            login = vk_cred.login
+            password = AuthService().decrypt_data(vk_cred.encrypted_password)
+
+            vk_session = get_vk_session_by_log_pass(login=login, password=password, proxy=proxy)
+            token_data = vk_session.token
+            vk_token = token_data['access_token']
 
             task = create_post.delay(
-                workpost.id, access_token, schedule_posting.id, clip_data, proxy.http
+                workpost.id, vk_token, schedule_posting.id, clip_data, proxy.http
             )
 
             schedule_posting_update_data = SchedulePostingUpdate(

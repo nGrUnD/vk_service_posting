@@ -10,12 +10,13 @@ from src.schemas.vk_account import VKAccountUpdate
 from src.services.auth import AuthService
 from src.services.vk_token_service import TokenService
 from src.utils.database_manager import DataBaseManager
-from src.vk_api.vk_account import get_vk_account_data
+from src.vk_api.vk_account import get_vk_account_data, get_vk_session_by_log_pass
 from src.vk_api.vk_group import join_group, assign_editor_role
 from src.vk_api.vk_selenium import get_vk_account_curl_from_browser
 from src.celery_app.celery_db import SyncSessionLocal
+import vk_api
 
-def _update_vk_account_db(account_id_database: int, account_update_data: dict, encrypted_curl: str, database_manager,):
+def _update_vk_account_db(account_id_database: int, account_update_data: dict, vk_token: str, database_manager,):
     # assume get_one_or_none is async
     with database_manager as session:
         stmt = select(VKAccountOrm).where(VKAccountOrm.id == account_id_database)
@@ -28,7 +29,7 @@ def _update_vk_account_db(account_id_database: int, account_update_data: dict, e
         account_update_data = VKAccountUpdate(**account_update_data)
         # account_update_data.groups_count = len(groups)
         account_update_data.groups_count = 1
-        account_update_data.encrypted_curl=encrypted_curl
+        account_update_data.encrypted_curl=""
 
         account_update_data.parse_status = "success"
 
@@ -38,14 +39,12 @@ def _update_vk_account_db(account_id_database: int, account_update_data: dict, e
         session.commit()
 
 
-def parse_vk_profile(curl_encrypted: str, vk_account_id_database: int) -> dict:
-    curl = AuthService().decrypt_data(curl_encrypted)
+def parse_vk_profile(vk_token: str, vk_account_id_database: int) -> dict:
 
-    token = TokenService.get_token_from_curl(curl)
-    if not token:
+    if not vk_token:
         raise ValueError("Не удалось получить токен.")
 
-    vk_account_data = get_vk_account_data(token)
+    vk_account_data = get_vk_account_data(vk_token)
     vk_account_id = vk_account_data["id"]
     #vk_groups_data = get_vk_account_admin_groups(token, vk_account_id)
     vk_count_groups = 1
@@ -61,7 +60,7 @@ def parse_vk_profile(curl_encrypted: str, vk_account_id_database: int) -> dict:
     }
 
     data = {
-        "token": token,
+        "token": vk_token,
         "vk_account_id": vk_account_id,
         "vk_account_id_database": vk_account_id_database,
         "vk_account_data": vk_account_data,
@@ -140,15 +139,18 @@ def create_workpost_account(
     print("Задача началась!")
     database_manager = SyncSessionLocal()
     try:
-        curl = get_vk_account_curl_from_browser(login, password, proxy)
-        encrypted_curl = AuthService().encrypt_data(curl)
+        vk_session = get_vk_session_by_log_pass(login=login,password=password,proxy=proxy)
+        token_data = vk_session.token
+        vk_token = token_data['access_token']
+        #curl = get_vk_account_curl_from_browser(login, password, proxy)
+        #encrypted_curl = AuthService().encrypt_data(curl)
 
-        vk_account_parse_data = parse_vk_profile(encrypted_curl, account_id_database)
+        vk_account_parse_data = parse_vk_profile(vk_token, account_id_database)
         # token
         # vk_account_id
         # vk_account_id_database
         # vk_account_data
-        _update_vk_account_db(account_id_database, vk_account_parse_data['vk_account_data'], encrypted_curl, database_manager)
+        _update_vk_account_db(account_id_database, vk_account_parse_data['vk_account_data'], vk_token, database_manager)
 
         create_workpost(
             user_id,
