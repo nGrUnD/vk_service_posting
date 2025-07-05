@@ -8,7 +8,6 @@ from pycparser.ply.yacc import token
 from src.services.vk_token_service import TokenService
 import vk_api
 from src.utils.rand_user_agent import get_random_user_agent
-from src.vk_api.vk_account import get_vk_session_by_token
 
 
 def is_token_expired(access_token: str) -> bool:
@@ -141,7 +140,7 @@ def vk_api_get_owner_short_videos(owner_id: int, vk, count: int = 1, start_from:
 
 
 def get_all_owner_short_videos(owner_id: int,
-                               access_token: str,
+                               vk_session,
                                api_version: str = '5.251',
                                page_size: int = 100,
                                delay: float = 0.34) -> List[Dict[str, Any]]:
@@ -160,15 +159,15 @@ def get_all_owner_short_videos(owner_id: int,
     start_from: str = None
     total_count: int = None
 
-    vk_session = get_vk_session_by_token(access_token)
+    #vk_session = get_vk_session_by_token(access_token)
     vk = vk_session.get_api()
 
     while True:
         #print(total_count)
 
-        if is_token_expired(access_token):
+        #if is_token_expired(access_token):
             #access_token = TokenService.get_token_from_curl(curl)
-            print("Токену пизда пришла")
+        #    print("Токену пизда пришла")
 
         resp = vk_api_get_owner_short_videos(
             owner_id=owner_id,
