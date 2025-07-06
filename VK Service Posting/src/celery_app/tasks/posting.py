@@ -47,7 +47,7 @@ def posting_clip(worker_id: int, login: str, password: str, schedule_database_id
 
         clip_url = f"https://vk.com/video{vk_clip_owner_id}_{clip_id}"
 
-        clip_filename = download_clip_by_url(clip_url)
+        clip_filename = download_clip_by_url(clip_url, vk_clip_owner_id, clip_id)
 
         vk_session = get_vk_session_by_log_pass(login, password, proxy)
         token_data = vk_session.token

@@ -36,8 +36,9 @@ def get_clip_info(owner_id: int, video_id: int, access_token: str, proxy: str) -
     return result
 
 #!===================  Скачивание клипа
-def download_clip_by_url(url: str, out_dir=".") -> str:
+def download_clip_by_url(url: str, owner_id: int, clip_id: int, out_dir=".") -> str:
     downloaded_file = None
+    filename_template = f"{out_dir}/{owner_id}-{clip_id}.%(ext)s"
 
     def hook(d):
         nonlocal downloaded_file
@@ -45,7 +46,7 @@ def download_clip_by_url(url: str, out_dir=".") -> str:
             downloaded_file = d['filename']  # полный путь к файлу
 
     ydl_opts = {
-        "outtmpl": f"{out_dir}/%(title)s.%(ext)s",
+        "outtmpl": filename_template,
         "format": "best",
         "progress_hooks": [hook],
         "quiet": True,
