@@ -59,11 +59,11 @@ class VKAccountOut(BaseModel):
 
 class VKAccount(BaseModel):
     id: int
-    proxy_id: int
     vk_account_id: int
     user_id: int
     encrypted_curl: str
     vk_cred_id: Optional[int] = None
+    proxy_id: Optional[int] = None
     vk_account_url : str
     avatar_url: str
     name: str
