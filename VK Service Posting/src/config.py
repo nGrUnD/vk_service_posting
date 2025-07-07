@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     postgres_user: str
     postgres_password: str
     postgres_db: str
+    REDIS_PASSWORD: str
 
     @property
     def DB_URL(self):
