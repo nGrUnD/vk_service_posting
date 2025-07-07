@@ -100,7 +100,7 @@ class VKAccountBackupService:
             )
             vk_account = await self.database.vk_account.add(vk_account_add)
             await self.database.commit()
-            
+
             task = chain(
                 get_vk_account_cred.s(vk_account.id, account_log_pass.login,
                                       AuthService().decrypt_data(current_cred.encrypted_password), proxy_http),
