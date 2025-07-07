@@ -108,6 +108,7 @@ class WorkerPostService:
                     account_type="poster",
                 )
                 vk_account = await self.database.vk_account.add(vk_account_add)
+                await self.database.commit()
 
             task = create_workpost_account.delay(
                 account_id_database=vk_account.id,
