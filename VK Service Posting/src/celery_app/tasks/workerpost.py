@@ -1,8 +1,11 @@
+import random
+
 from sqlalchemy import select
 
 from src.celery_app import app
 from src.models.category import CategoryOrm
 from src.models.celery_task import CeleryTaskOrm
+from src.models.proxy import ProxyOrm
 from src.models.vk_account import VKAccountOrm
 from src.models.vk_group import VKGroupOrm
 from src.models.workerpost import WorkerPostOrm
@@ -125,6 +128,41 @@ def update_celery_task_status(
         celery_task.status = new_status
         session.commit()
 
+def get_vk_session_with_retry(database_manager, account_id_database: int, login: str, password: str, proxy: str = None, retries: int = 10):
+    last_proxy = proxy
+    with database_manager as session:
+        stmt = select(VKAccountOrm).where(VKAccountOrm.id == account_id_database)
+        result = session.execute(stmt)
+        vk_account_database = result.scalars().one_or_none()
+        if vk_account_database is None:
+            raise ValueError(f"VkAccount с логином {login} не найден в базе")
+
+        for attempt in range(1, retries + 1):
+            try:
+                vk_session = get_vk_session_by_log_pass(login=login, password=password, proxy=last_proxy)
+
+                if last_proxy and last_proxy != vk_account_database.proxy_string:
+                    # Находим объект Proxy в базе
+                    stmt_proxy = select(ProxyOrm).where(ProxyOrm.http == last_proxy)
+                    proxy_db = session.execute(stmt_proxy).scalars().one_or_none()
+                    if proxy_db:
+                        vk_account_database.proxy_id = proxy_db.id
+                        session.commit()
+
+                return vk_session
+            except Exception as e:
+                print(f"Попытка {attempt}: ошибка авторизации, пробуем другой прокси")
+                stmt_proxies = select(ProxyOrm).where(ProxyOrm.http != last_proxy)
+                proxies = session.execute(stmt_proxies).scalars().all()
+
+                if not proxies:
+                    print("Нет доступных прокси для смены. Повторяем попытку с текущим прокси.")
+                    continue
+
+                last_proxy = random.choice(proxies).proxy_string
+
+    raise ValueError(f"Не удалось авторизоваться после {retries} попыток")
+
 @app.task
 def create_workpost_account(
         account_id_database: int,
@@ -139,7 +177,13 @@ def create_workpost_account(
     print("Задача началась!")
     database_manager = SyncSessionLocal()
     try:
-        vk_session = get_vk_session_by_log_pass(login=login,password=password,proxy=proxy)
+        vk_session = get_vk_session_with_retry(
+            database_manager=database_manager,
+            account_id_database=account_id_database,
+            login=login,
+            password=password,
+            proxy=proxy,
+        )
         token_data = vk_session.token
         vk_token = token_data['access_token']
         #curl = get_vk_account_curl_from_browser(login, password, proxy)

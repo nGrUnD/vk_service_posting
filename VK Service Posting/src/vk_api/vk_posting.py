@@ -190,7 +190,7 @@ def upload_short_video(token: str, group_id: int, video_path: str, description: 
 
         # 3. ВАЖНО: Добавляем задержку для обработки видео
         print("3. Ждем обработки шортс...")
-        wait_for_encoding(vk, video_info['video_id'], video_info['owner_id'], video_info['video_hash'], proxy_response, 20, 3)
+        wait_for_encoding(vk, video_info['video_id'], video_info['owner_id'], video_info['video_hash'], proxy_response, 100, 3)
 
         # 3.5 Редактируем описание
         print("3.5 Редактируем описание...")
