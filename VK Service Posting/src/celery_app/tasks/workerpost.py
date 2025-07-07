@@ -7,6 +7,7 @@ from src.models.category import CategoryOrm
 from src.models.celery_task import CeleryTaskOrm
 from src.models.proxy import ProxyOrm
 from src.models.vk_account import VKAccountOrm
+from src.models.vk_account_cred import VKAccountCredOrm
 from src.models.vk_group import VKGroupOrm
 from src.models.workerpost import WorkerPostOrm
 from src.schemas.vk_account import VKAccountUpdate
@@ -42,12 +43,53 @@ def _update_vk_account_db(account_id_database: int, account_update_data: dict, v
         session.commit()
 
 
-def parse_vk_profile(vk_token: str, vk_account_id_database: int, proxy: str = None) -> dict:
+def get_vk_account_data_retry(vk_account_id_db: int, proxy: str, retries: int = 10):
+    last_proxy = proxy
+    with SyncSessionLocal() as session:
+        stmt = select(VKAccountOrm).where(VKAccountOrm.id == vk_account_id_db)
+        result = session.execute(stmt)
+        vk_account_database = result.scalars().one_or_none()
 
+        if vk_account_database is None:
+            raise ValueError(f"VkAccount с id {vk_account_database} не найден в базе")
+
+
+        stmt = select(VKAccountCredOrm).where(VKAccountCredOrm.id == vk_account_database.vk_cred_id)
+        result = session.execute(stmt)
+        vk_cred_database = result.scalars().one_or_none()
+
+        if vk_cred_database is None:
+            raise ValueError(f"VkAccountCred с id {vk_account_database.vk_cred_id} не найден в базе")
+
+        login = vk_cred_database.login
+        password = AuthService().decrypt_data(vk_cred_database.encrypted_password)
+
+        for attempt in range(1, retries + 1):
+            try:
+                vk_session = get_vk_session_by_log_pass(login=login, password=password, proxy=last_proxy)
+                token_data = vk_session.token
+                token = token_data['access_token']
+                vk_account_data = get_vk_account_data(token, proxy)
+
+
+                return vk_account_data, token
+            except Exception as e:
+                print(e)
+                print(f"Попытка {attempt}: ошибка авторизации")
+
+    raise ValueError(f"Не удалось авторизоваться после {retries} попыток")
+
+
+def parse_vk_profile(vk_token: str, vk_account_id_database: int, proxy: str = None) -> dict:
     if not vk_token:
         raise ValueError("Не удалось получить токен.")
 
-    vk_account_data = get_vk_account_data(vk_token, proxy)
+    try:
+        vk_account_data = get_vk_account_data(vk_token, proxy)
+    except Exception as e:
+        print(e)
+        vk_account_data, vk_token = get_vk_account_data_retry(vk_account_id_database, proxy)
+
     vk_account_id = vk_account_data["id"]
     #vk_groups_data = get_vk_account_admin_groups(token, vk_account_id)
     vk_count_groups = 1
