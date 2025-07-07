@@ -159,7 +159,7 @@ def get_vk_session_with_retry(database_manager, account_id_database: int, login:
                     print("Нет доступных прокси для смены. Повторяем попытку с текущим прокси.")
                     continue
 
-                last_proxy = random.choice(proxies).proxy_string
+                last_proxy = random.choice(proxies).http
 
     raise ValueError(f"Не удалось авторизоваться после {retries} попыток")
 
