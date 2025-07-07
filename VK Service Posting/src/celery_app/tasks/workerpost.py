@@ -141,7 +141,10 @@ def get_vk_session_with_retry(database_manager, account_id_database: int, login:
             try:
                 vk_session = get_vk_session_by_log_pass(login=login, password=password, proxy=last_proxy)
 
-                if last_proxy and last_proxy != vk_account_database.proxy_string:
+                stmt = select(ProxyOrm).where(ProxyOrm.id == vk_account_database.proxy_id)
+                result = session.execute(stmt)
+                proxy_vk_account_db = result.scalars().one_or_none()
+                if last_proxy and last_proxy != proxy_vk_account_db.http:
                     # Находим объект Proxy в базе
                     stmt_proxy = select(ProxyOrm).where(ProxyOrm.http == last_proxy)
                     proxy_db = session.execute(stmt_proxy).scalars().one_or_none()
