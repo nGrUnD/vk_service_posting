@@ -147,8 +147,8 @@ class VKAccountMainService:
         # 3. Взять зашифрованный curl
         encrypted_curl = vk_account.encrypted_curl
 
-        await self.create_account_curl(user_id, encrypted_curl, "main")
-        return {"status": "retry_started", "task_id": 0}
+        #await self.create_account_curl(user_id, encrypted_curl, "main")
+        #return {"status": "retry_started", "task_id": 0}
 
         # 4. Сгенерировать новый task_id
         first_task = parse_vk_profile_sync.s(encrypted_curl, vk_account.id)
@@ -162,9 +162,18 @@ class VKAccountMainService:
         )
         await self.database.commit()
 
+        curl = AuthService().decrypt_data(encrypted_curl)
+        vk_token = TokenService.get_token_from_curl(curl, None)
+
+        data_task = {
+            "token": vk_token,
+            "vk_account_id_database": vk_account.id,
+            "proxy": None,
+        }
+
         # 6. Запустить цепочку задач
         task_chain = chain(
-            parse_vk_profile_sync.s(encrypted_curl, vk_account.id),
+            parse_vk_profile_sync.s(data_task),
             parse_vk_group_sync.s(),
             update_db_sync.s(vk_account.id),
             update_db_group_async.s(vk_account.id, user_id),  # ← data будет первым аргументом

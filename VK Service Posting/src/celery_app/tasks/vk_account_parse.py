@@ -4,14 +4,18 @@ from src.celery_app import app
 from src.services.auth import AuthService
 from src.services.vk_token_service import TokenService
 from src.utils.celery_error_handler import mark_vk_account_failure_by_task_id
-from src.vk_api.vk_account import get_vk_account_data
+from src.vk_api.vk_account import get_vk_account_data, get_vk_session_by_token
 from asgiref.sync import async_to_sync
 
 def parse_vk_profile(vk_token, vk_account_id_database: int, proxy: str) -> dict:
     if not vk_token:
         raise ValueError("Не удалось получить токен.")
 
-    vk_account_data = get_vk_account_data(vk_token, proxy)
+    vk_session = get_vk_session_by_token(vk_token, proxy)
+    token_data = vk_session.token
+    token = token_data['access_token']
+
+    vk_account_data = get_vk_account_data(token, proxy)
     vk_account_id = vk_account_data["id"]
     #vk_groups_data = get_vk_account_admin_groups(token, vk_account_id)
     vk_count_groups = 0
@@ -27,7 +31,7 @@ def parse_vk_profile(vk_token, vk_account_id_database: int, proxy: str) -> dict:
     }
 
     data = {
-        "token": vk_token,
+        "token": token,
         "vk_account_id": vk_account_id,
         "vk_account_id_database": vk_account_id_database,
         "vk_account_data": vk_account_data,
