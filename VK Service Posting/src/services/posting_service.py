@@ -1,5 +1,7 @@
 import random
 from typing import List, Optional
+import os
+import glob
 
 from src.celery_app.tasks import create_post
 
@@ -44,15 +46,34 @@ class PostingService:
             return None
         return random.choice(clips)
 
+    def delete_all_mp4_files(self, directory=".") -> int:
+        """
+        Удаляет все файлы с расширением .mp4 в указанной директории.
+
+        :param directory: Путь к папке (по умолчанию текущая директория)
+        :return: Количество успешно удалённых файлов
+        """
+        pattern = os.path.join(directory, "*.mp4")
+        files = glob.glob(pattern)
+        deleted_count = 0
+
+        for file_path in files:
+            try:
+                os.remove(file_path)
+                print(f"✅ Удалён файл: {file_path}")
+                deleted_count += 1
+            except Exception as e:
+                print(f"❌ Не удалось удалить файл {file_path}: {e}")
+
+        if deleted_count == 0:
+            print("Файлы .mp4 не найдены.")
+        return deleted_count
+
     async def check_and_schedule(self, minute: int):
         print(minute)
         workposts = await self.workpost_repo.get_all()
-        proxies = await self.proxy.get_all()
-        index_proxy = random.randint(0, len(proxies)-1)
-
+        self.delete_all_mp4_files()
         for workpost in workposts:
-            proxy = proxies[index_proxy % len(proxies)]
-            index_proxy+=1
             #print(workpost)
             category = await self.category_repo.get_one_or_none(id=workpost.category_id)
             #print(category)
@@ -72,6 +93,13 @@ class PostingService:
             clip_list = await self.clip_list.get_one_or_none(id=category.clip_list_id)
             vk_account = await self.vk_account_repo.get_one_or_none(id=workpost.vk_account_id)
             vk_cred = await self.vk_cred.get_one_or_none(id=vk_account.vk_cred_id)
+            proxy = await self.proxy.get_one_or_none(id=vk_account.proxy_id)
+
+            if not proxy:
+                print("Не удалось найти прокси")
+                continue
+
+            proxy_http = proxy.http
 
             random_clip = await self.vk_clip.get_random_one(clip_list_id=clip_list.id)
             if not random_clip:
@@ -109,7 +137,7 @@ class PostingService:
             password = AuthService().decrypt_data(vk_cred.encrypted_password)
 
             task = create_post.delay(
-                workpost.id, login, password, schedule_posting.id, clip_data, proxy.http
+                workpost.id, login, password, schedule_posting.id, clip_data, proxy_http
             )
 
             schedule_posting_update_data = SchedulePostingUpdate(

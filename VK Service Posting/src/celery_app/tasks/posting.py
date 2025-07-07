@@ -1,5 +1,4 @@
 from sqlalchemy import select
-
 from src.celery_app import app
 from src.models.category import CategoryOrm
 from src.models.schedule_posting import SchedulePostingOrm
@@ -47,11 +46,12 @@ def posting_clip(worker_id: int, login: str, password: str, schedule_database_id
 
         clip_url = f"https://vk.com/video{vk_clip_owner_id}_{clip_id}"
 
-        clip_filename = download_clip_by_url(clip_url, vk_clip_owner_id, clip_id)
 
         vk_session = get_vk_session_by_log_pass(login, password, proxy)
         token_data = vk_session.token
         token = token_data['access_token']
+
+        clip_filename = download_clip_by_url(clip_url, vk_clip_owner_id, clip_id)
 
         upload_short_video(
             token,
@@ -61,8 +61,6 @@ def posting_clip(worker_id: int, login: str, password: str, schedule_database_id
             category.repost_enabled,
             proxy
         )
-
-        delete_file(clip_filename)
 
         stmt = select(SchedulePostingOrm).where(SchedulePostingOrm.id == schedule_database_id)
         result = session.execute(stmt)

@@ -74,6 +74,8 @@ class VKAccountBackupService:
 
         for account_log_pass in added_accounts_log_pass:
             proxy = proxies[index_proxy % len(proxies)]
+            proxy_http = proxy.http
+
             index_proxy+=1
             current_cred = await self.database.vk_account_cred.get_one_or_none(
                 user_id=user_id,
@@ -83,6 +85,7 @@ class VKAccountBackupService:
             vk_account_add = VKAccountAdd(
                 user_id=user_id,
                 vk_cred_id=current_cred.id,
+                proxy_id=proxy.id,
                 vk_account_id=0,
                 encrypted_curl="pending",
                 vk_account_url="",
@@ -99,7 +102,7 @@ class VKAccountBackupService:
 
             task = chain(
                 get_vk_account_cred.s(vk_account.id, account_log_pass.login,
-                                      AuthService().decrypt_data(current_cred.encrypted_password), proxy.http),
+                                      AuthService().decrypt_data(current_cred.encrypted_password), proxy_http),
                 parse_vk_profile_sync.s(),
                 parse_vk_group_sync.s(),
                 update_db_sync.s(vk_account.id),

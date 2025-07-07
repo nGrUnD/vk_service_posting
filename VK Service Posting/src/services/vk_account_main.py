@@ -47,8 +47,13 @@ class VKAccountMainService:
         await self.database.commit()
 
         proxies = await self.database.proxy.get_all()
-        index_proxy = random.randint(0, len(proxies)-1)
-        proxy = proxies[index_proxy % len(proxies)]
+
+        if proxies:
+            index_proxy = random.randint(0, len(proxies)-1)
+            proxy = proxies[index_proxy % len(proxies)]
+            proxy_http = proxy.http
+        else:
+            proxy_http = None
 
         first_task = parse_vk_profile_sync.s(encrypted_curl, vk_account.id)
 
@@ -62,12 +67,12 @@ class VKAccountMainService:
                                             id=vk_account.id)
         await self.database.commit()
 
-        vk_token = TokenService.get_token_from_curl(curl, proxy.http)
+        vk_token = TokenService.get_token_from_curl(curl, proxy_http)
         #vk_session = get_vk_session_by_token(vk_token, proxy.http)
         data_task = {
             "token": vk_token,
             "vk_account_id_database": vk_account.id,
-            "proxy": proxy.http,
+            "proxy": proxy_http,
         }
         task_chain = chain(
             parse_vk_profile_sync.s(data_task),

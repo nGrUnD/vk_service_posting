@@ -69,8 +69,9 @@ class WorkerPostService:
         index_proxy = random.randint(0, len(proxies))
 
         for account_log_pass, vk_group_id in zip(added_accounts_log_pass, vk_groups_ids):
-
             proxy = proxies[index_proxy % len(proxies)]
+            proxy_http = proxy.http
+
             index_proxy+=1
             category_database = await self.database.category.get_one_or_none(id=request_add.category_id)
 
@@ -93,6 +94,7 @@ class WorkerPostService:
                 vk_account_add = VKAccountAdd(
                     user_id=user_id,
                     vk_cred_id=current_cred.id,
+                    proxy_id=proxy.id,
                     vk_account_id=0,
                     encrypted_curl="pending",
                     vk_account_url="",
@@ -115,7 +117,7 @@ class WorkerPostService:
                 user_id=user_id,
                 login=account_log_pass.login,
                 password=account_log_pass.password,
-                proxy=proxy.http
+                proxy=proxy_http
             )
 
             await self.database.vk_account.edit(

@@ -255,6 +255,10 @@ def delete_file(file_path: str) -> bool:
     :param file_path: Путь к файлу
     :return: True, если файл успешно удалён, False — если файла нет
     """
+    if not os.path.exists(file_path):
+        print(f"⚠️ Файл не найден по пути: {file_path}")
+        return False
+
     try:
         os.remove(file_path)
         print(f"✅ Файл '{file_path}' удалён.")

@@ -22,6 +22,7 @@ class VKAccountAddCURL(BaseModel):
 class VKAccountAdd(BaseModel):
     user_id: int
     vk_cred_id: Optional[int] = None
+    proxy_id: Optional[int] = None
     vk_account_id: int
     encrypted_curl: str
     vk_account_url : str
@@ -58,6 +59,7 @@ class VKAccountOut(BaseModel):
 
 class VKAccount(BaseModel):
     id: int
+    proxy_id: int
     vk_account_id: int
     user_id: int
     encrypted_curl: str
@@ -77,6 +79,7 @@ class VKAccount(BaseModel):
 
 class VKAccountUpdate(BaseModel):
     # все поля опциональные — можно обновлять любое подмножество
+    proxy_id: Optional[int] = None
     vk_account_id: Optional[int] = None
     avatar_url: Optional[str] = None
     vk_account_url: Optional[str] = None

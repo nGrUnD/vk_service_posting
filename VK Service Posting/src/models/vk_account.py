@@ -24,6 +24,8 @@ class VKAccountOrm(Base):
     account_type: Mapped[str] # backup main poster
 
     vk_cred_id: Mapped[int] = mapped_column(ForeignKey("vk_account_cred.id"), nullable=True)
+    proxy_id: Mapped[int] = mapped_column(ForeignKey("proxy.id"), nullable=True)
+
     encrypted_curl : Mapped[str] = mapped_column(String(10000), nullable=False)
     vk_account_url : Mapped[str]
     avatar_url: Mapped[str]
