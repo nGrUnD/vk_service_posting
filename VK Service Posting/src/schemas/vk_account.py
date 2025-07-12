@@ -10,7 +10,7 @@ from src.schemas.vk_account_cred import VKAccountCredOut
 class AccountType(str, enum.Enum):
     MAIN = "main"        # технический главный аккаунт
     POSTER = "poster"    # аккаунт, который постит клипы
-    PARSER = "parser"    # запасной аккаунт для парсинга
+    PARSER = "backup"    # запасной аккаунт для парсинга
 
 class DeleteVKAccountsLoginsRequest(BaseModel):
     logins: list[str]

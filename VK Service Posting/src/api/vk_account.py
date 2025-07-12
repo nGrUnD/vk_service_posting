@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException, status, Body
 from src.api.dependencies import DataBaseDep, UserIdDep
 from src.schemas.vk_account import VKAccountAddCURL, DeleteVKAccountsLoginsRequest
 from src.schemas.vk_account_cred import VKCredsRequestAdd
+from src.services.auth import AuthService
 from src.services.vk_account_backup import VKAccountBackupService
 from src.services.vk_account_main import VKAccountMainService
 from typing import List
@@ -19,6 +20,16 @@ async def get_all_vk_accounts(
     """Возвращает все привязанные VK аккаунты пользователя"""
     return await database.vk_account.get_all_filtered(user_id=user_id)
 
+@router.get("/vk_account_backup_count", summary="Получить кол-во Запасных VK аккаунтов")
+async def get_all_vk_accounts_backup(
+        user_id: UserIdDep,
+        database: DataBaseDep,
+):
+    """Возвращает все привязанные VK аккаунты пользователя"""
+    vk_accounts = await database.vk_account.get_all_filtered(account_type="backup", flood_control=False, user_id=user_id)
+    count = len(vk_accounts)
+    return {"STATUS": "OK", "count": count}
+
 @router.get("/vk_account_backup", summary="Получить все VK аккаунты пользователя Запасные")
 async def get_all_vk_accounts_backup(
         user_id: UserIdDep,
@@ -34,6 +45,57 @@ async def get_all_vk_accounts_backup_out(
 ):
     """Возвращает все привязанные VK аккаунты пользователя с кредами"""
     return await database.vk_account.get_all_backup_with_creds(user_id=user_id)
+
+@router.get("/all_logins")
+async def get_all_logins(database: DataBaseDep, user_id: UserIdDep,):
+    all_accounts = await database.vk_account.get_all_filtered(account_type="backup", user_id=user_id)
+    service_auth = AuthService()
+
+    accounts = []
+    for account in all_accounts:
+        account_cred = await database.vk_account_cred.get_one_or_none(id=account.vk_cred_id)
+        if not account_cred:
+            continue
+
+        login = account_cred.login
+        password = service_auth.decrypt_data(account_cred.encrypted_password)
+        accounts.append(f"{login}:{password}")
+
+    return {"accounts": accounts}
+
+@router.get("/blocked_logins")
+async def get_blocked_logins(database: DataBaseDep, user_id: UserIdDep,):
+    all_accounts = await database.vk_account.get_all_filtered(account_type="backup", flood_control=True, user_id=user_id)
+    service_auth = AuthService()
+
+    accounts = []
+    for account in all_accounts:
+        account_cred = await database.vk_account_cred.get_one_or_none(id=account.vk_cred_id)
+        if not account_cred:
+            continue
+
+        login = account_cred.login
+        password = service_auth.decrypt_data(account_cred.encrypted_password)
+        accounts.append(f"{login}:{password}")
+
+    return {"accounts": accounts}
+
+@router.get("/working_logins")
+async def get_working_logins(database: DataBaseDep, user_id: UserIdDep,):
+    all_accounts = await database.vk_account.get_all_filtered(account_type="backup", flood_control=False, user_id=user_id)
+    service_auth = AuthService()
+
+    accounts = []
+    for account in all_accounts:
+        account_cred = await database.vk_account_cred.get_one_or_none(id=account.vk_cred_id)
+        if not account_cred:
+            continue
+
+        login = account_cred.login
+        password = service_auth.decrypt_data(account_cred.encrypted_password)
+        accounts.append(f"{login}:{password}")
+
+    return {"accounts": accounts}
 
 
 @router.get("/vk_account_poster", summary="Получить все VK аккаунты пользователя Постинг")

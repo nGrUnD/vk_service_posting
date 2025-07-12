@@ -17,6 +17,7 @@ class VKAccountCredAdd(BaseModel):
 class VKAccountCredOut(BaseModel):
     id: int
     login: str
+    encrypted_password: str
     created_at: datetime
     updated_at: datetime
 

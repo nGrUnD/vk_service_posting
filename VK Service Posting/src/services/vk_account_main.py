@@ -55,6 +55,7 @@ class VKAccountMainService:
         else:
             proxy_http = None
 
+        proxy_http = None
         first_task = parse_vk_profile_sync.s(encrypted_curl, vk_account.id)
 
         # 2. Получи её task_id (еще не отправляя)

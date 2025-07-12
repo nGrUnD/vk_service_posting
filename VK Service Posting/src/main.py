@@ -19,6 +19,7 @@ from src.api.vk_group import router as router_group
 from src.api.clip_list import router as router_clip_list
 from src.api.workerpost import router as router_workerpost
 from src.api.proxy import router as router_proxy
+from src.api.tools import router as router_tools
 
 from src.services.posting_service import PostingService
 import logging
@@ -71,6 +72,7 @@ app.include_router(router_group)
 app.include_router(router_clip_list)
 app.include_router(router_workerpost)
 app.include_router(router_proxy)
+app.include_router(router_tools)
 
 @app.on_event("startup")
 async def start_scheduler():

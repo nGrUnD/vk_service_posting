@@ -9,7 +9,7 @@ from src.schemas.vk_group import VKGroup
 
 
 class WorkerPostRequestAdd(BaseModel):
-    creds: str
+    #creds: str
     vk_groups_links: list[str]
     category_id: int
 
