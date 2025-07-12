@@ -163,7 +163,7 @@ def update_celery_task_status(
     database_manager,
 ):
     with database_manager as session:
-        stmt = select(CeleryTaskOrm).where(CeleryTaskOrm.vk_account_id == account_id_database)
+        stmt = select(CeleryTaskOrm).where(CeleryTaskOrm.vk_account_id == account_id_database, CeleryTaskOrm.type=="add workerpost")
         result = session.execute(stmt)
         celery_task = result.scalars().one_or_none()
 

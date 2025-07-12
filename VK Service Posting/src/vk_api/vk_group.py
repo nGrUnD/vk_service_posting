@@ -15,11 +15,11 @@ def join_group(group_id: int, access_token: str):
     response = requests.post(url, data=params, headers=headers)
     result = response.json()
     if "error" in result:
+        print(f"Ошибка: {result['error']['error_msg']}")
         return False
-        #print(f"Ошибка: {result['error']['error_msg']}")
 
+    print("Успешно вступили в группу.")
     return True
-        #print("Успешно вступили в группу.")
 
 def assign_editor_role(group_id: int, user_id: int, access_token: str):
     url = "https://api.vk.com/method/groups.editManager"
@@ -33,8 +33,9 @@ def assign_editor_role(group_id: int, user_id: int, access_token: str):
     response = requests.post(url, data=params)
     result = response.json()
     if "error" in result:
+        print(f"Ошибка: {result['error']['error_msg']}")
         return False
         #print(f"Ошибка: {result['error']['error_msg']}")
 
+    print("Роль редактора успешно назначена.")
     return True
-        #print("Роль редактора успешно назначена.")
