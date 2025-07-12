@@ -234,12 +234,12 @@ def create_workpost_account(
         #curl = get_vk_account_curl_from_browser(login, password, proxy)
         #encrypted_curl = AuthService().encrypt_data(curl)
 
-        vk_account_parse_data = parse_vk_profile(vk_token, account_id_database, proxy)
+        #vk_account_parse_data = parse_vk_profile(vk_token, account_id_database, proxy)
         # token
         # vk_account_id
         # vk_account_id_database
         # vk_account_data
-        _update_vk_account_db(account_id_database, vk_account_parse_data['vk_account_data'], vk_token, database_manager)
+        #_update_vk_account_db(account_id_database, vk_account_parse_data['vk_account_data'], vk_token, database_manager)
 
         create_workpost(
             user_id,
@@ -247,7 +247,7 @@ def create_workpost_account(
             main_account_id_database,
             vk_group_id_database,
             category_id_database,
-            vk_account_parse_data['token'],
+            vk_token,
             database_manager
         )
 

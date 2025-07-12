@@ -139,6 +139,18 @@ export default function WorkflowStatusPage() {
         }
     };
 
+    const deleteWorkflow = async (id) => {
+        try {
+            await api.delete(`/users/{user_id}/workerpost/${id}`);
+            messageApi.success('Рабочий процесс удалён');
+            fetchData(); // Обновить таблицу
+        } catch (error) {
+            console.error(error);
+            messageApi.error('Ошибка при удалении рабочего процесса');
+        }
+    };
+
+
     useEffect(() => {
         loadCategories();
         loadClipLists(); // ← Загрузим списки при монтировании
@@ -235,6 +247,22 @@ export default function WorkflowStatusPage() {
                 >
                     Настроить
                 </Button>
+            ),
+        },
+        {
+            title: 'Удалить паблик',
+            key: 'delete',
+            render: (_, record) => (
+                <Popconfirm
+                    title="Удалить рабочий процесс?"
+                    onConfirm={() => deleteWorkflow(record.key)}
+                    okText="Да"
+                    cancelText="Нет"
+                >
+                    <Button danger size="small">
+                        Удалить
+                    </Button>
+                </Popconfirm>
             ),
         },
     ];

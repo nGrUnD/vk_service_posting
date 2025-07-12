@@ -92,7 +92,7 @@ class WorkerPostService:
                 id=vk_account_backup_db.id
             )
 
-            celery_task = await self.database.celery_task.get_one_or_none(vk_account_id=vk_account_backup_db.id)
+            celery_task = await self.database.celery_task.get_one_or_none(vk_account_id=vk_account_backup_db.id, type="add workerpost")
             if not celery_task:
                 # (опционально) создаем celery_task запись
                 celery_task_add = CeleryTaskAdd(
@@ -112,6 +112,8 @@ class WorkerPostService:
                     status="starting"
                 )
                 await self.database.celery_task.edit(celery_task_update, exclude_unset=True, id=celery_task.id)
+
+            await self.database.commit()
 
 
         await self.database.commit()
@@ -140,3 +142,11 @@ class WorkerPostService:
             workposts_info.append(info)
 
         return workposts_info
+
+    async def revert_account_backup(self, account_id_db):
+        await self.database.vk_account.edit(
+            VKAccountUpdate(account_type="backup"),
+            exclude_unset=True,
+            id=account_id_db
+        )
+        await self.database.commit()

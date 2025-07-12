@@ -75,12 +75,18 @@ async def create_workerpost(
 
 
 @router.delete("/{workerpost_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Удалить VK Постинг")
-async def delete_vk_group(
+async def delete_workpost(
         user_id: UserIdDep,
         database: DataBaseDep,
         workerpost_id: int,
 ):
     """Удаляет привязанный VK аккаунт и связанные данные"""
+    workpost_db =  await database.workerpost.get_one_or_none(id=workerpost_id)
+    service_workpost = WorkerPostService(database)
+    vk_account = await database.vk_account.get_one_or_none(id=workpost_db.vk_account_id)
+
+    await service_workpost.revert_account_backup(vk_account.id) # меняет тип аккаунта на backup
+
     await database.workerpost.delete(id=workerpost_id, user_id=user_id)
     await database.commit()
 
