@@ -65,6 +65,11 @@ async def delete(clip_list_id: int, database: DataBaseDep, user_id: UserIdDep):
     clip_list = await database.clip_list.get_one_or_none(id=clip_list_id)
     if not clip_list:
         raise HTTPException(status_code=404, detail="Список клипов не найден")
+    celery_tasks = await database.celery_task.get_all_filtered(clip_list_id=clip_list_id)
+    for task in celery_tasks:
+        await database.celery_task.delete(id=task.id)
+    await database.commit()
+    
     await database.clip_list.delete(id=clip_list_id)
     await database.commit()
     return {"status": "OK"}
