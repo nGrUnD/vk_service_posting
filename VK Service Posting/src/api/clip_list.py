@@ -69,7 +69,12 @@ async def delete(clip_list_id: int, database: DataBaseDep, user_id: UserIdDep):
     for task in celery_tasks:
         await database.celery_task.delete(id=task.id)
     await database.commit()
-    
+
+    clips = await database.vk_clip.get_all_filtered(clip_list_id=clip_list_id)
+    for clip in clips:
+        await database.vk_clip.delete(id=clip.id)
+    await database.commit()
+
     await database.clip_list.delete(id=clip_list_id)
     await database.commit()
     return {"status": "OK"}
