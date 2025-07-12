@@ -270,9 +270,18 @@ export default function ConnectBackupAccountPage() {
                                 <Title level={5}>Загруженные аккаунты</Title>
                                 <Space>
                                     <Button
-                                        icon={<ReloadOutlined/>}
+                                        icon={<ReloadOutlined />}
                                         size="small"
-                                        onClick={fetchLoadedAccounts}
+                                        onClick={async () => {
+                                            setRefreshing(true);
+                                            await Promise.all([
+                                                fetchLoadedAccounts(),
+                                                fetchAllAccounts(),
+                                                fetchBlockedAccounts(),
+                                                fetchWorkingAccounts()
+                                            ]);
+                                            setRefreshing(false);
+                                        }}
                                         loading={refreshing}
                                     >
                                         Обновить
