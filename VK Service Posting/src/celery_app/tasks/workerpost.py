@@ -120,6 +120,7 @@ def create_workpost(
         category_id_database: int,
         account_token: str,
         database_manager,
+        proxy: str,
 ):
     with database_manager as session:
         stmt = select(VKAccountOrm).where(VKAccountOrm.id == account_id_database)
@@ -138,7 +139,7 @@ def create_workpost(
         result = session.execute(stmt)
         category_database = result.scalars().one_or_none()
 
-        join_group(vk_group_database.vk_group_id, account_token)
+        join_group(vk_group_database.vk_group_id, account_token, proxy)
 
         main_account_curl = AuthService().decrypt_data(vk_main_account_database.encrypted_curl)
         main_account_token = TokenService.get_token_from_curl(main_account_curl)
@@ -248,7 +249,8 @@ def create_workpost_account(
             vk_group_id_database,
             category_id_database,
             vk_token,
-            database_manager
+            database_manager,
+            proxy
         )
 
         update_celery_task_status(account_id_database, "success", database_manager)
