@@ -124,17 +124,6 @@ export default function WorkflowStatusPage() {
         setModalOpen(true);
     };
 
-    const deleteWorkflow = async (id) => {
-        try {
-            await api.delete(`/users/{user_id}/workerpost/${id}`);
-            messageApi.success('Рабочий процесс удалён');
-            fetchData(); // Обновить таблицу
-        } catch (error) {
-            console.error(error);
-            messageApi.error('Ошибка при удалении рабочего процесса');
-        }
-    };
-
     const handleSave = async () => {
         try {
             await api.put(`/users/{user_id}/categories/edit/${editingCategoryFull.id}`, {
@@ -164,9 +153,18 @@ export default function WorkflowStatusPage() {
         setCurrentPage(1);
     };
 
-    const filteredData = data.filter((item) =>
-        item.groupName.toLowerCase().includes(searchText.toLowerCase())
-    );
+    const keywords = searchText
+        .split(/[\n,]+/)
+        .map(s => s.trim().toLowerCase())
+        .filter(Boolean);
+
+    const filteredData = keywords.length > 0
+        ? data.filter(item =>
+            keywords.some(keyword =>
+                item.groupName.toLowerCase().includes(keyword)
+            )
+        )
+        : data;
 
     const columns = [
         {
@@ -192,10 +190,10 @@ export default function WorkflowStatusPage() {
             sorter: (a, b) => a.accountName.localeCompare(b.accountName),
         },
         {
-            title: 'Список источников',
-            dataIndex: 'clipSources',
-            key: 'clipSources',
-            render: (sources) => sources.join(', '),
+            title: 'Категория',
+            dataIndex: ['category', 'name'],
+            key: 'categoryName',
+            sorter: (a, b) => a.category.name.localeCompare(b.category.name),
         },
         {
             title: 'Клипов в час',
@@ -239,22 +237,6 @@ export default function WorkflowStatusPage() {
                 </Button>
             ),
         },
-        {
-            title: 'Удалить паблик',
-            key: 'delete',
-            render: (_, record) => (
-                <Popconfirm
-                    title="Удалить рабочий процесс?"
-                    onConfirm={() => deleteWorkflow(record.key)}
-                    okText="Да"
-                    cancelText="Нет"
-                >
-                    <Button danger size="small">
-                        Удалить
-                    </Button>
-                </Popconfirm>
-            ),
-        },
     ];
 
     return (
@@ -264,21 +246,19 @@ export default function WorkflowStatusPage() {
             <div className="min-h-screen bg-gray-50 p-6">
                 <Card className="max-w-full">
                     <div className="flex flex-col gap-6">
-                        <div className="flex justify-between items-center flex-wrap gap-2">
-                            <Title level={3} className="!mb-0">
-                                Статус рабочего процесса
-                            </Title>
-                            <Space>
-                                <Button icon={<ReloadOutlined/>} onClick={fetchData} loading={loading}/>
-                                <Button onClick={resetFilters}>Сбросить фильтры</Button>
-                            </Space>
-                        </div>
+                        <Title level={3} className="!mb-0">
+                            Статус рабочего процесса
+                        </Title>
+                        <Space>
+                            <Button icon={<ReloadOutlined/>} onClick={fetchData} loading={loading}/>
+                            <Button onClick={resetFilters}>Сбросить фильтры</Button>
+                        </Space>
 
                         <Space direction="horizontal" wrap>
-                            <Input
+                            <Input.TextArea
                                 allowClear
-                                placeholder="Поиск по названию группы"
-                                prefix={<SearchOutlined/>}
+                                placeholder="Введите названия пабликов, по одному на строку или через запятую"
+                                rows={4}
                                 value={searchText}
                                 onChange={(e) => {
                                     setSearchText(e.target.value);
@@ -299,7 +279,7 @@ export default function WorkflowStatusPage() {
                                     setPageSize(size);
                                 },
                                 showSizeChanger: true,
-                                pageSizeOptions: ['5', '10', '20', '50'],
+                                pageSizeOptions: ['5', '10', '20', '50', '100'],
                                 showTotal: (total, range) => `${range[0]}-${range[1]} из ${total} записей`,
                             }}
                         />

@@ -20,7 +20,7 @@ export default function MainTab() {
             key: 'main-account',
         },
         {
-            label: 'Подключить аккаунт',
+            label: 'Подключить паблики',
             key: 'connect-account',
             //disabled: true,
         },
@@ -43,6 +43,10 @@ export default function MainTab() {
         {
             label: 'Прокси',
             key: 'proxy',
+        },
+        {
+            label: 'Аккаунт Чекер',
+            key: 'account-checker',
         },
     ];
 

@@ -122,7 +122,7 @@ export default function ProxyPage() {
                             <TextArea
                                 className="flex-1"
                                 rows={16}
-                                placeholder={'http://login:pass@127.0.0.1:8080\nhttp://login:pass@host:port'}
+                                placeholder={'127.0.0.1:8080\nlogin:pass@host:port'}
                                 value={inputProxies}
                                 onChange={e => setInputProxies(e.target.value)}
                             />

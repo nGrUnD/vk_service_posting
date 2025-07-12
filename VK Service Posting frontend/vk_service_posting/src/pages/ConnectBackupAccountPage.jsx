@@ -24,9 +24,17 @@ export default function ConnectBackupAccountPage() {
     const [selected, setSelected] = useState({});
     const [loading, setLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
+    const [allAccounts, setAllAccounts] = useState([]);
+    const [blockedAccounts, setBlockedAccounts] = useState([]);
+    const [workingAccounts, setWorkingAccounts] = useState([]);
+
+
 
     useEffect(() => {
         fetchLoadedAccounts();
+        fetchAllAccounts();
+        fetchBlockedAccounts();
+        fetchWorkingAccounts();
     }, []);
 
     const fetchLoadedAccounts = async () => {
@@ -44,6 +52,44 @@ export default function ConnectBackupAccountPage() {
         }
         setRefreshing(false);
     };
+
+    const fetchAllAccounts = async () => {
+        try {
+            const response = await api.get('/users/{user_id}/vk_accounts/all_logins');
+            if (Array.isArray(response.data.accounts)) {
+                setAllAccounts(response.data.accounts);
+            }
+        } catch (e) {
+            console.error(e);
+            messageApi.error("Ошибка загрузки всех аккаунтов");
+        }
+    };
+
+    const fetchBlockedAccounts = async () => {
+        try {
+            const response = await api.get('/users/{user_id}/vk_accounts/blocked_logins');
+            if (Array.isArray(response.data.accounts)) {
+                setBlockedAccounts(response.data.accounts);
+            }
+        } catch (e) {
+            console.error(e);
+            messageApi.error("Ошибка загрузки заблокированных аккаунтов");
+        }
+    };
+
+    const fetchWorkingAccounts = async () => {
+        try {
+            const response = await api.get('/users/{user_id}/vk_accounts/working_logins');
+            if (Array.isArray(response.data.accounts)) {
+                setWorkingAccounts(response.data.accounts);
+            }
+        } catch (e) {
+            console.error(e);
+            messageApi.error("Ошибка загрузки рабочих аккаунтов");
+        }
+    };
+
+
 
     const handleConnect = async () => {
         const newAccounts = inputAccounts
@@ -180,6 +226,42 @@ export default function ConnectBackupAccountPage() {
                                     onClick={e => e.target.select()}
                                 />
                             </div>
+                            <div className="flex flex-col">
+                                <Title level={5}>Все аккаунты</Title>
+                                <TextArea
+                                    className="flex-1"
+                                    rows={10}
+                                    readOnly
+                                    value={allAccounts.join('\n')}
+                                    style={{cursor: 'copy'}}
+                                    onClick={e => e.target.select()}
+                                />
+                            </div>
+
+                            <div className="flex flex-col">
+                                <Title level={5}>Заблоченные аккаунты</Title>
+                                <TextArea
+                                    className="flex-1"
+                                    rows={10}
+                                    readOnly
+                                    value={blockedAccounts.join('\n')}
+                                    style={{cursor: 'copy'}}
+                                    onClick={e => e.target.select()}
+                                />
+                            </div>
+
+                            <div className="flex flex-col">
+                                <Title level={5}>Рабочие аккаунты</Title>
+                                <TextArea
+                                    className="flex-1"
+                                    rows={10}
+                                    readOnly
+                                    value={workingAccounts.join('\n')}
+                                    style={{cursor: 'copy'}}
+                                    onClick={e => e.target.select()}
+                                />
+                            </div>
+
                         </div>
 
                         {/* Правая часть */}
