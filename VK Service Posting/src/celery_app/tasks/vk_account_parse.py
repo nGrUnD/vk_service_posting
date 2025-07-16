@@ -144,7 +144,7 @@ def parse_vk_profile_main_sync(vk_token: str, vk_account_id_database: int, proxy
     database_manager = SyncSessionLocal()
     try:
         vk_account_data = parse_vk_profile(vk_token, vk_account_id_database, proxy)
-        groups_data = get_vk_account_admin_groups(vk_token, vk_account_id_database, proxy)
+        groups_data = get_vk_account_admin_groups(vk_token, vk_account_data['vk_account_id'], proxy)
 
         groups_count = len(groups_data["groups_data"]["groups"])
 

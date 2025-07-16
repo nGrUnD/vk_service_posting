@@ -61,11 +61,6 @@ class VKAccountMainService:
 
         vk_token = TokenService.get_token_from_curl(curl, proxy_http)
         #vk_session = get_vk_session_by_token(vk_token, proxy.http)
-        data_task = {
-            "token": vk_token,
-            "vk_account_id_database": vk_account.id,
-            "proxy": proxy_http,
-        }
 
         task = parse_vk_profile_main_sync.delay(vk_token, vk_account.id, proxy_http, user_id)
 
