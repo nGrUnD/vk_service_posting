@@ -41,7 +41,7 @@ export default function ConnectBackupAccountPage() {
 
     const fetchPendingAccounts = async () => {
         try {
-            const response = await api.get('/users/{user_id}/vk_accounts/pending_login');
+            const response = await api.get('/users/{user_id}/vk_accounts/pending_logins');
             if (Array.isArray(response.data.accounts)) {
                 setPendingAccounts(response.data.accounts);
             }
