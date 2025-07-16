@@ -6,7 +6,6 @@ from src.celery_app.celery_db import SyncSessionLocal
 
 
 def _add_or_edit_vk_group_db(session, data: dict, vk_account_id_database: int, user_id: int):
-
     print(f"group data: {data}")
     vk_group_id = data["group_id"]
     vk_group_url = data["vk_group_url"]

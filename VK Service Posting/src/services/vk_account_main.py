@@ -12,7 +12,7 @@ from src.models.vk_group import VKGroupOrm
 from src.services.auth import AuthService
 from src.schemas.vk_account import VKAccountAdd, VKAccountUpdate, VKAccount
 from src.celery_app.tasks.vk_api import get_vk_account_curl
-from src.celery_app.tasks.vk_account_parse import parse_vk_profile_sync
+from src.celery_app.tasks.vk_account_parse import parse_vk_profile_main_sync
 from src.celery_app.tasks.db_update_vk_account import update_db_sync
 from src.services.vk_token_service import TokenService
 from src.utils.database_manager import DataBaseManager
@@ -56,17 +56,6 @@ class VKAccountMainService:
             proxy_http = None
 
         proxy_http = None
-        first_task = parse_vk_profile_sync.s(encrypted_curl, vk_account.id)
-
-        # 2. Получи её task_id (еще не отправляя)
-        task_id = first_task.freeze().id  # <<< Важно: генерирует task_id, не исполняет
-
-        # task = parse_vk_profile_sync.delay(curl_result=None, account_id=vk_account.id)
-
-        # update task_id
-        await self.database.vk_account.edit(VKAccountUpdate(task_id=task_id), exclude_unset=True,
-                                            id=vk_account.id)
-        await self.database.commit()
 
         vk_token = TokenService.get_token_from_curl(curl, proxy_http)
         #vk_session = get_vk_session_by_token(vk_token, proxy.http)
@@ -75,13 +64,13 @@ class VKAccountMainService:
             "vk_account_id_database": vk_account.id,
             "proxy": proxy_http,
         }
-        task_chain = chain(
-            parse_vk_profile_sync.s(data_task),
-            parse_vk_group_sync.s(),
-            update_db_sync.s(vk_account.id),
-            update_db_group_async.s(vk_account.id, user_id),  # ← data будет первым аргументом
-        )
-        task_chain.apply_async(task_id=task_id)
+
+        task = parse_vk_profile_main_sync.delay(vk_token, vk_account.id, proxy_http, user_id)
+
+        await self.database.vk_account.edit(VKAccountUpdate(task_id=task.id), exclude_unset=True,
+                                            id=vk_account.id)
+        await self.database.commit()
+
         return vk_account
 
     async def create_account(self, user_id: int, vk_cred_id: int) -> VKAccount:
