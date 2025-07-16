@@ -12,6 +12,7 @@ from src.vk_api_methods.vk_auth import get_token
 
 def get_token_with_proxy_retry(database_manager, account_id_database: int, login: str, password: str, proxy: str = None, retries: int = 10):
     last_proxy = proxy
+    current_proxy = proxy
     with database_manager as session:
         stmt = select(VKAccountOrm).where(VKAccountOrm.id == account_id_database)
         result = session.execute(stmt)
@@ -25,12 +26,9 @@ def get_token_with_proxy_retry(database_manager, account_id_database: int, login
                 if not token:
                     raise Exception("Not get token")
 
-                stmt = select(ProxyOrm).where(ProxyOrm.id == vk_account_database.proxy_id)
-                result = session.execute(stmt)
-                proxy_vk_account_db = result.scalars().one_or_none()
-                if last_proxy and last_proxy != proxy_vk_account_db.http:
+                if last_proxy and last_proxy != current_proxy:
                     # Находим объект Proxy в базе
-                    stmt_proxy = select(ProxyOrm).where(ProxyOrm.http == last_proxy)
+                    stmt_proxy = select(ProxyOrm).where(ProxyOrm.http == current_proxy)
                     proxy_db = session.execute(stmt_proxy).scalars().one_or_none()
                     if proxy_db:
                         vk_account_database.proxy_id = proxy_db.id
@@ -41,14 +39,14 @@ def get_token_with_proxy_retry(database_manager, account_id_database: int, login
             except Exception as e:
                 print(f"Ошибка: {e}")
                 print(f"Попытка {attempt}: ошибка авторизации, пробуем другой прокси")
-                stmt_proxies = select(ProxyOrm).where(ProxyOrm.http != last_proxy)
+                stmt_proxies = select(ProxyOrm).where(ProxyOrm.http != current_proxy)
                 proxies = session.execute(stmt_proxies).scalars().all()
 
                 if not proxies:
                     print("Нет доступных прокси для смены. Повторяем попытку с текущим прокси.")
                     continue
 
-                last_proxy = random.choice(proxies).http
+                current_proxy = random.choice(proxies).http
                 time.sleep(60)
 
     raise ValueError(f"Не удалось авторизоваться после {retries} попыток")
