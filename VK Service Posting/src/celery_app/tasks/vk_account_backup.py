@@ -8,6 +8,7 @@ from src.celery_app.celery_db import SyncSessionLocal
 from src.celery_app.tasks.db_update_vk_account import _update_vk_account_db
 from src.models.proxy import ProxyOrm
 from src.models.vk_account import VKAccountOrm
+from src.vk_api_methods.vk_account import get_vk_account_data
 from src.vk_api_methods.vk_auth import get_token
 
 def get_token_with_proxy_retry(database_manager, account_id_database: int, login: str, password: str, proxy: str = None, retries: int = 10):
@@ -51,8 +52,7 @@ def get_token_with_proxy_retry(database_manager, account_id_database: int, login
 
     raise ValueError(f"Не удалось авторизоваться после {retries} попыток")
 
-
-def update_db_vk_account(database_manager, vk_account_id_database: int, data: dict, count_groups: int):
+def update_db_vk_account(database_manager, vk_account_id_database: int, count_groups: int):
     with database_manager as session:
         stmt = select(VKAccountOrm).where(VKAccountOrm.id == vk_account_id_database)
         result = session.execute(stmt)
@@ -62,8 +62,8 @@ def update_db_vk_account(database_manager, vk_account_id_database: int, data: di
             raise ValueError(f"Account {vk_account_id_database} not found")
 
         #account.vk_account_id = data['vk_account_id']
-        #account.name = data['name']
-        #account.second_name = data['second_name']
+        account.name = account.login
+        account.second_name = ""
         #account.vk_account_url = data['vk_account_url']
         #account.avatar_url = data['avatar_url']
         account.groups_count = count_groups
@@ -80,13 +80,7 @@ def get_vk_account_cred(self, account_id_database: int, login: str, password: st
         if not token:
             raise Exception("Not get token")
 
-        data = {
-            "token": token,
-            "vk_account_id_database": account_id_database,
-            "proxy": proxy,
-        }
-
-        update_db_vk_account(database_manager, account_id_database, data, 0)
+        update_db_vk_account(database_manager, account_id_database, 0)
 
     except Exception as exc:
         print(f"Ошибка: {exc}")

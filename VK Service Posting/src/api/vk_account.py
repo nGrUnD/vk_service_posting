@@ -26,7 +26,7 @@ async def get_all_vk_accounts_backup(
         database: DataBaseDep,
 ):
     """Возвращает все привязанные VK аккаунты пользователя"""
-    vk_accounts = await database.vk_account.get_all_filtered(account_type="backup", flood_control=False, user_id=user_id)
+    vk_accounts = await database.vk_account.get_all_filtered(account_type="backup", parse_status="success", flood_control=False, user_id=user_id)
     count = len(vk_accounts)
     return {"STATUS": "OK", "count": count}
 
