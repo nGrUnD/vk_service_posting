@@ -1,5 +1,4 @@
 from fastapi import APIRouter, HTTPException
-from sqlalchemy.orm import Session
 from src.schemas.category import CategoryUpdate, CategoryAddRequest, CategoryAdd
 
 from src.api.dependencies import DataBaseDep, UserIdDep

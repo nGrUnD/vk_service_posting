@@ -168,22 +168,6 @@ async def get_vk_account_task_status(
     return await VKAccountMainService(database).get_status(account_id=vk_account_id)
 
 
-@router.post("", status_code=status.HTTP_201_CREATED, summary="Добавить новый VK аккаунт")
-async def create_vk_account(
-        user_id: UserIdDep,
-        vk_cred_id: int,
-        database: DataBaseDep,
-):
-    """Добавляет новый VK аккаунт для парсинга данных"""
-    try:
-        return await VKAccountMainService(database).create_account(user_id=user_id, vk_cred_id=vk_cred_id)
-        # return await database.vk_account.create_account(user_id=user_id, vk_cred_id=data.vk_cred_id)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-
 @router.post("/create_accounts", status_code=status.HTTP_201_CREATED, summary="Добавить сразу много аккаунтов Запасных по log:pass")
 async def create_vk_accounts(
         user_id: UserIdDep,

@@ -1,9 +1,7 @@
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, Body
 
 from src.api.dependencies import DataBaseDep, UserIdDep
 from src.schemas.proxy import ProxyRequestAdd, ProxyRequestDelete
-from src.schemas.vk_account_cred import VKAccountCredRequestAdd, VKAccountCredAdd
-from src.services.auth import AuthService
 from src.services.service_proxy import ProxyService
 
 router = APIRouter(prefix="/proxy", tags=["Добавление proxy (http:log:pass@ip:port)"])

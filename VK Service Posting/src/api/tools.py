@@ -1,7 +1,4 @@
 from fastapi import APIRouter
-from pydantic import BaseModel
-from typing import List, Literal
-
 from src.api.dependencies import DataBaseDep
 from src.schemas.tools import AccountCheckResponse, AccountInput, AccountChangeResponse
 from src.services.vk_account_checker import AccountChecker
