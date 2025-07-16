@@ -22,7 +22,6 @@ class VKAccountOrm(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
     account_type: Mapped[str] # backup main poster
 
-    vk_cred_id: Mapped[int] = mapped_column(ForeignKey("vk_account_cred.id"), nullable=True)
     proxy_id: Mapped[int] = mapped_column(ForeignKey("proxy.id"), nullable=True)
 
     encrypted_curl : Mapped[str] = mapped_column(String(10000), nullable=True)
@@ -37,8 +36,6 @@ class VKAccountOrm(Base):
     flood_control: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     parse_status: Mapped[str]
     task_id: Mapped[str]
-
-    vk_cred = relationship("VKAccountCredOrm", backref="vk_account", lazy="joined")
 
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True),
