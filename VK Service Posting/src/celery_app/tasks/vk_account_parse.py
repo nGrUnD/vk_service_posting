@@ -93,6 +93,7 @@ def update_db_vk_account(database_manager, vk_account_id_database: int, data: di
         account.vk_account_url = data['vk_account_url']
         account.avatar_url = data['avatar_url']
         account.groups_count = count_groups
+        account.parse_status = "success"
 
         session.commit()
 

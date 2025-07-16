@@ -13,8 +13,7 @@ from src.schemas.celery_task import CeleryTaskAdd
 from src.schemas.vk_account_cred import VKAccountCredAdd
 from src.services.auth import AuthService
 from src.schemas.vk_account import VKAccountAdd, VKAccountUpdate
-from src.celery_app.tasks.vk_api_session import get_vk_account_cred
-from src.celery_app.tasks.vk_account_parse import parse_vk_profile_sync
+from src.celery_app.tasks.vk_account_backup import get_vk_account_cred
 from src.celery_app.tasks.db_update_vk_account import update_db_sync
 from src.utils.database_manager import DataBaseManager
 
@@ -101,14 +100,9 @@ class VKAccountBackupService:
             vk_account = await self.database.vk_account.add(vk_account_add)
             await self.database.commit()
 
-            task = chain(
-                get_vk_account_cred.s(vk_account.id, account_log_pass.login,
-                                      AuthService().decrypt_data(current_cred.encrypted_password), proxy_http),
-                parse_vk_profile_sync.s(),
-                parse_vk_group_sync.s(),
-                update_db_sync.s(vk_account.id),
-                update_db_group_async.s(vk_account.id, user_id),  # ← data будет первым аргументом
-            ).apply_async()
+            password = AuthService().decrypt_data(current_cred.encrypted_password)
+
+            task = get_vk_account_cred.delay(vk_account.id, account_log_pass.login, password, proxy_http, user_id)
 
             await self.database.vk_account.edit(
                 VKAccountUpdate(task_id=task.id),

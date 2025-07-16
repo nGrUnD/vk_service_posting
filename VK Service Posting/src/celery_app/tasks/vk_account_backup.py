@@ -54,26 +54,41 @@ def get_token_with_proxy_retry(database_manager, account_id_database: int, login
     raise ValueError(f"Не удалось авторизоваться после {retries} попыток")
 
 
+def update_db_vk_account(database_manager, vk_account_id_database: int, data: dict, count_groups: int):
+    with database_manager as session:
+        stmt = select(VKAccountOrm).where(VKAccountOrm.id == vk_account_id_database)
+        result = session.execute(stmt)
+        account = result.scalars().one_or_none()
+
+        if not account:
+            raise ValueError(f"Account {vk_account_id_database} not found")
+
+        #account.vk_account_id = data['vk_account_id']
+        #account.name = data['name']
+        #account.second_name = data['second_name']
+        #account.vk_account_url = data['vk_account_url']
+        #account.avatar_url = data['avatar_url']
+        account.groups_count = count_groups
+        account.parse_status = "success"
+
+        session.commit()
+
+
 @app.task(bind=True, max_retries=999, default_retry_delay=60)
-def get_vk_account_cred(self, account_id_database: int, login: str, password: str, proxy: str) -> dict:
+def get_vk_account_cred(self, account_id_database: int, login: str, password: str, proxy: str):
     database_manager = SyncSessionLocal()
-    #account = database_manager.query(VKAccountOrm).get(account_id_database)
     try:
-        #print(f"Proxy: {proxy}")
         token = get_token_with_proxy_retry(database_manager, account_id_database, login, password, proxy)
         if not token:
             raise Exception("Not get token")
 
-
-        #vk_session = get_vk_session_by_log_pass(login, password, proxy)
         data = {
             "token": token,
             "vk_account_id_database": account_id_database,
             "proxy": proxy,
         }
 
-        _update_vk_account_db(account_id_database=account_id_database, account_update_data=data, groups_count=0)
-        return data
+        update_db_vk_account(database_manager, account_id_database, data, 0)
 
     except Exception as exc:
         print(f"Ошибка: {exc}")
