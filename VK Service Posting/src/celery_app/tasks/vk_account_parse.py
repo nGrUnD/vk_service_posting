@@ -146,7 +146,7 @@ def parse_vk_profile_main_sync(vk_token: str, vk_account_id_database: int, proxy
         vk_account_data = parse_vk_profile(vk_token, vk_account_id_database, proxy)
         groups_data = get_vk_account_admin_groups(vk_token, vk_account_data['vk_account_id'], proxy)
 
-        groups_count = len(groups_data["groups_data"]["groups"])
+        groups_count = len(groups_data["groups"])
 
         update_db_vk_account(database_manager, vk_account_id_database, vk_account_data, groups_count)
         update_vk_groups_database(database_manager, vk_account_id_database, user_id, groups_data)
