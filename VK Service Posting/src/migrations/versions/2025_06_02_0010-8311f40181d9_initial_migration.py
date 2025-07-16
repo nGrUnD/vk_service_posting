@@ -117,7 +117,6 @@ def upgrade() -> None:
         sa.Column("vk_account_id", sa.Integer(), nullable=False),
         sa.Column("user_id", sa.BigInteger(), nullable=False),
         sa.Column("account_type", sa.String(), nullable=False),
-        sa.Column("vk_cred_id", sa.BigInteger(), nullable=True),
         sa.Column("proxy_id", sa.BigInteger(), nullable=True),
 
         sa.Column("encrypted_curl", sa.String(length=10000), nullable=False),
@@ -147,10 +146,6 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(
             ["user_id"],
             ["user.id"],
-        ),
-        sa.ForeignKeyConstraint(
-            ["vk_cred_id"],
-            ["vk_account_cred.id"],
         ),
         sa.ForeignKeyConstraint(
             ["proxy_id"],
@@ -351,7 +346,6 @@ def downgrade() -> None:
     op.drop_table("celery_tasks")
     op.drop_table("vk_account")
     op.drop_table("categories")
-    op.drop_table("vk_account_cred")
     op.drop_table("clip_list")
     op.drop_table("user")
     # ### end Alembic commands ###
