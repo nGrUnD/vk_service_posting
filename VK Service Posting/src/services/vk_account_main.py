@@ -33,6 +33,8 @@ class VKAccountMainService:
             user_id=user_id,
             vk_account_id=0,
             encrypted_curl=encrypted_curl,
+            login="",
+            encrypted_password="",
             account_type=account_type,
             vk_account_url="",
             avatar_url="",
@@ -41,7 +43,7 @@ class VKAccountMainService:
             groups_count=0,
             flood_control=False,
             parse_status="pending",
-            task_id="pending"
+            task_id="pending",
         )
         vk_account = await self.database.vk_account.add(new_data)
         await self.database.commit()
