@@ -102,7 +102,7 @@ class VKAccountBackupService:
 
             password = AuthService().decrypt_data(current_cred.encrypted_password)
 
-            task = get_vk_account_cred.delay(vk_account.id, account_log_pass.login, password, proxy_http, user_id)
+            task = get_vk_account_cred.delay(vk_account.id, account_log_pass.login, password, proxy_http)
 
             await self.database.vk_account.edit(
                 VKAccountUpdate(task_id=task.id),

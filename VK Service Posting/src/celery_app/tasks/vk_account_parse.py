@@ -142,7 +142,7 @@ def update_vk_groups_database(database_manager, vk_account_id_database: int, use
             _add_or_edit_vk_group_db(session, group_data, vk_account_id_database, user_id)
         session.commit()
 
-@app.task(bind=True)
+@app.task
 def parse_vk_profile_main_sync(vk_token: str, vk_account_id_database: int, proxy: str, user_id: int):
     database_manager = SyncSessionLocal()
     try:
