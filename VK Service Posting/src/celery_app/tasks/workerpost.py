@@ -8,7 +8,6 @@ from src.models.category import CategoryOrm
 from src.models.celery_task import CeleryTaskOrm
 from src.models.proxy import ProxyOrm
 from src.models.vk_account import VKAccountOrm
-from src.models.vk_account_cred import VKAccountCredOrm
 from src.models.vk_group import VKGroupOrm
 from src.models.workerpost import WorkerPostOrm
 from src.schemas.vk_account import VKAccountUpdate
@@ -53,15 +52,8 @@ def get_vk_account_data_retry(vk_account_id_db: int, proxy: str, retries: int = 
             raise ValueError(f"VkAccount с id {vk_account_database} не найден в базе")
 
 
-        stmt = select(VKAccountCredOrm).where(VKAccountCredOrm.id == vk_account_database.vk_cred_id)
-        result = session.execute(stmt)
-        vk_cred_database = result.scalars().one_or_none()
-
-        if vk_cred_database is None:
-            raise ValueError(f"VkAccountCred с id {vk_account_database.vk_cred_id} не найден в базе")
-
-        login = vk_cred_database.login
-        password = AuthService().decrypt_data(vk_cred_database.encrypted_password)
+        login = vk_account_database.login
+        password = AuthService().decrypt_data(vk_account_database.encrypted_password)
 
         for attempt in range(1, retries + 1):
             try:

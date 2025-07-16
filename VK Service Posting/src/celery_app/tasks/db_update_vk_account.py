@@ -1,7 +1,6 @@
 from src.celery_app import app
 from src.celery_app.celery_db import SyncSessionLocal
 from sqlalchemy import select
-from src.models.vk_account_cred import VKAccountCredOrm
 from src.models.vk_account import VKAccountOrm
 from src.schemas.vk_account import VKAccountUpdate
 
