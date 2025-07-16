@@ -4,7 +4,7 @@ import time
 from typing import Dict, Optional
 
 import yt_dlp
-import vk_api
+from vk_api.vk_api import vk_api
 import requests
 
 

@@ -6,7 +6,7 @@ import time
 from pycparser.ply.yacc import token
 
 from src.services.vk_token_service import TokenService
-import vk_api
+from vk_api.vk_api import vk_api
 from src.utils.rand_user_agent import get_random_user_agent
 from src.vk_api_methods.vk_auth import get_token
 

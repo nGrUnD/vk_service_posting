@@ -6,7 +6,7 @@ import requests
 from src.services.vk_token_service import TokenService
 from src.utils.rand_user_agent import get_random_user_agent
 from src.vk_api_methods.vk_clip import get_clips_counts_for_groups
-import vk_api
+from vk_api.vk_api import vk_api
 
 
 
