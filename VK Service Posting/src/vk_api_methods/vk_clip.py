@@ -178,8 +178,8 @@ def get_all_owner_short_videos(owner_id: int,
         #print(total_count)
 
         if is_token_expired(token):
-            token = get_token(login, password, proxy)
             print("Токену пизда пришла")
+            token = get_token(login, password, proxy)
 
         resp = vk_api_get_owner_short_videos(
             owner_id=owner_id,
