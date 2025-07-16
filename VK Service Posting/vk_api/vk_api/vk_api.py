@@ -623,6 +623,12 @@ class VkApi(object):
 
         raise SecurityCheck(response=response)
 
+    def is_sid(self):
+        if not self._sid:
+            self.logger.info('No remixsid')
+            return False
+        return True
+
     def check_sid(self):
         """ Проверка Cookies remixsid на валидность """
 

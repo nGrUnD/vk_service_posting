@@ -61,7 +61,7 @@ async def get_all_logins(database: DataBaseDep, user_id: UserIdDep,):
 
 @router.get("/pending_logins")
 async def get_pending_logins(database: DataBaseDep, user_id: UserIdDep,):
-    all_accounts = await database.vk_account.get_all_filtered(account_type="backup", parse_status="pending", flood_control=False, user_id=user_id)
+    all_accounts = await database.vk_account.get_all_filtered(parse_status="pending")
     service_auth = AuthService()
 
     accounts = []
