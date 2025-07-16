@@ -8,8 +8,7 @@ from datetime import datetime, timezone
 
 from src.models.celery_task import CeleryTaskOrm
 from src.models.vk_clip import VKClipOrm
-from src.vk_api.vk_account import get_vk_session_by_log_pass
-from src.vk_api.vk_clip import get_all_owner_short_videos
+from src.vk_api_methods.vk_clip import get_all_owner_short_videos
 from src.celery_app.celery_db import SyncSessionLocal
 
 
@@ -135,10 +134,8 @@ def parse_vk_group_clips_sync(self, vk_group_id: int, login: str, password: str,
         # Важно: в ВК id паблика с минусом для публичных групп
         owner_id = -vk_group_id if not str(vk_group_id).startswith("-") else vk_group_id
 
-        vk_session = get_vk_session_by_log_pass(login, password, proxy)
-        #vk_token = vk_session.token['access_token']
 
-        clips = get_all_owner_short_videos(owner_id, vk_session)
+        clips = get_all_owner_short_videos(owner_id, login, password, proxy)
 
         filtred_clips = filter_clips(clips, viewers, mindate)
 

@@ -7,7 +7,7 @@ from src.models.vk_account_cred import VKAccountCredOrm
 from src.services.auth import AuthService
 
 from src.utils.celery_error_handler import mark_vk_account_failure_by_task_id
-from src.vk_api.vk_account import get_vk_account_data, get_vk_session_by_token, get_vk_session_by_log_pass
+from src.vk_api_methods.vk_account import get_vk_account_data, get_vk_session_by_token, get_vk_session_by_log_pass
 
 
 def get_vk_account_data_retry(vk_account_id_db: int, proxy: str, retries: int = 10):

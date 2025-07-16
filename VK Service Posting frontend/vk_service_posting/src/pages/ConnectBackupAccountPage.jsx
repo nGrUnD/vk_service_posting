@@ -27,6 +27,7 @@ export default function ConnectBackupAccountPage() {
     const [allAccounts, setAllAccounts] = useState([]);
     const [blockedAccounts, setBlockedAccounts] = useState([]);
     const [workingAccounts, setWorkingAccounts] = useState([]);
+    const [pendingAccounts, setPendingAccounts] = useState([]);
 
 
 
@@ -35,7 +36,20 @@ export default function ConnectBackupAccountPage() {
         fetchAllAccounts();
         fetchBlockedAccounts();
         fetchWorkingAccounts();
+        fetchPendingAccounts();
     }, []);
+
+    const fetchPendingAccounts = async () => {
+        try {
+            const response = await api.get('/users/{user_id}/vk_accounts/pending_login');
+            if (Array.isArray(response.data.accounts)) {
+                setPendingAccounts(response.data.accounts);
+            }
+        } catch (e) {
+            console.error(e);
+            messageApi.error("Ошибка загрузки всех аккаунтов");
+        }
+    };
 
     const fetchLoadedAccounts = async () => {
         setRefreshing(true);
@@ -191,7 +205,7 @@ export default function ConnectBackupAccountPage() {
 
                     <div className="flex flex-col xl:flex-row gap-6 mt-6 h-[calc(80vh-240px)] w-full">
                         {/* Левая часть */}
-                        <div className="flex-[2] grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                        <div className="flex-[2] grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
                             <div className="flex flex-col">
                                 <Title level={5}>Добавить аккаунты (login:pass)</Title>
                                 <TextArea
@@ -233,6 +247,18 @@ export default function ConnectBackupAccountPage() {
                                     rows={10}
                                     readOnly
                                     value={allAccounts.join('\n')}
+                                    style={{cursor: 'copy'}}
+                                    onClick={e => e.target.select()}
+                                />
+                            </div>
+
+                            <div className="flex flex-col">
+                                <Title level={5}>В подключении аккаунты</Title>
+                                <TextArea
+                                    className="flex-1"
+                                    rows={10}
+                                    readOnly
+                                    value={pendingAccounts.join('\n')}
                                     style={{cursor: 'copy'}}
                                     onClick={e => e.target.select()}
                                 />

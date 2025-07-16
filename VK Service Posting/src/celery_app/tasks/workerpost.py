@@ -1,4 +1,5 @@
 import random
+import time
 
 from sqlalchemy import select
 
@@ -13,12 +14,10 @@ from src.models.workerpost import WorkerPostOrm
 from src.schemas.vk_account import VKAccountUpdate
 from src.services.auth import AuthService
 from src.services.vk_token_service import TokenService
-from src.utils.database_manager import DataBaseManager
-from src.vk_api.vk_account import get_vk_account_data, get_vk_session_by_log_pass
-from src.vk_api.vk_group import join_group, assign_editor_role
-from src.vk_api.vk_selenium import get_vk_account_curl_from_browser
+from src.vk_api_methods.vk_account import get_vk_account_data
+from src.vk_api_methods.vk_auth import get_token
+from src.vk_api_methods.vk_group import join_group, assign_editor_role
 from src.celery_app.celery_db import SyncSessionLocal
-import vk_api
 
 def _update_vk_account_db(account_id_database: int, account_update_data: dict, vk_token: str, database_manager,):
     # assume get_one_or_none is async
@@ -66,16 +65,14 @@ def get_vk_account_data_retry(vk_account_id_db: int, proxy: str, retries: int = 
 
         for attempt in range(1, retries + 1):
             try:
-                vk_session = get_vk_session_by_log_pass(login=login, password=password, proxy=last_proxy)
-                token_data = vk_session.token
-                token = token_data['access_token']
+                token = get_token(login=login, password=password, proxy=last_proxy)
                 vk_account_data = get_vk_account_data(token, proxy)
-
 
                 return vk_account_data, token
             except Exception as e:
                 print(e)
                 print(f"Попытка {attempt}: ошибка авторизации")
+                time.sleep(60)
 
     raise ValueError(f"Не удалось авторизоваться после {retries} попыток")
 
@@ -171,7 +168,7 @@ def update_celery_task_status(
         celery_task.status = new_status
         session.commit()
 
-def get_vk_session_with_retry(database_manager, account_id_database: int, login: str, password: str, proxy: str = None, retries: int = 10):
+def get_token_with_proxy_retry(database_manager, account_id_database: int, login: str, password: str, proxy: str = None, retries: int = 10):
     last_proxy = proxy
     with database_manager as session:
         stmt = select(VKAccountOrm).where(VKAccountOrm.id == account_id_database)
@@ -182,7 +179,9 @@ def get_vk_session_with_retry(database_manager, account_id_database: int, login:
 
         for attempt in range(1, retries + 1):
             try:
-                vk_session = get_vk_session_by_log_pass(login=login, password=password, proxy=last_proxy)
+                token = get_token(login=login, password=password, proxy_http=last_proxy)
+                if not token:
+                    raise Exception("Not get token")
 
                 stmt = select(ProxyOrm).where(ProxyOrm.id == vk_account_database.proxy_id)
                 result = session.execute(stmt)
@@ -195,8 +194,9 @@ def get_vk_session_with_retry(database_manager, account_id_database: int, login:
                         vk_account_database.proxy_id = proxy_db.id
                         session.commit()
 
-                return vk_session
+                return token
             except Exception as e:
+                print(f"Ошибка: {e}")
                 print(f"Попытка {attempt}: ошибка авторизации, пробуем другой прокси")
                 stmt_proxies = select(ProxyOrm).where(ProxyOrm.http != last_proxy)
                 proxies = session.execute(stmt_proxies).scalars().all()
@@ -223,15 +223,8 @@ def create_workpost_account(
     print("Задача началась!")
     database_manager = SyncSessionLocal()
     try:
-        vk_session = get_vk_session_with_retry(
-            database_manager=database_manager,
-            account_id_database=account_id_database,
-            login=login,
-            password=password,
-            proxy=proxy,
-        )
-        token_data = vk_session.token
-        vk_token = token_data['access_token']
+
+        vk_token = get_token_with_proxy_retry(database_manager, account_id_database, login, password, proxy)
         #curl = get_vk_account_curl_from_browser(login, password, proxy)
         #encrypted_curl = AuthService().encrypt_data(curl)
 

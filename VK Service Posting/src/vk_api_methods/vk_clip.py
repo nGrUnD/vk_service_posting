@@ -8,6 +8,7 @@ from pycparser.ply.yacc import token
 from src.services.vk_token_service import TokenService
 import vk_api
 from src.utils.rand_user_agent import get_random_user_agent
+from src.vk_api_methods.vk_auth import get_token
 
 
 def is_token_expired(access_token: str) -> bool:
@@ -122,7 +123,19 @@ def get_owner_short_videos_page(owner_id: int,
         raise RuntimeError(f"VK API error: {data['error']}")
     return data['response']
 
-def vk_api_get_owner_short_videos(owner_id: int, vk, count: int = 1, start_from: str = None, api_version: str = '5.251'):
+def vk_api_get_owner_short_videos(owner_id: int, token: str, proxy: str = None, count: int = 1, start_from: str = None, api_version: str = '5.251'):
+    user_agent = get_random_user_agent()
+    session = requests.Session()
+    session.proxies.update({
+        "http": proxy,
+        "https": proxy
+    })
+    session.headers.update({
+        "User-Agent": (
+            user_agent
+        )
+    })
+    vk = vk_api.VkApi(token=token, session=session).get_api()
     if not start_from:
         data = vk.shortVideo.getOwnerVideos(
             owner_id=owner_id,
@@ -140,7 +153,7 @@ def vk_api_get_owner_short_videos(owner_id: int, vk, count: int = 1, start_from:
 
 
 def get_all_owner_short_videos(owner_id: int,
-                               vk_session,
+                               login, password, proxy: str = None,
                                api_version: str = '5.251',
                                page_size: int = 100,
                                delay: float = 0.34) -> List[Dict[str, Any]]:
@@ -159,20 +172,20 @@ def get_all_owner_short_videos(owner_id: int,
     start_from: str = None
     total_count: int = None
 
-    #vk_session = get_vk_session_by_token(access_token)
-    vk = vk_session.get_api()
+    token = get_token(login, password, proxy)
 
     while True:
         #print(total_count)
 
-        #if is_token_expired(access_token):
-            #access_token = TokenService.get_token_from_curl(curl)
-        #    print("Токену пизда пришла")
+        if is_token_expired(token):
+            token = get_token(login, password, proxy)
+            print("Токену пизда пришла")
 
         resp = vk_api_get_owner_short_videos(
             owner_id=owner_id,
             count=page_size,
-            vk=vk,
+            token=token,
+            proxy=proxy,
             start_from=start_from
         )
 

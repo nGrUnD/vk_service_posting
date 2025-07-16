@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 from starlette.middleware.cors import CORSMiddleware
 
-
+sys.path.append("/app")
 sys.path.append(str(Path(__file__).parent.parent))
 
 from src.database import *

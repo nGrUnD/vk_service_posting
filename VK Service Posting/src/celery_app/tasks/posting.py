@@ -5,9 +5,8 @@ from src.models.schedule_posting import SchedulePostingOrm
 from src.models.vk_group import VKGroupOrm
 from src.models.workerpost import WorkerPostOrm
 
-from src.schemas.schedule_posting import SchedulePostingUpdate
-from src.vk_api.vk_account import get_vk_session_by_log_pass
-from src.vk_api.vk_posting import download_vk_clip, upload_short_video, get_clip_info, delete_file, download_clip_by_url
+from src.vk_api_methods.vk_auth import get_token
+from src.vk_api_methods.vk_posting import upload_short_video, download_clip_by_url
 from src.celery_app.celery_db import SyncSessionLocal
 
 
@@ -46,10 +45,7 @@ def posting_clip(worker_id: int, login: str, password: str, schedule_database_id
 
         clip_url = f"https://vk.com/video{vk_clip_owner_id}_{clip_id}"
 
-
-        vk_session = get_vk_session_by_log_pass(login, password, proxy)
-        token_data = vk_session.token
-        token = token_data['access_token']
+        token = get_token(login, password, proxy)
 
         clip_filename = download_clip_by_url(clip_url, vk_clip_owner_id, clip_id)
 

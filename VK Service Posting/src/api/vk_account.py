@@ -63,6 +63,24 @@ async def get_all_logins(database: DataBaseDep, user_id: UserIdDep,):
 
     return {"accounts": accounts}
 
+@router.get("/pending_login")
+async def get_pending_logins(database: DataBaseDep, user_id: UserIdDep,):
+    all_accounts = await database.vk_account.get_all_filtered(account_type="backup", parse_status="pending", flood_control=True, user_id=user_id)
+    service_auth = AuthService()
+
+    accounts = []
+    for account in all_accounts:
+        account_cred = await database.vk_account_cred.get_one_or_none(id=account.vk_cred_id)
+        if not account_cred:
+            continue
+
+        login = account_cred.login
+        password = service_auth.decrypt_data(account_cred.encrypted_password)
+        accounts.append(f"{login}:{password}")
+
+    return {"accounts": accounts}
+
+
 @router.get("/blocked_logins")
 async def get_blocked_logins(database: DataBaseDep, user_id: UserIdDep,):
     all_accounts = await database.vk_account.get_all_filtered(account_type="backup", flood_control=True, user_id=user_id)
@@ -82,7 +100,7 @@ async def get_blocked_logins(database: DataBaseDep, user_id: UserIdDep,):
 
 @router.get("/working_logins")
 async def get_working_logins(database: DataBaseDep, user_id: UserIdDep,):
-    all_accounts = await database.vk_account.get_all_filtered(account_type="backup", flood_control=False, user_id=user_id)
+    all_accounts = await database.vk_account.get_all_filtered(account_type="backup", parse_status="success", flood_control=False, user_id=user_id)
     service_auth = AuthService()
 
     accounts = []

@@ -1,6 +1,6 @@
 
 from src.celery_app import app
-from src.vk_api.vk_account import get_vk_account_admin_groups
+from src.vk_api_methods.vk_account import get_vk_account_admin_groups
 
 def parse_vk_group(token: str, vk_account_id: int, proxy: str) -> dict:
     vk_groups_data = get_vk_account_admin_groups(token, vk_account_id, proxy)

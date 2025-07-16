@@ -45,7 +45,7 @@ class WorkerPostService:
         proxies = await self.database.proxy.get_all()
 
         index_proxy = random.randint(0, len(proxies))
-        vk_accounts_backup_free = await self.database.vk_account.get_all_filtered(account_type="backup", flood_control=False)
+        vk_accounts_backup_free = await self.database.vk_account.get_all_filtered(account_type="backup", parse_status="success", flood_control=False)
 
         for vk_account_backup_db, vk_group_id in zip(vk_accounts_backup_free, vk_groups_ids):
             proxy = proxies[index_proxy % len(proxies)]

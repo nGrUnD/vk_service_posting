@@ -6,7 +6,6 @@ from typing import Dict, Optional
 import yt_dlp
 import vk_api
 import requests
-from vk_api import ApiError
 
 
 def get_clip_info(owner_id: int, video_id: int, access_token: str, proxy: str) -> dict:
@@ -142,7 +141,7 @@ def wait_for_encoding(vk, video_id: int, owner_id: int, video_hash: str, proxy: 
     for i in range(max_retries):
         try:
             resp = vk.shortVideo.encodeProgress(video_id=video_id, owner_id=owner_id, hash=video_hash)
-        except ApiError as e:
+        except vk_api.AuthError as e:
             print(f"VK API error {e.code}: {e.error['error_msg']}")
             time.sleep(delay)
             continue

@@ -1,6 +1,6 @@
 from src.celery_app import app
 from src.celery_app.tasks.db_update_vk_account import _update_vk_account_db
-from src.vk_api.vk_selenium import get_vk_account_curl_from_browser
+from src.vk_api_methods.vk_selenium import get_vk_account_curl_from_browser
 from src.services.auth import AuthService
 
 
