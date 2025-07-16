@@ -8,7 +8,8 @@ from src.celery_app.celery_db import SyncSessionLocal
 from src.celery_app.tasks.db_update_vk_account import _update_vk_account_db
 from src.models.proxy import ProxyOrm
 from src.models.vk_account import VKAccountOrm
-from src.vk_api_methods.vk_account import get_vk_account_data
+from src.services.auth import AuthService
+from src.vk_api_methods.vk_account import get_vk_account_data, get_vk_session_by_log_pass
 from src.vk_api_methods.vk_auth import get_token
 
 def get_token_with_proxy_retry(database_manager, account_id_database: int, login: str, password: str, proxy: str = None, retries: int = 10):
@@ -52,7 +53,61 @@ def get_token_with_proxy_retry(database_manager, account_id_database: int, login
 
     raise ValueError(f"Не удалось авторизоваться после {retries} попыток")
 
-def update_db_vk_account(database_manager, vk_account_id_database: int, count_groups: int):
+
+def get_vk_account_data_retry(vk_account_id_db: int, proxy: str, retries: int = 10):
+    last_proxy = proxy
+    with SyncSessionLocal() as session:
+        stmt = select(VKAccountOrm).where(VKAccountOrm.id == vk_account_id_db)
+        result = session.execute(stmt)
+        vk_account_database = result.scalars().one_or_none()
+
+        if vk_account_database is None:
+            raise ValueError(f"VkAccount с id {vk_account_database} не найден в базе")
+
+
+        login = vk_account_database.login
+        password = AuthService().decrypt_data(vk_account_database.encrypted_password)
+
+        for attempt in range(1, retries + 1):
+            try:
+                vk_session = get_vk_session_by_log_pass(login=login, password=password, proxy=last_proxy)
+                token_data = vk_session.token
+                token = token_data['access_token']
+                vk_account_data = get_vk_account_data(token, proxy)
+
+
+                return vk_account_data, token
+            except Exception as e:
+                print(e)
+                print(f"Попытка {attempt}: ошибка авторизации")
+
+    raise ValueError(f"Не удалось авторизоваться после {retries} попыток")
+
+
+def parse_vk_profile(vk_token, vk_account_id_database: int, proxy: str) -> dict:
+    try:
+        vk_account_data = get_vk_account_data(vk_token, proxy)
+    except Exception as e:
+        print(e)
+        vk_account_data, token = get_vk_account_data_retry(vk_account_id_database, proxy)
+
+
+    vk_account_id = vk_account_data["id"]
+    vk_count_groups = 0
+    vk_link = f"https://vk.com/id{vk_account_id}"
+
+    vk_account_data = {
+        "vk_account_id": vk_account_id,
+        "name": vk_account_data["name"],
+        "second_name": vk_account_data["second_name"],
+        "vk_account_url": vk_link,
+        "avatar_url": vk_account_data["avatar_url"],
+        "groups_count": vk_count_groups,
+    }
+
+    return vk_account_data
+
+def update_db_vk_account(database_manager, vk_account_id_database: int, data: dict, count_groups: int):
     with database_manager as session:
         stmt = select(VKAccountOrm).where(VKAccountOrm.id == vk_account_id_database)
         result = session.execute(stmt)
@@ -61,11 +116,11 @@ def update_db_vk_account(database_manager, vk_account_id_database: int, count_gr
         if not account:
             raise ValueError(f"Account {vk_account_id_database} not found")
 
-        #account.vk_account_id = data['vk_account_id']
+        account.vk_account_id = data['vk_account_id']
         account.name = account.login
         account.second_name = ""
-        #account.vk_account_url = data['vk_account_url']
-        #account.avatar_url = data['avatar_url']
+        account.vk_account_url = data['vk_account_url']
+        account.avatar_url = data['avatar_url']
         account.groups_count = count_groups
         account.parse_status = "success"
 
@@ -80,7 +135,8 @@ def get_vk_account_cred(self, account_id_database: int, login: str, password: st
         if not token:
             raise Exception("Not get token")
 
-        update_db_vk_account(database_manager, account_id_database, 0)
+        vk_account_data = parse_vk_profile(token, account_id_database, proxy)
+        update_db_vk_account(database_manager, account_id_database, vk_account_data, 0)
 
     except Exception as exc:
         print(f"Ошибка: {exc}")

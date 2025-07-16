@@ -40,67 +40,6 @@ def _update_vk_account_db(account_id_database: int, account_update_data: dict, v
 
         session.commit()
 
-
-def get_vk_account_data_retry(vk_account_id_db: int, proxy: str, retries: int = 10):
-    last_proxy = proxy
-    with SyncSessionLocal() as session:
-        stmt = select(VKAccountOrm).where(VKAccountOrm.id == vk_account_id_db)
-        result = session.execute(stmt)
-        vk_account_database = result.scalars().one_or_none()
-
-        if vk_account_database is None:
-            raise ValueError(f"VkAccount с id {vk_account_database} не найден в базе")
-
-
-        login = vk_account_database.login
-        password = AuthService().decrypt_data(vk_account_database.encrypted_password)
-
-        for attempt in range(1, retries + 1):
-            try:
-                token = get_token(login=login, password=password, proxy=last_proxy)
-                vk_account_data = get_vk_account_data(token, proxy)
-
-                return vk_account_data, token
-            except Exception as e:
-                print(e)
-                print(f"Попытка {attempt}: ошибка авторизации")
-                time.sleep(60)
-
-    raise ValueError(f"Не удалось авторизоваться после {retries} попыток")
-
-
-def parse_vk_profile(vk_token: str, vk_account_id_database: int, proxy: str = None) -> dict:
-    if not vk_token:
-        raise ValueError("Не удалось получить токен.")
-
-    try:
-        vk_account_data = get_vk_account_data(vk_token, proxy)
-    except Exception as e:
-        print(e)
-        vk_account_data, vk_token = get_vk_account_data_retry(vk_account_id_database, proxy)
-
-    vk_account_id = vk_account_data["id"]
-    #vk_groups_data = get_vk_account_admin_groups(token, vk_account_id)
-    vk_count_groups = 1
-    vk_link = f"https://vk.com/id{vk_account_id}"
-
-    vk_account_data = {
-        "vk_account_id": vk_account_id,
-        "name": vk_account_data["name"],
-        "second_name": vk_account_data["second_name"],
-        "vk_account_url": vk_link,
-        "avatar_url": vk_account_data["avatar_url"],
-        "groups_count": vk_count_groups,
-    }
-
-    data = {
-        "token": vk_token,
-        "vk_account_id": vk_account_id,
-        "vk_account_id_database": vk_account_id_database,
-        "vk_account_data": vk_account_data,
-    }
-    return data
-
 def create_workpost(
         user_id: int,
         account_id_database: int,
@@ -160,47 +99,6 @@ def update_celery_task_status(
         celery_task.status = new_status
         session.commit()
 
-def get_token_with_proxy_retry(database_manager, account_id_database: int, login: str, password: str, proxy: str = None, retries: int = 10):
-    last_proxy = proxy
-    with database_manager as session:
-        stmt = select(VKAccountOrm).where(VKAccountOrm.id == account_id_database)
-        result = session.execute(stmt)
-        vk_account_database = result.scalars().one_or_none()
-        if vk_account_database is None:
-            raise ValueError(f"VkAccount с логином {login} не найден в базе")
-
-        for attempt in range(1, retries + 1):
-            try:
-                token = get_token(login=login, password=password, proxy_http=last_proxy)
-                if not token:
-                    raise Exception("Not get token")
-
-                stmt = select(ProxyOrm).where(ProxyOrm.id == vk_account_database.proxy_id)
-                result = session.execute(stmt)
-                proxy_vk_account_db = result.scalars().one_or_none()
-                if last_proxy and last_proxy != proxy_vk_account_db.http:
-                    # Находим объект Proxy в базе
-                    stmt_proxy = select(ProxyOrm).where(ProxyOrm.http == last_proxy)
-                    proxy_db = session.execute(stmt_proxy).scalars().one_or_none()
-                    if proxy_db:
-                        vk_account_database.proxy_id = proxy_db.id
-                        session.commit()
-
-                return token
-            except Exception as e:
-                print(f"Ошибка: {e}")
-                print(f"Попытка {attempt}: ошибка авторизации, пробуем другой прокси")
-                stmt_proxies = select(ProxyOrm).where(ProxyOrm.http != last_proxy)
-                proxies = session.execute(stmt_proxies).scalars().all()
-
-                if not proxies:
-                    print("Нет доступных прокси для смены. Повторяем попытку с текущим прокси.")
-                    continue
-
-                last_proxy = random.choice(proxies).http
-
-    raise ValueError(f"Не удалось авторизоваться после {retries} попыток")
-
 @app.task
 def create_workpost_account(
         account_id_database: int,
@@ -216,7 +114,7 @@ def create_workpost_account(
     database_manager = SyncSessionLocal()
     try:
 
-        vk_token = get_token_with_proxy_retry(database_manager, account_id_database, login, password, proxy)
+        vk_token = get_token(login=login, password=password, proxy_http=proxy)
         #curl = get_vk_account_curl_from_browser(login, password, proxy)
         #encrypted_curl = AuthService().encrypt_data(curl)
 

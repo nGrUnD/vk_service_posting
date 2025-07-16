@@ -11,17 +11,24 @@ from src.utils.rand_user_agent import get_random_user_agent
 from src.vk_api_methods.vk_auth import get_token
 
 
-def is_token_expired(access_token: str) -> bool:
+def is_token_expired(access_token: str, proxy: str = None) -> bool:
     """
     Проверка валидности токена VK.
     Делает запрос к методу users.get — если ошибка 5 (User authorization failed), значит токен протух.
     """
+    proxy_response = None
+    if proxy is not None:
+        proxy_response = {
+            "http": proxy,
+            "https": proxy,
+        }
+
     params = {
         'access_token': access_token,
         'v': '5.251',
         'user_ids': '1'
     }
-    response = requests.get('https://api.vk.com/method/users.get', params=params)
+    response = requests.get('https://api.vk.com/method/users.get', params=params, proxies=proxy_response)
     data = response.json()
     if 'error' in data and data['error']['error_code'] == 5:
         return True
@@ -177,7 +184,7 @@ def get_all_owner_short_videos(owner_id: int,
     while True:
         #print(total_count)
 
-        if is_token_expired(token):
+        if is_token_expired(token, proxy):
             print("Токену пизда пришла")
             token = get_token(login, password, proxy)
 
