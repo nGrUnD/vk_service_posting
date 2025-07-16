@@ -5,8 +5,9 @@ from src.celery_app.celery_db import SyncSessionLocal
 from src.models.vk_account import VKAccountOrm
 from src.models.vk_group import VKGroupOrm
 from src.services.auth import AuthService
+from src.database import Base
 
-from src.vk_api_methods.vk_account import get_vk_account_data, get_vk_session_by_token, get_vk_session_by_log_pass, \
+from src.vk_api_methods.vk_account import get_vk_account_data, get_vk_session_by_log_pass, \
     get_vk_account_admin_groups
 
 
@@ -147,6 +148,9 @@ def parse_vk_profile_main_sync(vk_token: str, vk_account_id_database: int, proxy
         groups_data = get_vk_account_admin_groups(vk_token, vk_account_data['vk_account_id'], proxy)
 
         groups_count = len(groups_data["groups"])
+
+        print("=== ВСЕ МОДЕЛИ ===")
+        print(Base.metadata.tables.keys())
 
         update_db_vk_account(database_manager, vk_account_id_database, vk_account_data, groups_count)
         update_vk_groups_database(database_manager, vk_account_id_database, user_id, groups_data)

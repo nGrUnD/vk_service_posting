@@ -15,7 +15,6 @@ class VKAccountRepository(BaseRepository):
             select(VKAccountOrm)
             .where(VKAccountOrm.user_id == user_id)
             .where(VKAccountOrm.account_type == "backup")
-            .options(joinedload(VKAccountOrm.vk_cred))  # Присоединяем креды
         )
         result = await self.session.execute(stmt)
         return result.scalars().all()
