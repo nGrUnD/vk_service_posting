@@ -1,7 +1,7 @@
 import logging
 
 import requests
-from vk_api.vk_api import vk_api
+from vk_api import vk_api
 
 from src.utils.rand_user_agent import get_random_user_agent
 
