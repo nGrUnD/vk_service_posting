@@ -53,12 +53,8 @@ async def get_all_logins(database: DataBaseDep, user_id: UserIdDep,):
 
     accounts = []
     for account in all_accounts:
-        account_cred = await database.vk_account_cred.get_one_or_none(id=account.vk_cred_id)
-        if not account_cred:
-            continue
-
-        login = account_cred.login
-        password = service_auth.decrypt_data(account_cred.encrypted_password)
+        login = account.login
+        password = service_auth.decrypt_data(account.encrypted_password)
         accounts.append(f"{login}:{password}")
 
     return {"accounts": accounts}
@@ -70,12 +66,8 @@ async def get_pending_logins(database: DataBaseDep, user_id: UserIdDep,):
 
     accounts = []
     for account in all_accounts:
-        account_cred = await database.vk_account_cred.get_one_or_none(id=account.vk_cred_id)
-        if not account_cred:
-            continue
-
-        login = account_cred.login
-        password = service_auth.decrypt_data(account_cred.encrypted_password)
+        login = account.login
+        password = service_auth.decrypt_data(account.encrypted_password)
         accounts.append(f"{login}:{password}")
 
     return {"accounts": accounts}
@@ -88,12 +80,8 @@ async def get_blocked_logins(database: DataBaseDep, user_id: UserIdDep,):
 
     accounts = []
     for account in all_accounts:
-        account_cred = await database.vk_account_cred.get_one_or_none(id=account.vk_cred_id)
-        if not account_cred:
-            continue
-
-        login = account_cred.login
-        password = service_auth.decrypt_data(account_cred.encrypted_password)
+        login = account.login
+        password = service_auth.decrypt_data(account.encrypted_password)
         accounts.append(f"{login}:{password}")
 
     return {"accounts": accounts}
@@ -105,12 +93,8 @@ async def get_working_logins(database: DataBaseDep, user_id: UserIdDep,):
 
     accounts = []
     for account in all_accounts:
-        account_cred = await database.vk_account_cred.get_one_or_none(id=account.vk_cred_id)
-        if not account_cred:
-            continue
-
-        login = account_cred.login
-        password = service_auth.decrypt_data(account_cred.encrypted_password)
+        login = account.login
+        password = service_auth.decrypt_data(account.encrypted_password)
         accounts.append(f"{login}:{password}")
 
     return {"accounts": accounts}
