@@ -1,7 +1,6 @@
 from typing import List
 import random
 
-from CookieAuth import login
 from src.models.celery_task import CeleryTaskOrm
 from src.models.vk_account import VKAccountOrm
 from src.models.vk_group import VKGroupOrm
@@ -55,7 +54,7 @@ class VKAccountBackupService:
                 proxy_id = None,
                 vk_account_id = 0,
                 encrypted_curl = "",
-                login = login,
+                login = account_log_pass.login,
                 encrypted_password = encrypted_password,
                 vk_account_url = "pending",
                 avatar_url = "pending",
