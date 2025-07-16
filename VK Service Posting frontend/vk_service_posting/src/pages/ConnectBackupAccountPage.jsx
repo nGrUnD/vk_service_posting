@@ -304,7 +304,8 @@ export default function ConnectBackupAccountPage() {
                                                 fetchLoadedAccounts(),
                                                 fetchAllAccounts(),
                                                 fetchBlockedAccounts(),
-                                                fetchWorkingAccounts()
+                                                fetchWorkingAccounts(),
+                                                fetchPendingAccounts(),
                                             ]);
                                             setRefreshing(false);
                                         }}
