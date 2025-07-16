@@ -15,7 +15,7 @@ from src.repositories.workerpost import WorkerPostRepository
 from src.schemas.schedule_posting import SchedulePostingAdd, SchedulePostingUpdate
 from src.schemas.vk_clip import VKClipOut
 from src.services.auth import AuthService
-
+import logging
 
 class PostingService:
     def __init__(self, session):
@@ -58,17 +58,17 @@ class PostingService:
         for file_path in files:
             try:
                 os.remove(file_path)
-                print(f"✅ Удалён файл: {file_path}")
+                logging.info(f"✅ Удалён файл: {file_path}")
                 deleted_count += 1
             except Exception as e:
-                print(f"❌ Не удалось удалить файл {file_path}: {e}")
+                logging.error(f"❌ Не удалось удалить файл {file_path}: {e}")
 
         if deleted_count == 0:
-            print("Файлы .mp4 не найдены.")
+            logging.info("Файлы .mp4 не найдены.")
         return deleted_count
 
     async def check_and_schedule(self, minute: int):
-        print(minute)
+        logging.info(minute)
         workposts = await self.workpost_repo.get_all()
         self.delete_all_mp4_files()
         for workpost in workposts:
@@ -76,7 +76,7 @@ class PostingService:
             category = await self.category_repo.get_one_or_none(id=workpost.category_id)
             #print(category)
             if not category or not category.is_active:
-                print("Нет категории или не активно")
+                logging.error("Нет категории или не активно")
                 continue
 
             hourly_limit = category.hourly_limit
@@ -87,20 +87,20 @@ class PostingService:
             if not is_can_post:
                 continue
 
-            print("post")
+            logging.info("post")
             clip_list = await self.clip_list.get_one_or_none(id=category.clip_list_id)
             vk_account = await self.vk_account_repo.get_one_or_none(id=workpost.vk_account_id)
             proxy = await self.proxy.get_one_or_none(id=vk_account.proxy_id)
 
             if not proxy:
-                print("Не удалось найти прокси")
+                logging.error("Не удалось найти прокси")
                 continue
 
             proxy_http = proxy.http
 
             random_clip = await self.vk_clip.get_random_one(clip_list_id=clip_list.id)
             if not random_clip:
-                print("Не удалось получить случайный клип")
+                logging.error("Не удалось получить случайный клип")
                 continue
 
             clip_data = {
