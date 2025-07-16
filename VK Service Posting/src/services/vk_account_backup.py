@@ -90,8 +90,9 @@ class VKAccountBackupService:
 
             task = get_vk_account_cred.delay(vk_account_db.id, account_log_pass.login, password, proxy_http)
 
+            proxy_db = await self.database.proxy.get_one_or_none(http=proxy)
             await self.database.vk_account.edit(
-                VKAccountUpdate(task_id=task.id),
+                VKAccountUpdate(task_id=task.id, proxy_id=proxy_db.id),
                 exclude_unset=True,
                 id=vk_account_db.id
             )
