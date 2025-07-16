@@ -19,6 +19,8 @@ from src.api.workerpost import router as router_workerpost
 from src.api.proxy import router as router_proxy
 from src.api.tools import router as router_tools
 
+import src.models  # 👈 это активирует импорты из models/__init__.py
+
 from src.services.posting_service import PostingService
 import logging
 
