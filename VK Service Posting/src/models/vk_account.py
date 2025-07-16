@@ -9,7 +9,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import (
     Mapped,
-    mapped_column, relationship,
+    mapped_column
 )
 from src.database import Base
 

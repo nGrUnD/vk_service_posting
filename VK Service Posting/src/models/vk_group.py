@@ -3,8 +3,7 @@ from sqlalchemy import (
     BigInteger,
     TIMESTAMP,
     ForeignKey,
-    String,
-    Boolean, func
+    func,
 )
 from sqlalchemy.orm import (
     Mapped,

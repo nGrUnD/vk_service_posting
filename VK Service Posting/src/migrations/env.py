@@ -7,9 +7,10 @@ from alembic import context
 
 from src.config import settings
 from src.database import Base
+
+from src.models.user import UserOrm
 from src.models.vk_account import VKAccountOrm
 from src.models.category import CategoryOrm
-from src.models.user import UserOrm
 from src.models.vk_group import VKGroupOrm
 from src.models.celery_task import CeleryTaskOrm
 from src.models.clip_list import ClipListOrm

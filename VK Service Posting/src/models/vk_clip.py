@@ -4,12 +4,11 @@ from sqlalchemy import (
     BigInteger,
     TIMESTAMP,
     ForeignKey,
-    String,
-    Boolean, func
+    func,
 )
 from sqlalchemy.orm import (
     Mapped,
-    mapped_column, relationship,
+    mapped_column,
 )
 from src.database import Base
 
@@ -27,11 +26,8 @@ class VKClipOrm(Base):
     date: Mapped[datetime]
     frames_file: Mapped[str]
 
-
     parse_status: Mapped[str]
     task_id: Mapped[str]
-
-    #clip_list = relationship("src.models.clip_list.ClipListOrm", back_populates="clips", lazy="selectin")
 
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True),
