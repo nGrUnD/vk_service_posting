@@ -7,7 +7,6 @@ from src.models.vk_account_cred import VKAccountCredOrm
 from src.models.vk_group import VKGroupOrm
 from src.services.auth import AuthService
 
-from src.utils.celery_error_handler import mark_vk_account_failure_by_task_id
 from src.vk_api_methods.vk_account import get_vk_account_data, get_vk_session_by_token, get_vk_session_by_log_pass, \
     get_vk_account_admin_groups
 
@@ -49,15 +48,8 @@ def get_vk_account_data_retry(vk_account_id_db: int, proxy: str, retries: int = 
 
 
 def parse_vk_profile(vk_token, vk_account_id_database: int, proxy: str) -> dict:
-    if not vk_token:
-        raise ValueError("Не удалось получить токен.")
-
-    vk_session = get_vk_session_by_token(vk_token, proxy)
-    token_data = vk_session.token
-    token = token_data['access_token']
-
     try:
-        vk_account_data = get_vk_account_data(token, proxy)
+        vk_account_data = get_vk_account_data(vk_token, proxy)
     except Exception as e:
         print(e)
         vk_account_data, token = get_vk_account_data_retry(vk_account_id_database, proxy)
@@ -142,6 +134,18 @@ def update_vk_groups_database(database_manager, vk_account_id_database: int, use
             _add_or_edit_vk_group_db(session, group_data, vk_account_id_database, user_id)
         session.commit()
 
+def mark_vk_account_failure_by_task_id(database_manager, vk_account_id: int):
+    with database_manager as session:
+        stmt = select(VKAccountOrm).where(VKAccountOrm.id == vk_account_id)
+        result = session.execute(stmt)
+        account = result.scalars().one_or_none()
+        if not account:
+            return
+
+        account.parse_status = "failure"
+        print(f"vk_account: {vk_account_id}")
+        session.commit()
+
 @app.task
 def parse_vk_profile_main_sync(vk_token: str, vk_account_id_database: int, proxy: str, user_id: int):
     database_manager = SyncSessionLocal()
@@ -155,5 +159,5 @@ def parse_vk_profile_main_sync(vk_token: str, vk_account_id_database: int, proxy
         update_vk_groups_database(database_manager, vk_account_id_database, user_id, groups_data)
 
     except Exception as e:
-        mark_vk_account_failure_by_task_id(vk_account_id_database)
+        mark_vk_account_failure_by_task_id(database_manager, vk_account_id_database)
         raise

@@ -5,17 +5,6 @@ from sqlalchemy import select
 from src.celery_app.celery_db import SyncSessionLocal
 from src.models.vk_account import VKAccountOrm
 
-
-def mark_vk_account_failure_by_task_id(vk_account_id: int):
-    with SyncSessionLocal() as session:
-        stmt = select(VKAccountOrm).where(VKAccountOrm.id == vk_account_id)
-        result = session.execute(stmt)
-        account = result.scalars().one_or_none()
-        account.parse_status = "failure"
-        print(f"vk_account: {vk_account_id}")
-        session.commit()
-
-
 def celery_task_with_db_failure_status(update_status_by_task_id_fn):
     def decorator(func):
         @wraps(func)
