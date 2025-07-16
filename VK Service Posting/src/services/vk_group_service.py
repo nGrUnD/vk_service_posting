@@ -8,7 +8,6 @@ from src.services.auth import AuthService
 from src.services.celery_task import CeleryTaskService
 from src.services.vk_account_backup import VKAccountBackupService
 from src.utils.database_manager import DataBaseManager
-import vk_api
 
 def extract_vk_ids(links: List[str]) -> List[int]:
     """

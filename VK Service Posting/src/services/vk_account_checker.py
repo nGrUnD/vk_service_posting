@@ -2,7 +2,7 @@ import random
 import string
 
 import requests
-import vk_api
+from vk_api.vk_api import vk_api
 import logging
 
 from src.schemas.tools import AccountCheckResult, AccountChangeResult

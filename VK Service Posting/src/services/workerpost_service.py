@@ -2,15 +2,10 @@ import random
 import re
 from typing import List
 
-from celery import chain
-
-from src.celery_app import app  # твой celery app
 from src.schemas.celery_task import CeleryTaskAdd, CeleryTaskUpdate
-from src.schemas.vk_account import VKAccountAdd, VKAccountUpdate
-from src.schemas.vk_account_cred import VKAccountCredAdd
+from src.schemas.vk_account import VKAccountUpdate
 from src.schemas.workerpost import WorkerPostRequestAdd
 from src.services.auth import AuthService
-from src.services.vk_account_backup import VKAccountLogPass
 from src.utils.database_manager import DataBaseManager
 from src.celery_app.tasks.workerpost import create_workpost_account
 
