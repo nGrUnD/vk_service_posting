@@ -10,7 +10,6 @@ from src.repositories.clip_list import ClipListRepository
 from src.repositories.proxy import ProxyRepository
 from src.repositories.schedule_posting import SchedulePostingRepository
 from src.repositories.vk_account import VKAccountRepository
-from src.repositories.vk_account_cred import VKAccountCredRepository
 from src.repositories.vk_clip import VKClipRepository
 from src.repositories.workerpost import WorkerPostRepository
 from src.schemas.schedule_posting import SchedulePostingAdd, SchedulePostingUpdate
@@ -30,7 +29,6 @@ class PostingService:
         self.vk_clip = VKClipRepository(self.session)
         self.vk_account_repo = VKAccountRepository(self.session)
         self.proxy = ProxyRepository(self.session)
-        self.vk_cred = VKAccountCredRepository(self.session)
 
         return self
 
@@ -92,7 +90,6 @@ class PostingService:
             print("post")
             clip_list = await self.clip_list.get_one_or_none(id=category.clip_list_id)
             vk_account = await self.vk_account_repo.get_one_or_none(id=workpost.vk_account_id)
-            vk_cred = await self.vk_cred.get_one_or_none(id=vk_account.vk_cred_id)
             proxy = await self.proxy.get_one_or_none(id=vk_account.proxy_id)
 
             if not proxy:
@@ -133,8 +130,8 @@ class PostingService:
 
             schedule_posting = await self.schedule_posting.add(schedule_posting_add)
 
-            login = vk_cred.login
-            password = AuthService().decrypt_data(vk_cred.encrypted_password)
+            login = vk_account.login
+            password = AuthService().decrypt_data(vk_account.encrypted_password)
 
             task = create_post.delay(
                 workpost.id, login, password, schedule_posting.id, clip_data, proxy_http

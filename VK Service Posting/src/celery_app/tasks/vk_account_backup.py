@@ -92,6 +92,8 @@ def get_vk_account_cred(self, account_id_database: int, login: str, password: st
 
     except Exception as exc:
         print(f"Ошибка: {exc}")
+        if "не найден в базе" in str(exc):
+            raise exc
         # При ошибке обновляем статус и имя
         if self.request.retries >= self.max_retries:
             error_data = {

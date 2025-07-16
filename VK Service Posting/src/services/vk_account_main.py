@@ -73,38 +73,6 @@ class VKAccountMainService:
 
         return vk_account
 
-    async def create_account(self, user_id: int, vk_cred_id: int) -> VKAccount:
-        cred = await self.database.vk_account_cred.get_one_or_none(id=vk_cred_id)
-        if not cred:
-            raise HTTPException(
-                status_code=404,
-                detail=f"VKAccountCred with id={vk_cred_id} not found"
-            )
-
-        new_data = VKAccountAdd(
-            user_id=user_id,
-            vk_cred_id=vk_cred_id,
-            vk_account_id=0,
-            encrypted_curl="pending",
-            vk_account_url="",
-            avatar_url="",
-            name="pending",
-            second_name="pending",
-            groups_count=0,
-            flood_control=False,
-            parse_status="pending",
-            task_id="pending"
-        )
-        vk_account = await self.database.vk_account.add(new_data)
-        await self.database.commit()
-
-        # chain tasks
-        task = get_vk_account_curl.delay(vk_account.id, cred.login, AuthService().decrypt_data(cred.encrypted_password))
-
-        # update task_id
-        await self.database.vk_account.edit(VKAccountUpdate(task_id=task.id), exclude_unset=True, id=vk_account.id)
-        await self.database.commit()
-        return vk_account
 
     async def get_status(self, account_id: int) -> dict:
         account = await self.database.vk_account.get_one_or_none(id=account_id)
@@ -139,10 +107,12 @@ class VKAccountMainService:
 
         #await self.create_account_curl(user_id, encrypted_curl, "main")
         #return {"status": "retry_started", "task_id": 0}
+        curl = AuthService().decrypt_data(encrypted_curl)
+        vk_token = TokenService.get_token_from_curl(curl, None)
 
         # 4. Сгенерировать новый task_id
-        first_task = parse_vk_profile_sync.s(encrypted_curl, vk_account.id)
-        new_task_id = first_task.freeze().id
+        task = parse_vk_profile_main_sync.delay(vk_token, vk_account.id, None, user_id)
+        new_task_id = task.id
 
         # 5. Обновить task_id в базе
         await self.database.vk_account.edit(
@@ -151,24 +121,6 @@ class VKAccountMainService:
             id=vk_account.id
         )
         await self.database.commit()
-
-        curl = AuthService().decrypt_data(encrypted_curl)
-        vk_token = TokenService.get_token_from_curl(curl, None)
-
-        data_task = {
-            "token": vk_token,
-            "vk_account_id_database": vk_account.id,
-            "proxy": None,
-        }
-
-        # 6. Запустить цепочку задач
-        task_chain = chain(
-            parse_vk_profile_sync.s(data_task),
-            parse_vk_group_sync.s(),
-            update_db_sync.s(vk_account.id),
-            update_db_group_async.s(vk_account.id, user_id),  # ← data будет первым аргументом
-        )
-        task_chain.apply_async(task_id=new_task_id)
 
         return {"status": "retry_started", "task_id": new_task_id}
 

@@ -4,8 +4,6 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
-from src.schemas.vk_account_cred import VKAccountCredOut
-
 
 class AccountType(str, enum.Enum):
     MAIN = "main"        # технический главный аккаунт
@@ -21,10 +19,11 @@ class VKAccountAddCURL(BaseModel):
 
 class VKAccountAdd(BaseModel):
     user_id: int
-    vk_cred_id: Optional[int] = None
     proxy_id: Optional[int] = None
     vk_account_id: int
     encrypted_curl: str
+    login: str
+    encrypted_password: str
     vk_account_url : str
     avatar_url: str
     name: str
@@ -40,6 +39,8 @@ class VKAccountOut(BaseModel):
     vk_account_id: int
     user_id: int
     encrypted_curl: str
+    login: str
+    encrypted_password: str
     account_type: str
     vk_account_url: str
     avatar_url: str
@@ -52,7 +53,6 @@ class VKAccountOut(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    vk_cred: VKAccountCredOut | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -62,7 +62,8 @@ class VKAccount(BaseModel):
     vk_account_id: int
     user_id: int
     encrypted_curl: str
-    vk_cred_id: Optional[int] = None
+    login: str
+    encrypted_password: str
     proxy_id: Optional[int] = None
     vk_account_url : str
     avatar_url: str
@@ -90,6 +91,8 @@ class VKAccountUpdate(BaseModel):
     parse_status: Optional[str] = None
     task_id: Optional[str] = None
     encrypted_curl: Optional[str] = None
+    login: Optional[str] = None
+    encrypted_password: Optional[str] = None
     account_type: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)

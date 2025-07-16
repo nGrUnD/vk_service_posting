@@ -91,31 +91,6 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_table(
-        "vk_account_cred",
-        sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
-        sa.Column("user_id", sa.BigInteger(), nullable=False),
-        sa.Column("login", sa.String(length=200), nullable=False),
-        sa.Column("encrypted_password", sa.String(length=200), nullable=False),
-        sa.Column(
-            "created_at",
-            sa.TIMESTAMP(timezone=True),
-            server_default="NOW()",
-            nullable=False,
-        ),
-        sa.Column(
-            "updated_at",
-            sa.TIMESTAMP(timezone=True),
-            server_default="NOW()",
-            nullable=False,
-        ),
-        sa.ForeignKeyConstraint(
-            ["user_id"],
-            ["user.id"],
-        ),
-        sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("login"),
-    )
-    op.create_table(
         "categories",
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
         sa.Column("user_id", sa.BigInteger(), nullable=False),
@@ -144,7 +119,11 @@ def upgrade() -> None:
         sa.Column("account_type", sa.String(), nullable=False),
         sa.Column("vk_cred_id", sa.BigInteger(), nullable=True),
         sa.Column("proxy_id", sa.BigInteger(), nullable=True),
+
         sa.Column("encrypted_curl", sa.String(length=10000), nullable=False),
+        sa.Column("login", sa.String(length=200), nullable=True),
+        sa.Column("encrypted_password", sa.String(length=200), nullable=True),
+
         sa.Column("vk_account_url", sa.String(), nullable=False),
         sa.Column("avatar_url", sa.String(), nullable=False),
         sa.Column("name", sa.String(), nullable=False),

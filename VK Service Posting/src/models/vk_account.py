@@ -11,7 +11,6 @@ from sqlalchemy.orm import (
     Mapped,
     mapped_column, relationship,
 )
-from src.models.vk_account_cred import VKAccountCredOrm
 from src.database import Base
 
 class VKAccountOrm(Base):
@@ -26,7 +25,10 @@ class VKAccountOrm(Base):
     vk_cred_id: Mapped[int] = mapped_column(ForeignKey("vk_account_cred.id"), nullable=True)
     proxy_id: Mapped[int] = mapped_column(ForeignKey("proxy.id"), nullable=True)
 
-    encrypted_curl : Mapped[str] = mapped_column(String(10000), nullable=False)
+    encrypted_curl : Mapped[str] = mapped_column(String(10000), nullable=True)
+    login : Mapped[str] = mapped_column(String(200), unique=True, nullable=True)
+    encrypted_password : Mapped[str] = mapped_column(String(200), nullable=True)
+
     vk_account_url : Mapped[str]
     avatar_url: Mapped[str]
     name: Mapped[str]

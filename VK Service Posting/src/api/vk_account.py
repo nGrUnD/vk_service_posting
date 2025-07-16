@@ -202,7 +202,6 @@ async def create_vk_accounts(
     try:
         detail = await VKAccountBackupService(database).create_accounts(user_id, vk_creds)
         return {"status": "OK", "detail": detail}
-        # return await database.vk_account.create_account(user_id=user_id, vk_cred_id=data.vk_cred_id)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

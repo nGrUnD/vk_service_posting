@@ -66,9 +66,8 @@ class WorkerPostService:
 
             await self.database.commit()
 
-            account_cred_db = await self.database.vk_account_cred.get_one_or_none(id=vk_account_backup_db.vk_cred_id)
 
-            password = AuthService().decrypt_data(account_cred_db.encrypted_password)
+            password = AuthService().decrypt_data(vk_account_backup_db.encrypted_password)
 
             task = create_workpost_account.delay(
                 account_id_database=vk_account_backup_db.id,
@@ -76,7 +75,7 @@ class WorkerPostService:
                 vk_group_id_database=vk_group_database.id,
                 category_id_database=category_database.id,
                 user_id=user_id,
-                login=account_cred_db.login,
+                login=vk_account_backup_db.login,
                 password=password,
                 proxy=proxy_http
             )

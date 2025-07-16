@@ -11,7 +11,6 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from src.database import *
 from src.api.user_auth import router as router_user_auth
-from src.api.vk_account_cred import router as router_vk_account_cred
 from src.api.vk_account import router as router_vk_account
 from src.api.category import router as router_category
 from src.api.vk_group import router as router_group
@@ -64,7 +63,6 @@ app.add_middleware(
 
 
 app.include_router(router_user_auth)
-app.include_router(router_vk_account_cred)
 app.include_router(router_vk_account)
 app.include_router(router_category)
 app.include_router(router_group)
