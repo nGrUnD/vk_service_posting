@@ -30,4 +30,3 @@ async def get_database() -> AsyncGenerator[DataBaseManager, None]:
         yield db
 
 DataBaseDep = Annotated[DataBaseManager, Depends(get_database)]
-

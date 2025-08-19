@@ -1,6 +1,9 @@
 from fastapi import APIRouter, HTTPException
+from sqlalchemy import select, func
+from sqlalchemy.orm import aliased
 
 from src.api.dependencies import DataBaseDep, UserIdDep
+from src.models import VKClipOrm, ClipListOrm
 from src.schemas.clip_list import ClipListAddRequest, ClipListAdd, ClipListUpdate
 from src.services.vk_group_service import VKGroupSourceService
 
@@ -20,14 +23,39 @@ async def create(clip_list_request: ClipListAddRequest, database: DataBaseDep, u
 
 @router.get("/get_all", summary="Получить все списки клипов пользователя")
 async def read_all(database: DataBaseDep, user_id: UserIdDep):
-    result = []
-    clip_lists = await database.clip_list.get_all_filtered(user_id=user_id)
-    for clip_list in clip_lists:
-        clips = await database.vk_clip.get_all_filtered(clip_list_id=clip_list.id)
-        # Преобразуем clip_list в dict, если это ORM-объект
-        clip_list_dict = clip_list.dict() if hasattr(clip_list, "dict") else clip_list.__dict__.copy()
-        clip_list_dict["count"] = len(clips)
-        result.append(clip_list_dict)
+    subq = (
+        select(VKClipOrm.clip_list_id.label("clip_list_id"),
+               func.count(VKClipOrm.id).label("cnt"))
+        .group_by(VKClipOrm.clip_list_id)
+        .subquery()
+    )
+
+    stmt = (
+        select(
+            ClipListOrm.id,
+            ClipListOrm.user_id,
+            ClipListOrm.name,
+            ClipListOrm.parse_status,
+            ClipListOrm.task_id,
+            func.coalesce(subq.c.cnt, 0).label("count"),
+        )
+        .outerjoin(subq, subq.c.clip_list_id == ClipListOrm.id)
+        .where(ClipListOrm.user_id == int(user_id))
+        .order_by(ClipListOrm.id)
+    )
+
+    rows = await database.session.execute(stmt)
+    result = [
+        {
+            "id": r.id,
+            "user_id": r.user_id,
+            "name": r.name,
+            "parse_status": r.parse_status,
+            "task_id": r.task_id,
+            "count": r.count,
+        }
+        for r in rows
+    ]
     return result
 
 @router.get("/get/{clip_list_id}", summary="Получить конкретный список клипов пользователя")
