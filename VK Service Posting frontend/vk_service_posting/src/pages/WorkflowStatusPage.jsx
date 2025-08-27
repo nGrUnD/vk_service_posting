@@ -18,7 +18,7 @@ export default function WorkflowStatusPage() {
     const [searchText, setSearchText] = useState('');
     const [loading, setLoading] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
-    const [pageSize, setPageSize] = useState(5)
+    const [pageSize, setPageSize] = useState(100)
     const [modalOpen, setModalOpen] = useState(false);
     const [editingCategory, setEditingCategory] = useState(null);
     const [clipLists, setClipLists] = useState([]);
