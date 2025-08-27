@@ -55,6 +55,7 @@ class VKAccountBackupService:
                 vk_account_id = 0,
                 encrypted_curl = "",
                 login = account_log_pass.login,
+                token = "",
                 encrypted_password = encrypted_password,
                 vk_account_url = "pending",
                 avatar_url = "pending",
@@ -114,7 +115,6 @@ class VKAccountBackupService:
             "fail": failed_accounts_log_pass,
         }
         return detail
-
 
     async def delete_accounts(self, logins: list[str]):
         vk_accounts = await self.database.vk_account.get_all_where(VKAccountOrm.login.in_(logins))

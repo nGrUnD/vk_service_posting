@@ -32,6 +32,7 @@ class VKAccountMainService:
         new_data = VKAccountAdd(
             user_id=user_id,
             vk_account_id=0,
+            token="curl",
             encrypted_curl=encrypted_curl,
             login="",
             encrypted_password="",
@@ -58,8 +59,8 @@ class VKAccountMainService:
             proxy_http = None
 
         proxy_http = None
-
         vk_token = TokenService.get_token_from_curl(curl, proxy_http)
+
         #vk_session = get_vk_session_by_token(vk_token, proxy.http)
 
         task = parse_vk_profile_main_sync.delay(vk_token, vk_account.id, proxy_http, user_id)
