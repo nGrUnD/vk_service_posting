@@ -21,6 +21,7 @@ class VKAccountAdd(BaseModel):
     user_id: int
     proxy_id: Optional[int] = None
     vk_account_id: int
+    token: str
     encrypted_curl: str
     login: str
     encrypted_password: str
@@ -38,6 +39,7 @@ class VKAccountOut(BaseModel):
     id: int
     vk_account_id: int
     user_id: int
+    token: str
     encrypted_curl: str
     login: str
     encrypted_password: str
@@ -61,6 +63,7 @@ class VKAccount(BaseModel):
     id: int
     vk_account_id: int
     user_id: int
+    token: str
     encrypted_curl: str
     login: str
     encrypted_password: str
@@ -90,6 +93,7 @@ class VKAccountUpdate(BaseModel):
     flood_control: Optional[bool] = None
     parse_status: Optional[str] = None
     task_id: Optional[str] = None
+    token: Optional[str] = None
     encrypted_curl: Optional[str] = None
     login: Optional[str] = None
     encrypted_password: Optional[str] = None

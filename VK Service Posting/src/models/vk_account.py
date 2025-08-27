@@ -24,11 +24,12 @@ class VKAccountOrm(Base):
 
     proxy_id: Mapped[int] = mapped_column(ForeignKey("proxy.id"), nullable=True)
 
-    encrypted_curl : Mapped[str] = mapped_column(String(10000), nullable=True)
-    login : Mapped[str] = mapped_column(String(200), unique=True, nullable=True)
-    encrypted_password : Mapped[str] = mapped_column(String(200), nullable=True)
+    token: Mapped[str] = mapped_column(String(1000), nullable=True)
+    encrypted_curl: Mapped[str] = mapped_column(String(10000), nullable=True)
+    login: Mapped[str] = mapped_column(String(200), unique=True, nullable=True)
+    encrypted_password: Mapped[str] = mapped_column(String(200), nullable=True)
 
-    vk_account_url : Mapped[str]
+    vk_account_url: Mapped[str]
     avatar_url: Mapped[str]
     name: Mapped[str]
     second_name: Mapped[str]

@@ -132,9 +132,10 @@ class PostingService:
 
             login = vk_account.login
             password = AuthService().decrypt_data(vk_account.encrypted_password)
+            token_db = vk_account.token
 
             task = create_post.delay(
-                workpost.id, login, password, schedule_posting.id, clip_data, proxy_http
+                workpost.id, login, password, token_db, schedule_posting.id, clip_data, proxy_http
             )
 
             schedule_posting_update_data = SchedulePostingUpdate(

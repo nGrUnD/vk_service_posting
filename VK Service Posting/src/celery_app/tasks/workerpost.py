@@ -14,7 +14,7 @@ from src.schemas.vk_account import VKAccountUpdate
 from src.services.auth import AuthService
 from src.services.vk_token_service import TokenService
 from src.vk_api_methods.vk_account import get_vk_account_data
-from src.vk_api_methods.vk_auth import get_token
+from src.vk_api_methods.vk_auth import get_token, get_new_token
 from src.vk_api_methods.vk_group import join_group, assign_editor_role
 from src.celery_app.celery_db import SyncSessionLocal
 
@@ -108,13 +108,15 @@ def create_workpost_account(
         user_id: int,
         login: str,
         password: str,
+        token_db : str,
         proxy: str,
 ):
     print("Задача началась!")
     database_manager = SyncSessionLocal()
     try:
 
-        vk_token = get_token(login=login, password=password, proxy_http=proxy)
+        vk_token = get_new_token(token_db, proxy)
+        #vk_token = get_token(login=login, password=password, proxy_http=proxy)
         #curl = get_vk_account_curl_from_browser(login, password, proxy)
         #encrypted_curl = AuthService().encrypt_data(curl)
 

@@ -68,6 +68,7 @@ class WorkerPostService:
 
 
             password = AuthService().decrypt_data(vk_account_backup_db.encrypted_password)
+            token_db = vk_account_backup_db.token
 
             task = create_workpost_account.delay(
                 account_id_database=vk_account_backup_db.id,
@@ -77,6 +78,7 @@ class WorkerPostService:
                 user_id=user_id,
                 login=vk_account_backup_db.login,
                 password=password,
+                token_db=token_db,
                 proxy=proxy_http
             )
 

@@ -119,7 +119,8 @@ def upgrade() -> None:
         sa.Column("account_type", sa.String(), nullable=False),
         sa.Column("proxy_id", sa.BigInteger(), nullable=True),
 
-        sa.Column("encrypted_curl", sa.String(length=10000), nullable=False),
+        sa.Column("token", sa.String(length=1000), nullable=True),
+        sa.Column("encrypted_curl", sa.String(length=10000), nullable=True),
         sa.Column("login", sa.String(length=200), nullable=True),
         sa.Column("encrypted_password", sa.String(length=200), nullable=True),
 

@@ -72,3 +72,46 @@ def get_token(login, password, proxy_http: str = None):
         logging.error(f'Не удалось распарсить JSON: {e}')
 
     return None
+
+def get_new_token(old_token: str, proxy_http: str = None):
+    user_agent = get_random_user_agent()
+    session = requests.Session()
+    if proxy_http:
+        session.proxies.update({
+            "http": proxy_http,
+            "https": proxy_http
+        })
+
+    session.headers.update({
+        "User-Agent": (
+            user_agent
+        )
+    })
+    logging.info(f'Текущий токен: {old_token}')
+
+    # 3. Делаем запрос на обновление токена
+    url = 'https://login.vk.com/'
+    params = {
+        'act': 'web_token',
+        'version': 1,
+        'app_id': 6287487,
+        'access_token': old_token,
+    }
+
+    headers = {
+        'User-Agent': user_agent,
+        'Referer': 'https://vk.com/',
+        'Origin': 'https://vk.com',
+    }
+
+    resp = session.get(url, params=params, headers=headers, allow_redirects=False)
+
+    try:
+        data = resp.json()
+        new_token = data['data']['access_token']
+        logging.info(f'Новый токен: {new_token}')
+        return new_token
+    except Exception as e:
+        logging.error(f'Не удалось распарсить JSON: {e}')
+
+    return None

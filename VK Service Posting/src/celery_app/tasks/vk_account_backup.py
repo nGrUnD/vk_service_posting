@@ -10,7 +10,7 @@ from src.models.proxy import ProxyOrm
 from src.models.vk_account import VKAccountOrm
 from src.services.auth import AuthService
 from src.vk_api_methods.vk_account import get_vk_account_data, get_vk_session_by_log_pass
-from src.vk_api_methods.vk_auth import get_token
+from src.vk_api_methods.vk_auth import get_token, get_new_token
 
 def get_token_with_proxy_retry(database_manager, account_id_database: int, login: str, password: str, proxy: str = None, retries: int = 10):
     last_proxy = proxy
@@ -54,7 +54,7 @@ def get_token_with_proxy_retry(database_manager, account_id_database: int, login
     raise ValueError(f"Не удалось авторизоваться после {retries} попыток")
 
 
-def get_vk_account_data_retry(vk_account_id_db: int, proxy: str, retries: int = 10):
+def get_vk_account_data_retry(vk_token: str, vk_account_id_db: int, proxy: str, retries: int = 10):
     last_proxy = proxy
     with SyncSessionLocal() as session:
         stmt = select(VKAccountOrm).where(VKAccountOrm.id == vk_account_id_db)
@@ -65,16 +65,13 @@ def get_vk_account_data_retry(vk_account_id_db: int, proxy: str, retries: int = 
             raise ValueError(f"VkAccount с id {vk_account_database} не найден в базе")
 
 
-        login = vk_account_database.login
-        password = AuthService().decrypt_data(vk_account_database.encrypted_password)
+        current_token = vk_token
 
         for attempt in range(1, retries + 1):
             try:
-                vk_session = get_vk_session_by_log_pass(login=login, password=password, proxy=last_proxy)
-                token_data = vk_session.token
-                token = token_data['access_token']
-                vk_account_data = get_vk_account_data(token, proxy)
 
+                token = get_new_token(current_token, proxy)
+                vk_account_data = get_vk_account_data(token, proxy)
 
                 return vk_account_data, token
             except Exception as e:
@@ -89,7 +86,7 @@ def parse_vk_profile(vk_token, vk_account_id_database: int, proxy: str) -> dict:
         vk_account_data = get_vk_account_data(vk_token, proxy)
     except Exception as e:
         print(e)
-        vk_account_data, token = get_vk_account_data_retry(vk_account_id_database, proxy)
+        vk_account_data, token = get_vk_account_data_retry(vk_token, vk_account_id_database, proxy)
 
 
     vk_account_id = vk_account_data["id"]
@@ -107,7 +104,7 @@ def parse_vk_profile(vk_token, vk_account_id_database: int, proxy: str) -> dict:
 
     return vk_account_data
 
-def update_db_vk_account(database_manager, vk_account_id_database: int, data: dict, count_groups: int):
+def update_db_vk_account(database_manager, vk_account_id_database: int, data: dict, count_groups: int, token: str):
     with database_manager as session:
         stmt = select(VKAccountOrm).where(VKAccountOrm.id == vk_account_id_database)
         result = session.execute(stmt)
@@ -123,6 +120,7 @@ def update_db_vk_account(database_manager, vk_account_id_database: int, data: di
         account.avatar_url = data['avatar_url']
         account.groups_count = count_groups
         account.parse_status = "success"
+        account.token = token
 
         session.commit()
 
@@ -136,7 +134,7 @@ def get_vk_account_cred(self, account_id_database: int, login: str, password: st
             raise Exception("Not get token")
 
         vk_account_data = parse_vk_profile(token, account_id_database, proxy)
-        update_db_vk_account(database_manager, account_id_database, vk_account_data, 0)
+        update_db_vk_account(database_manager, account_id_database, vk_account_data, 0, token)
 
     except Exception as exc:
         print(f"Ошибка: {exc}")
