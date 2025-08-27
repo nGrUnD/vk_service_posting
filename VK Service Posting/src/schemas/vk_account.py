@@ -44,7 +44,7 @@ class VKAccountAdd(BaseModel):
     task_id: str
     account_type: str
     # Новое поле
-    cookies: List[Cookie] = Field(default_factory=list)
+    cookie: List[Cookie] = Field(default_factory=list)
 
 class VKAccountOut(BaseModel):
     id: int
@@ -65,7 +65,7 @@ class VKAccountOut(BaseModel):
     task_id: str
     created_at: datetime
     updated_at: datetime
-    cookies: List[Cookie]
+    cookie: List[Cookie]
 
 
     model_config = ConfigDict(from_attributes=True)
@@ -89,7 +89,7 @@ class VKAccount(BaseModel):
     parse_status: str
     task_id: str
     account_type: str
-    cookies: List[Cookie] = Field(default_factory=list)
+    cookie: List[Cookie] = Field(default_factory=list)
 
 
     model_config = ConfigDict(from_attributes=True)
@@ -112,6 +112,6 @@ class VKAccountUpdate(BaseModel):
     login: Optional[str] = None
     encrypted_password: Optional[str] = None
     account_type: Optional[str] = None
-    cookies: List[Cookie] = Field(default_factory=list)
+    cookie: List[Cookie] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
