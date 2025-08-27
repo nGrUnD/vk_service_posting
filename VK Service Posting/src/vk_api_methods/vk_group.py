@@ -16,6 +16,7 @@ def join_group(group_id: int, access_token: str, proxy: str):
             "https": proxy,
         }
 
+    print(proxy)
     headers = {"User-Agent": get_random_user_agent()}
 
     response = requests.post(url, data=params, headers=headers, proxies=proxy_response)

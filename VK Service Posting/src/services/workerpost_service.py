@@ -37,16 +37,9 @@ class WorkerPostService:
         failed_account_log_pass = []
         failed_group_ids = []
 
-        proxies = await self.database.proxy.get_all()
-
-        index_proxy = random.randint(0, len(proxies))
         vk_accounts_backup_free = await self.database.vk_account.get_all_filtered(account_type="backup", parse_status="success", flood_control=False)
 
         for vk_account_backup_db, vk_group_id in zip(vk_accounts_backup_free, vk_groups_ids):
-            proxy = proxies[index_proxy % len(proxies)]
-            proxy_http = proxy.http
-
-            index_proxy+=1
             category_database = await self.database.category.get_one_or_none(id=request_add.category_id)
 
 
@@ -69,6 +62,11 @@ class WorkerPostService:
 
             password = AuthService().decrypt_data(vk_account_backup_db.encrypted_password)
             token_db = vk_account_backup_db.token
+
+            proxy_db = await self.database.proxy.get_one_or_none(id=vk_account_backup_db.proxy_id)
+            proxy_http = None
+            if not proxy_db:
+                proxy_http = proxy_db.http
 
             task = create_workpost_account.delay(
                 account_id_database=vk_account_backup_db.id,
