@@ -26,7 +26,7 @@ def get_token(login, password, proxy_http: str = None):
     vk_session.load_cookie()
     vk_session.load_token()
 
-    if not vk_session.is_sid():
+    if not vk_session.is_sid() and not vk_session.token['access_token']:
         try:
             vk_session.auth()
         except vk_api.AuthError as e:
