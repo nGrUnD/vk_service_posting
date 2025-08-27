@@ -126,14 +126,14 @@ def filter_clips(clips: List[Dict], min_views: int, published_after: Optional[da
 
 
 @app.task(bind=True, name="src.tasks.parse_vk_group_clips_sync")
-def parse_vk_group_clips_sync(self, vk_group_id: int, login: str, password: str, proxy: str,
+def parse_vk_group_clips_sync(self, vk_group_id: int, login: str, password: str, token_db: str, proxy: str,
                               user_id: int, clip_list_id: int, vk_group_database_id: int, viewers: int,
                               mindate: datetime):
     task_id = self.request.id
     try:
         # Важно: в ВК id паблика с минусом для публичных групп
         owner_id = -vk_group_id if not str(vk_group_id).startswith("-") else vk_group_id
-        clips = get_all_owner_short_videos(owner_id, login, password, proxy)
+        clips = get_all_owner_short_videos(owner_id, login, password, token_db, proxy)
 
         filtred_clips = filter_clips(clips, viewers, mindate)
 
