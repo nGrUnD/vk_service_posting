@@ -4,6 +4,7 @@ from src.models.category import CategoryOrm
 from src.models.schedule_posting import SchedulePostingOrm
 from src.models.vk_group import VKGroupOrm
 from src.models.workerpost import WorkerPostOrm
+from src.utils.cookiejar import list_to_cookiejar
 
 from src.vk_api_methods.vk_auth import get_token, get_new_token
 from src.vk_api_methods.vk_posting import upload_short_video, download_clip_by_url
@@ -18,7 +19,7 @@ def posting_error(schedule_database_id: int, database_manager):
         #session.schedule_posting.edit(schedule_update_data, exclude_unset=True, id=schedule_database_id)
         session.commit()
 
-def posting_clip(worker_id: int, login: str, password: str, token_db: str, schedule_database_id: int, clip, proxy: str):
+def posting_clip(worker_id: int, login: str, password: str, token_db: str, cookie_db, schedule_database_id: int, clip, proxy: str):
     with SyncSessionLocal() as session:
         stmt = select(WorkerPostOrm).where(WorkerPostOrm.id == worker_id)
         result = session.execute(stmt)
@@ -46,7 +47,9 @@ def posting_clip(worker_id: int, login: str, password: str, token_db: str, sched
         clip_url = f"https://vk.com/video{vk_clip_owner_id}_{clip_id}"
 
         #token = get_token(login, password, proxy)
-        token = get_new_token(token_db, proxy)
+
+        cookie = list_to_cookiejar(cookie_db)
+        token = get_new_token(token_db, cookie, proxy)
 
         clip_filename = download_clip_by_url(clip_url, vk_clip_owner_id, clip_id)
 
@@ -69,9 +72,9 @@ def posting_clip(worker_id: int, login: str, password: str, token_db: str, sched
         session.commit()
 
 @app.task
-def create_post(worker_id: int, login: str, password: str, token_db: str, schedule_id: int, clip: dict, proxy: str):
+def create_post(worker_id: int, login: str, password: str, token_db: str, cookie, schedule_id: int, clip: dict, proxy: str):
     try:
-        posting_clip(worker_id, login, password, token_db, schedule_id, clip, proxy)
+        posting_clip(worker_id, login, password, token_db, cookie, schedule_id, clip, proxy)
     except Exception as e:
         print(f"create_post error: {e}")
         #async_to_sync(posting_error)(schedule_id, database_manager)

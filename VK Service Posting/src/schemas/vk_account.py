@@ -1,9 +1,18 @@
-from typing import Optional
+from typing import Optional, Dict, Any, List
 import enum
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
+
+class Cookie(BaseModel):
+    name: str
+    value: str
+    domain: Optional[str] = None
+    path: Optional[str] = "/"
+    expires: Optional[int] = None  # Unix timestamp
+    secure: Optional[bool] = None
+    rest: Optional[Dict[str, Any]] = None  # HttpOnly и т.п.
 
 class AccountType(str, enum.Enum):
     MAIN = "main"        # технический главный аккаунт
@@ -33,7 +42,9 @@ class VKAccountAdd(BaseModel):
     flood_control: bool = False
     parse_status: str
     task_id: str
-    account_type: str   # новое поле
+    account_type: str
+    # Новое поле
+    cookies: List[Cookie] = Field(default_factory=list)
 
 class VKAccountOut(BaseModel):
     id: int
@@ -54,6 +65,7 @@ class VKAccountOut(BaseModel):
     task_id: str
     created_at: datetime
     updated_at: datetime
+    cookies: List[Cookie]
 
 
     model_config = ConfigDict(from_attributes=True)
@@ -77,6 +89,8 @@ class VKAccount(BaseModel):
     parse_status: str
     task_id: str
     account_type: str
+    cookies: List[Cookie] = Field(default_factory=list)
+
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -98,5 +112,6 @@ class VKAccountUpdate(BaseModel):
     login: Optional[str] = None
     encrypted_password: Optional[str] = None
     account_type: Optional[str] = None
+    cookies: List[Cookie] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)

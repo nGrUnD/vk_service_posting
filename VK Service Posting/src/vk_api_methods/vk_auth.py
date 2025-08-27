@@ -67,14 +67,14 @@ def get_token(login, password, proxy_http: str = None):
         data = resp.json()
         new_token = data['data']['access_token']
         logging.info(f'Новый токен: {new_token}')
-        return new_token
+        return new_token, session.cookies
     except Exception as e:
         logging.error(f'Не удалось распарсить JSON: {e}')
 
-    return None
+    return None, None
 
 
-def get_new_token(old_token: str, proxy_http: str = None):
+def get_new_token(old_token: str, cookie, proxy_http: str = None):
     user_agent = get_random_user_agent()
     session = requests.Session()
     if proxy_http:
@@ -88,7 +88,10 @@ def get_new_token(old_token: str, proxy_http: str = None):
             user_agent
         )
     })
+    session.cookies = cookie
+
     logging.info(f'Текущий токен: {old_token}')
+    logging.info(f'Текущий cookies: {session.cookies}')
 
     # 3. Делаем запрос на обновление токена
     url = 'https://login.vk.com/'

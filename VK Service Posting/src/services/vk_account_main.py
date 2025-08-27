@@ -45,6 +45,7 @@ class VKAccountMainService:
             flood_control=False,
             parse_status="pending",
             task_id="pending",
+            cookies = [],
         )
         vk_account = await self.database.vk_account.add(new_data)
         await self.database.commit()

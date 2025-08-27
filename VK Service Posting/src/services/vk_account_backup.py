@@ -66,6 +66,7 @@ class VKAccountBackupService:
                 parse_status = "pending",
                 task_id = "0",
                 account_type = "backup",
+                cookies = [],
             )
             await self.database.vk_account.add(new_vk_account_data)
             added_accounts_log_pass.append(account_log_pass)

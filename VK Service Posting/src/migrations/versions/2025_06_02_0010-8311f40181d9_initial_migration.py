@@ -10,6 +10,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 
 # revision identifiers, used by Alembic.
@@ -132,6 +133,11 @@ def upgrade() -> None:
         sa.Column("flood_control", sa.Boolean(), nullable=False),
         sa.Column("parse_status", sa.String(), nullable=False),
         sa.Column("task_id", sa.String(), nullable=False),
+
+        # Новая колонка cookies
+        sa.Column("cookies", postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text("'[]'::jsonb"),
+                  nullable=False),
+
         sa.Column(
             "created_at",
             sa.TIMESTAMP(timezone=True),

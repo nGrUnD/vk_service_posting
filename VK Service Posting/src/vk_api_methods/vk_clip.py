@@ -6,6 +6,7 @@ import time
 from pycparser.ply.yacc import token
 
 from src.services.vk_token_service import TokenService
+from src.utils.cookiejar import list_to_cookiejar
 from vk_api import vk_api
 from src.utils.rand_user_agent import get_random_user_agent
 from src.vk_api_methods.vk_auth import get_token, get_new_token
@@ -160,7 +161,7 @@ def vk_api_get_owner_short_videos(owner_id: int, token: str, proxy: str = None, 
 
 
 def get_all_owner_short_videos(owner_id: int,
-                               login, password, token_db: str, proxy: str = None,
+                               login, password, token_db: str, cookie_db, proxy: str = None,
                                api_version: str = '5.251',
                                page_size: int = 100,
                                delay: float = 0.34) -> List[Dict[str, Any]]:
@@ -180,14 +181,15 @@ def get_all_owner_short_videos(owner_id: int,
     total_count: int = None
 
     #token = get_token(login, password, proxy)
-    token = get_new_token(token_db, proxy)
+    cookie = list_to_cookiejar(cookie_db)
+    token = get_new_token(token_db, cookie, proxy)
 
     while True:
         #print(total_count)
 
         if is_token_expired(token, proxy):
             print("Токену пизда пришла")
-            token = get_new_token(token_db, proxy)
+            token = get_new_token(token_db, cookie, proxy)
             #token = get_token(login, password, proxy)
 
         resp = vk_api_get_owner_short_videos(

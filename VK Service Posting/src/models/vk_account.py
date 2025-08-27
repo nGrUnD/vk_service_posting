@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any, List, Dict, Optional
 
 from sqlalchemy import (
     BigInteger,
@@ -11,6 +12,8 @@ from sqlalchemy.orm import (
     Mapped,
     mapped_column
 )
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.ext.mutable import MutableList
 from src.database import Base
 
 class VKAccountOrm(Base):
@@ -37,6 +40,14 @@ class VKAccountOrm(Base):
     flood_control: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     parse_status: Mapped[str]
     task_id: Mapped[str]
+
+    # Новая колонка для cookies
+    cookies: Mapped[List[Dict[str, Any]]] = mapped_column(
+        MutableList.as_mutable(JSONB),
+        nullable=False,
+        default=list,
+        server_default="[]"
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True),

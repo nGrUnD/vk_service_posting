@@ -9,6 +9,7 @@ from src.celery_app.tasks.db_update_vk_account import _update_vk_account_db
 from src.models.proxy import ProxyOrm
 from src.models.vk_account import VKAccountOrm
 from src.services.auth import AuthService
+from src.utils.cookiejar import cookiejar_to_list
 from src.vk_api_methods.vk_account import get_vk_account_data, get_vk_session_by_log_pass
 from src.vk_api_methods.vk_auth import get_token, get_new_token
 
@@ -24,7 +25,7 @@ def get_token_with_proxy_retry(database_manager, account_id_database: int, login
 
         for attempt in range(1, retries + 1):
             try:
-                token = get_token(login=login, password=password, proxy_http=last_proxy)
+                token, cookie = get_token(login=login, password=password, proxy_http=last_proxy)
                 if not token:
                     raise Exception("Not get token")
 
@@ -36,7 +37,7 @@ def get_token_with_proxy_retry(database_manager, account_id_database: int, login
                         vk_account_database.proxy_id = proxy_db.id
                         session.commit()
 
-                return token
+                return token, cookie
 
             except Exception as e:
                 print(f"Ошибка: {e}")
@@ -54,7 +55,7 @@ def get_token_with_proxy_retry(database_manager, account_id_database: int, login
     raise ValueError(f"Не удалось авторизоваться после {retries} попыток")
 
 
-def get_vk_account_data_retry(vk_token: str, vk_account_id_db: int, proxy: str, retries: int = 10):
+def get_vk_account_data_retry(vk_token: str, cookie, vk_account_id_db: int, proxy: str, retries: int = 10):
     last_proxy = proxy
     with SyncSessionLocal() as session:
         stmt = select(VKAccountOrm).where(VKAccountOrm.id == vk_account_id_db)
@@ -70,7 +71,7 @@ def get_vk_account_data_retry(vk_token: str, vk_account_id_db: int, proxy: str, 
         for attempt in range(1, retries + 1):
             try:
 
-                token = get_new_token(current_token, proxy)
+                token = get_new_token(current_token, cookie, proxy)
                 vk_account_data = get_vk_account_data(token, proxy)
 
                 return vk_account_data, token
@@ -81,12 +82,12 @@ def get_vk_account_data_retry(vk_token: str, vk_account_id_db: int, proxy: str, 
     raise ValueError(f"Не удалось авторизоваться после {retries} попыток")
 
 
-def parse_vk_profile(vk_token, vk_account_id_database: int, proxy: str) -> dict:
+def parse_vk_profile(vk_token, cookie, vk_account_id_database: int, proxy: str) -> dict:
     try:
         vk_account_data = get_vk_account_data(vk_token, proxy)
     except Exception as e:
         print(e)
-        vk_account_data, token = get_vk_account_data_retry(vk_token, vk_account_id_database, proxy)
+        vk_account_data, token = get_vk_account_data_retry(vk_token, cookie, vk_account_id_database, proxy)
 
 
     vk_account_id = vk_account_data["id"]
@@ -104,7 +105,7 @@ def parse_vk_profile(vk_token, vk_account_id_database: int, proxy: str) -> dict:
 
     return vk_account_data
 
-def update_db_vk_account(database_manager, vk_account_id_database: int, data: dict, count_groups: int, token: str):
+def update_db_vk_account(database_manager, vk_account_id_database: int, data: dict, count_groups: int, token: str, cookie):
     with database_manager as session:
         stmt = select(VKAccountOrm).where(VKAccountOrm.id == vk_account_id_database)
         result = session.execute(stmt)
@@ -121,6 +122,7 @@ def update_db_vk_account(database_manager, vk_account_id_database: int, data: di
         account.groups_count = count_groups
         account.parse_status = "success"
         account.token = token
+        account.cookie = cookiejar_to_list(cookie)
 
         session.commit()
 
@@ -129,12 +131,12 @@ def update_db_vk_account(database_manager, vk_account_id_database: int, data: di
 def get_vk_account_cred(self, account_id_database: int, login: str, password: str, proxy: str):
     database_manager = SyncSessionLocal()
     try:
-        token = get_token_with_proxy_retry(database_manager, account_id_database, login, password, proxy)
+        token, cookie = get_token_with_proxy_retry(database_manager, account_id_database, login, password, proxy)
         if not token:
             raise Exception("Not get token")
 
-        vk_account_data = parse_vk_profile(token, account_id_database, proxy)
-        update_db_vk_account(database_manager, account_id_database, vk_account_data, 0, token)
+        vk_account_data = parse_vk_profile(token, cookie, account_id_database, proxy)
+        update_db_vk_account(database_manager, account_id_database, vk_account_data, 0, token, cookie)
 
     except Exception as exc:
         print(f"Ошибка: {exc}")
