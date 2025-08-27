@@ -133,7 +133,7 @@ class PostingService:
             login = vk_account.login
             password = AuthService().decrypt_data(vk_account.encrypted_password)
             token_db = vk_account.token
-            cookie_db = vk_account.cookie
+            cookie_db = vk_account.cookies
 
 
             task = create_post.delay(

@@ -70,7 +70,7 @@ class VKGroupSourceService:
             login = vk_account_db.login
             password = AuthService().decrypt_data(vk_account_db.encrypted_password) # current_cred.encrypted_password
             token_db = vk_account_db.token
-            cookie_db = vk_account_db.cookie
+            cookie_db = vk_account_db.cookies
             print(login)
             print(password)
             print(token_db)
