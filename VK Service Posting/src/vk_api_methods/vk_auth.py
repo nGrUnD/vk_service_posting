@@ -73,6 +73,7 @@ def get_token(login, password, proxy_http: str = None):
 
     return None
 
+
 def get_new_token(old_token: str, proxy_http: str = None):
     user_agent = get_random_user_agent()
     session = requests.Session()
@@ -106,12 +107,45 @@ def get_new_token(old_token: str, proxy_http: str = None):
 
     resp = session.get(url, params=params, headers=headers, allow_redirects=False)
 
+    # Логируем статус код и содержимое ответа для отладки
+    logging.info(f'Статус код ответа: {resp.status_code}')
+    logging.info(f'Содержимое ответа: {resp.text[:500]}...')  # Первые 500 символов
+
+    # Проверяем статус код
+    if resp.status_code != 200:
+        logging.error(f'Неожиданный статус код: {resp.status_code}')
+        return None
+
     try:
+        # Проверяем, что ответ содержит JSON
+        if not resp.text.strip():
+            logging.error('Пустой ответ от сервера')
+            return None
+
         data = resp.json()
+        logging.info(f'Структура ответа: {data}')
+
+        # Проверяем наличие нужных ключей
+        if 'data' not in data:
+            logging.error(f'Ключ "data" отсутствует в ответе. Доступные ключи: {list(data.keys())}')
+            return None
+
+        if 'access_token' not in data['data']:
+            logging.error(f'Ключ "access_token" отсутствует в data. Доступные ключи: {list(data["data"].keys())}')
+            return None
+
         new_token = data['data']['access_token']
-        logging.info(f'Новый токен: {new_token}')
+        logging.info(f'Новый токен получен успешно')
         return new_token
+
+    except requests.exceptions.JSONDecodeError as e:
+        logging.error(f'Ошибка декодирования JSON: {e}')
+        logging.error(f'Содержимое ответа: {resp.text}')
+    except KeyError as e:
+        logging.error(f'Отсутствует ключ в JSON: {e}')
+        logging.error(f'Структура ответа: {data}')
     except Exception as e:
-        logging.error(f'Не удалось распарсить JSON: {e}')
+        logging.error(f'Неожиданная ошибка: {e}')
+        logging.error(f'Тип ошибки: {type(e).__name__}')
 
     return None
