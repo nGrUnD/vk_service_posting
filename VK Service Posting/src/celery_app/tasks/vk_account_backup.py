@@ -122,7 +122,7 @@ def update_db_vk_account(database_manager, vk_account_id_database: int, data: di
         account.groups_count = count_groups
         account.parse_status = "success"
         account.token = token
-        account.cookie = cookiejar_to_list(cookie)
+        account.cookies = cookiejar_to_list(cookie)
 
         session.commit()
 
