@@ -100,6 +100,14 @@ def update_celery_task_status(
         celery_task.status = new_status
         session.commit()
 
+def load_cookies_db(vk_account_db_id: int):
+    with SyncSessionLocal() as session:
+        stmt = select(VKAccountOrm).where(VKAccountOrm.id == vk_account_db_id)
+        result = session.execute(stmt)
+        vk_account = result.scalars().one_or_none()
+        return vk_account.cookies
+
+
 @app.task
 def create_workpost_account(
         account_id_database: int,
@@ -110,13 +118,12 @@ def create_workpost_account(
         login: str,
         password: str,
         token_db : str,
-        cookie_db,
         proxy: str,
 ):
     print("Задача началась!")
     database_manager = SyncSessionLocal()
     try:
-
+        cookie_db = load_cookies_db(account_id_database)
         cookie = list_to_cookiejar(cookie_db)
         vk_token = get_new_token(token_db, cookie, proxy)
         #vk_token = get_token(login=login, password=password, proxy_http=proxy)
