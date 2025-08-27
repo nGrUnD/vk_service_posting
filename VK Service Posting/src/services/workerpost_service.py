@@ -1,3 +1,4 @@
+import logging
 import random
 import re
 from typing import List
@@ -65,8 +66,10 @@ class WorkerPostService:
 
             proxy_db = await self.database.proxy.get_one_or_none(id=vk_account_backup_db.proxy_id)
             proxy_http = None
-            if not proxy_db:
+            if proxy_db:
                 proxy_http = proxy_db.http
+
+            logging.info(f'workerpost_service proxy_http: {proxy_http}')
 
             task = create_workpost_account.delay(
                 account_id_database=vk_account_backup_db.id,

@@ -82,6 +82,8 @@ def get_new_token(old_token: str, cookie, proxy_http: str = None):
             "http": proxy_http,
             "https": proxy_http
         })
+    print(f'proxy_http: {proxy_http}')
+
 
     session.headers.update({
         "User-Agent": (
