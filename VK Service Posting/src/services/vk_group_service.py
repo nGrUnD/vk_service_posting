@@ -70,13 +70,14 @@ class VKGroupSourceService:
             login = vk_account_db.login
             password = AuthService().decrypt_data(vk_account_db.encrypted_password) # current_cred.encrypted_password
             token_db = vk_account_db.token
+            vk_account_database_id = vk_account_db.id
             print(login)
             print(password)
             print(token_db)
 
             task = app.send_task(
                 'src.tasks.parse_vk_group_clips_sync',  # имя таски, как зарегистрирована
-                args=[vk_group_id, login, password, token_db, vk_account_db.id, proxy.http, user_id, vk_group_urls_request.clip_list_id, vk_group_database_id, vk_group_urls_request.min_views, vk_group_urls_request.date_range]
+                args=[vk_group_id, login, password, token_db, vk_account_database_id, proxy.http, user_id, vk_group_urls_request.clip_list_id, vk_group_database_id, vk_group_urls_request.min_views, vk_group_urls_request.date_range]
             )
             task_ids.append(task.id)
             await (CeleryTaskService(self.database).
