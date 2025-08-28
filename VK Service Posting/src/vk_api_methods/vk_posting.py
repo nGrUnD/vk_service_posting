@@ -7,6 +7,8 @@ import yt_dlp
 from vk_api import vk_api
 import requests
 
+from vk_api.vk_api import ApiError
+
 
 def get_clip_info(owner_id: int, video_id: int, access_token: str, proxy: str) -> dict:
     """
