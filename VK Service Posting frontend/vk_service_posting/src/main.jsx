@@ -16,6 +16,7 @@ import CatergorySettingsPage from './pages/CatergorySettingsPage.jsx';
 import WorkflowStatusPage from './pages/WorkflowStatusPage.jsx';
 import ProxyPage from './pages/ProxyPage.jsx';
 import AccountCheckerPage from './pages/AccountCheckerPage.jsx';
+import AddCurlAccountPage from "./pages/AddCurlAccountPage.jsx";
 
 import 'antd/dist/reset.css';
 import './index.css';
@@ -46,6 +47,7 @@ root.render(
                         <Route path="main-account" element={<DashboardAccount />} />
                         <Route path="connect-account" element={<ConnectAccountPage />} />
                         <Route path="connect-backup-account" element={<ConnectBackupAccountPage />} />
+                        <Route path="add-curl-account" element={<AddCurlAccountPage />} />
                         <Route path="connect-source-group" element={<SourceGroupPage />} />
                         <Route path="category-settings" element={<CatergorySettingsPage />} />
                         <Route path="workflow-status" element={<WorkflowStatusPage />} />

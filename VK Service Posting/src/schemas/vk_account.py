@@ -29,6 +29,7 @@ class VKAccountAddCURL(BaseModel):
 class VKAccountAdd(BaseModel):
     user_id: int
     proxy_id: Optional[int] = None
+    vk_group_id: Optional[int] = None
     vk_account_id: int
     token: str
     encrypted_curl: str
@@ -44,7 +45,8 @@ class VKAccountAdd(BaseModel):
     task_id: str
     account_type: str
     # Новое поле
-    cookies: List[Cookie] = Field(default_factory=list)
+    flood_control_time: Optional[datetime] = None
+    cookies: Optional[str] = None
 
 class VKAccountOut(BaseModel):
     id: int
@@ -60,12 +62,14 @@ class VKAccountOut(BaseModel):
     name: str
     second_name: str
     groups_count: int
+    vk_group_id: int
     flood_control: bool
     parse_status: str
     task_id: str
+    flood_control_time: datetime
     created_at: datetime
     updated_at: datetime
-    cookies: List[Cookie]
+    cookies: str
 
 
     model_config = ConfigDict(from_attributes=True)
@@ -80,16 +84,18 @@ class VKAccount(BaseModel):
     login: str
     encrypted_password: str
     proxy_id: Optional[int] = None
+    vk_group_id: Optional[int] = None
     vk_account_url : str
     avatar_url: str
     name: str
     second_name: str
     groups_count: int
     flood_control: bool = False
+    flood_control_time: Optional[datetime] = None
     parse_status: str
     task_id: str
     account_type: str
-    cookies: List[Cookie] = Field(default_factory=list)
+    cookies: Optional[str] = None
 
 
     model_config = ConfigDict(from_attributes=True)
@@ -98,6 +104,7 @@ class VKAccount(BaseModel):
 class VKAccountUpdate(BaseModel):
     # все поля опциональные — можно обновлять любое подмножество
     proxy_id: Optional[int] = None
+    vk_group_id: Optional[int] = None
     vk_account_id: Optional[int] = None
     avatar_url: Optional[str] = None
     vk_account_url: Optional[str] = None
@@ -105,6 +112,7 @@ class VKAccountUpdate(BaseModel):
     second_name: Optional[str] = None
     groups_count: Optional[int] = None
     flood_control: Optional[bool] = None
+    flood_control_time: Optional[datetime] = None
     parse_status: Optional[str] = None
     task_id: Optional[str] = None
     token: Optional[str] = None
@@ -112,6 +120,7 @@ class VKAccountUpdate(BaseModel):
     login: Optional[str] = None
     encrypted_password: Optional[str] = None
     account_type: Optional[str] = None
-    cookies: List[Cookie] = Field(default_factory=list)
+    cookies: Optional[str] = None
+    #cookies: List[Cookie] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)

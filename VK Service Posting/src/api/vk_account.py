@@ -199,6 +199,28 @@ async def create_vk_account_curl_main(
             detail=str(e)
         )
 
+@router.post(
+    "/curl_backup",
+    status_code=status.HTTP_201_CREATED,
+    summary="Добавить VK аккаунт по cURL(BASH) Запасной"
+)
+async def create_vk_account_curl_main(
+    user_id: UserIdDep,
+    database: DataBaseDep,
+    curl_command: VKAccountAddCURL,
+):
+    try:
+        return await VKAccountBackupService(database).create_account_curl(
+            user_id=user_id,
+            curl=curl_command.curl,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
 @router.post("/{account_id}/retry", status_code=status.HTTP_204_NO_CONTENT, summary="Обновить данные аккаунта")
 async def retry_vk_account(
     user_id: UserIdDep,

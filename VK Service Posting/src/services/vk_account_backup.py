@@ -1,6 +1,7 @@
 from typing import List
 import random
 
+from src.celery_app.tasks import parse_vk_profile_backup_sync
 from src.models.celery_task import CeleryTaskOrm
 from src.models.vk_account import VKAccountOrm
 from src.models.vk_group import VKGroupOrm
@@ -116,6 +117,55 @@ class VKAccountBackupService:
             "fail": failed_accounts_log_pass,
         }
         return detail
+
+
+    async def create_account_curl(self, user_id: int, curl: str):
+
+        encrypted_curl = AuthService().encrypt_data(curl)
+
+        # Прокси
+        proxies = await self.database.proxy.get_all()
+
+        index_proxy = 0
+        if proxies:
+            index_proxy = random.randint(0, len(proxies)-1)
+            proxy = proxies[index_proxy % len(proxies)]
+            proxy_http = proxy.http
+        else:
+            proxy_http = None
+        #=============
+
+
+        new_data = VKAccountAdd(
+            user_id=user_id,
+            vk_account_id=0,
+            token="curl",
+            encrypted_curl=encrypted_curl,
+            login="",
+            encrypted_password="",
+            account_type="backup",
+            vk_account_url="",
+            avatar_url="",
+            name="pending",
+            second_name="pending",
+            groups_count=0,
+            flood_control=False,
+            parse_status="pending",
+            task_id="pending",
+            proxy_id=index_proxy,
+            cookies = None,
+        )
+        vk_account = await self.database.vk_account.add(new_data)
+        await self.database.commit()
+
+        task = parse_vk_profile_backup_sync.delay(vk_account.id, proxy_http, user_id)
+
+        await self.database.vk_account.edit(VKAccountUpdate(task_id=task.id), exclude_unset=True,
+                                            id=vk_account.id)
+        await self.database.commit()
+
+        return vk_account
+
 
     async def delete_accounts(self, logins: list[str]):
         vk_accounts = await self.database.vk_account.get_all_where(VKAccountOrm.login.in_(logins))

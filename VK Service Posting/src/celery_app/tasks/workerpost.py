@@ -15,7 +15,7 @@ from src.services.auth import AuthService
 from src.services.vk_token_service import TokenService
 from src.utils.cookiejar import list_to_cookiejar
 from src.vk_api_methods.vk_account import get_vk_account_data
-from src.vk_api_methods.vk_auth import get_token, get_new_token
+from src.vk_api_methods.vk_auth import get_token, get_new_token, get_new_token_request
 from src.vk_api_methods.vk_group import join_group, assign_editor_role
 from src.celery_app.celery_db import SyncSessionLocal
 
@@ -68,7 +68,8 @@ def create_workpost(
         result = session.execute(stmt)
         category_database = result.scalars().one_or_none()
 
-        join_group(vk_group_database.vk_group_id, account_token, proxy)
+        if not vk_account_database.encrypted_curl:
+            join_group(vk_group_database.vk_group_id, account_token, proxy)
 
         main_account_curl = AuthService().decrypt_data(vk_main_account_database.encrypted_curl)
         main_account_token = TokenService.get_token_from_curl(main_account_curl)
@@ -124,8 +125,8 @@ def create_workpost_account(
     database_manager = SyncSessionLocal()
     try:
         cookie_db = load_cookies_db(account_id_database)
-        cookie = list_to_cookiejar(cookie_db)
-        vk_token = get_new_token(token_db, cookie, proxy)
+        #cookie = list_to_cookiejar(cookie_db)
+        vk_token = get_new_token_request(token_db, cookie_db, proxy)
         #vk_token = get_token(login=login, password=password, proxy_http=proxy)
         #curl = get_vk_account_curl_from_browser(login, password, proxy)
         #encrypted_curl = AuthService().encrypt_data(curl)

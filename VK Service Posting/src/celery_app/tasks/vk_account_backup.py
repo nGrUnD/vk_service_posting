@@ -8,10 +8,10 @@ from src.celery_app.celery_db import SyncSessionLocal
 from src.celery_app.tasks.db_update_vk_account import _update_vk_account_db
 from src.models.proxy import ProxyOrm
 from src.models.vk_account import VKAccountOrm
-from src.services.auth import AuthService
-from src.utils.cookiejar import cookiejar_to_list
-from src.vk_api_methods.vk_account import get_vk_account_data, get_vk_session_by_log_pass
-from src.vk_api_methods.vk_auth import get_token, get_new_token
+from src.utils.cookiejar import cookies_to_str
+from src.vk_api_methods.vk_account import get_vk_account_data
+from src.vk_api_methods.vk_auth import get_token, get_new_token, get_new_token_request
+
 
 def get_token_with_proxy_retry(database_manager, account_id_database: int, login: str, password: str, proxy: str = None, retries: int = 10):
     last_proxy = proxy
@@ -71,13 +71,14 @@ def get_vk_account_data_retry(vk_token: str, cookie, vk_account_id_db: int, prox
         for attempt in range(1, retries + 1):
             try:
 
-                token = get_new_token(current_token, cookie, proxy)
+                token = get_new_token_request(current_token, cookie, proxy)
                 vk_account_data = get_vk_account_data(token, proxy)
 
                 return vk_account_data, token
             except Exception as e:
                 print(e)
                 print(f"Попытка {attempt}: ошибка авторизации")
+                time.sleep(5)
 
     raise ValueError(f"Не удалось авторизоваться после {retries} попыток")
 
@@ -122,7 +123,7 @@ def update_db_vk_account(database_manager, vk_account_id_database: int, data: di
         account.groups_count = count_groups
         account.parse_status = "success"
         account.token = token
-        account.cookies = cookiejar_to_list(cookie)
+        account.cookies = cookies_to_str(cookie)
 
         session.commit()
 

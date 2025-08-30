@@ -1,4 +1,5 @@
 import random
+from datetime import datetime
 from typing import List, Optional
 import os
 import glob
@@ -13,6 +14,7 @@ from src.repositories.vk_account import VKAccountRepository
 from src.repositories.vk_clip import VKClipRepository
 from src.repositories.workerpost import WorkerPostRepository
 from src.schemas.schedule_posting import SchedulePostingAdd, SchedulePostingUpdate
+from src.schemas.vk_account import VKAccountUpdate
 from src.schemas.vk_clip import VKClipOut
 from src.services.auth import AuthService
 import logging
@@ -91,6 +93,13 @@ class PostingService:
             clip_list = await self.clip_list.get_one_or_none(id=category.clip_list_id)
             vk_account = await self.vk_account_repo.get_one_or_none(id=workpost.vk_account_id)
             proxy = await self.proxy.get_one_or_none(id=vk_account.proxy_id)
+
+            if vk_account.flood_control:
+                if datetime.now() < vk_account.flood_control_time:
+                    logging.info(f'VK ACCOUNT #{vk_account.vk_account_id} flood control: {vk_account.flood_control_time}')
+                    continue
+                await self.vk_account_repo.edit(VKAccountUpdate(flood_control=False), exclude_unset=True, id=vk_account.id)
+                await self.session.commit()
 
             if not proxy:
                 logging.error("Не удалось найти прокси")

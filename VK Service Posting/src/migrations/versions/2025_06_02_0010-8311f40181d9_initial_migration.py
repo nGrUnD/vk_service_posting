@@ -133,10 +133,20 @@ def upgrade() -> None:
         sa.Column("flood_control", sa.Boolean(), nullable=False),
         sa.Column("parse_status", sa.String(), nullable=False),
         sa.Column("task_id", sa.String(), nullable=False),
+        sa.Column("cookies", sa.String(), nullable=True),
+        sa.Column("vk_group_id", sa.Integer(), nullable=True),
+        #vk_group_id
 
         # Новая колонка cookies
-        sa.Column("cookies", postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text("'[]'::jsonb"),
-                  nullable=False),
+
+        #sa.Column("cookies", postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text("'[]'::jsonb"),
+        #          nullable=False),
+
+        sa.Column(
+            "flood_control_time",
+            sa.TIMESTAMP(timezone=True),
+            nullable=True,  # Может быть пустым если flood control не активен
+        ),
 
         sa.Column(
             "created_at",

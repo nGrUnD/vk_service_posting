@@ -154,3 +154,48 @@ def get_new_token(old_token: str, cookie, proxy_http: str = None):
         logging.error(f'Тип ошибки: {type(e).__name__}')
 
     return None
+
+def get_new_token_request(access_token: str, cookie: str, proxy: str = None):
+    user_agent = get_random_user_agent()
+    session = requests.Session()
+    session.proxies.update({
+        "http": proxy,
+        "https": proxy
+    })
+
+    headers = {
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "Accept-Encoding": "gzip, deflate, br, zstd",
+        "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Cookie": cookie,
+        'Referer': 'https://vk.com/',
+        'Origin': 'https://vk.com',
+        "Pragma": "no-cache",
+        "Sec-Fetch-Dest": "empty",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
+        "User-Agent": user_agent,
+        "sec-ch-ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+    }
+    url = "https://login.vk.com/?act=web_token"
+    data = {
+        'version': 1,
+        'app_id': 6287487,
+        'access_token': access_token,
+    }
+
+    resp = session.post(url, params=data, headers=headers, allow_redirects=False)
+    print(resp.text)
+    try:
+        resp_json = resp.json()
+        new_token = resp_json['data']['access_token']
+        print(f'Новый токен: {new_token}')
+        return new_token
+    except Exception as e:
+        print(f'Не удалось распарсить JSON: {e}')

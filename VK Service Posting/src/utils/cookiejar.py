@@ -2,6 +2,10 @@ import requests
 from http.cookiejar import Cookie
 from typing import List, Dict, Any, Optional
 
+def cookies_to_str(jar: requests.cookies.RequestsCookieJar) -> str:
+    return "; ".join([f"{k}={v}" for k, v in jar.items()])
+
+
 def cookiejar_to_list(jar: requests.cookies.RequestsCookieJar) -> List[Dict[str, Any]]:
     cookies: List[Dict[str, Any]] = []
     for c in jar:

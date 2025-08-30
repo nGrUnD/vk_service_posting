@@ -3,6 +3,7 @@
 from src.celery_app.tasks.tasks import *
 from src.celery_app.tasks.vk_api import *
 from src.celery_app.tasks.vk_account_parse import *
+from src.celery_app.tasks.vk_account_backup_parse import *
 from src.celery_app.tasks.vk_group_parse import *
 from src.celery_app.tasks.db_update_vk_account import *
 from src.celery_app.tasks.db_update_vk_account_group import *

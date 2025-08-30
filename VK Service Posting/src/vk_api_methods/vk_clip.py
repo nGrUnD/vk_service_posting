@@ -9,7 +9,7 @@ from src.services.vk_token_service import TokenService
 from src.utils.cookiejar import list_to_cookiejar
 from vk_api import vk_api
 from src.utils.rand_user_agent import get_random_user_agent
-from src.vk_api_methods.vk_auth import get_token, get_new_token
+from src.vk_api_methods.vk_auth import get_token, get_new_token, get_new_token_request
 
 
 def is_token_expired(access_token: str, proxy: str = None) -> bool:
@@ -181,15 +181,15 @@ def get_all_owner_short_videos(owner_id: int,
     total_count: int = None
 
     #token = get_token(login, password, proxy)
-    cookie = list_to_cookiejar(cookie_db)
-    token = get_new_token(token_db, cookie, proxy)
+    #cookie = list_to_cookiejar(cookie_db)
+    token = get_new_token_request(token_db, cookie_db, proxy)
 
     while True:
         #print(total_count)
 
         if is_token_expired(token, proxy):
             print("Токену пизда пришла")
-            token = get_new_token(token_db, cookie, proxy)
+            token = get_new_token_request(token_db, cookie_db, proxy)
             #token = get_token(login, password, proxy)
 
         resp = vk_api_get_owner_short_videos(

@@ -37,16 +37,23 @@ class VKAccountOrm(Base):
     name: Mapped[str]
     second_name: Mapped[str]
     groups_count: Mapped[int]
+    vk_group_id: Mapped[int]
     flood_control: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     parse_status: Mapped[str]
     task_id: Mapped[str]
 
     # Новая колонка для cookies
-    cookies: Mapped[List[Dict[str, Any]]] = mapped_column(
-        MutableList.as_mutable(JSONB),
-        nullable=False,
-        default=list,
-        server_default="[]"
+    cookies: Mapped[str]
+    #cookies: Mapped[List[Dict[str, Any]]] = mapped_column(
+    #    MutableList.as_mutable(JSONB),
+    #    nullable=False,
+    #    default=list,
+    #    server_default="[]"
+    #)
+
+    flood_control_time: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
+        nullable=True,
     )
 
     created_at: Mapped[datetime] = mapped_column(
