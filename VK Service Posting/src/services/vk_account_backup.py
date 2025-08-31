@@ -1,3 +1,4 @@
+import re
 from typing import List
 import random
 
@@ -134,12 +135,14 @@ class VKAccountBackupService:
         else:
             proxy_http = None
         #=============
-
+        access_token = re.search(r"access_token=([^&]+)", curl).group(1).split("'")[0]
+        cookie = re.search(
+            r"-b([^&]+)", curl).group(1).split("'")[1]
 
         new_data = VKAccountAdd(
             user_id=user_id,
             vk_account_id=0,
-            token="curl",
+            token=access_token,
             encrypted_curl=encrypted_curl,
             login="",
             encrypted_password="",
@@ -153,7 +156,7 @@ class VKAccountBackupService:
             parse_status="pending",
             task_id="pending",
             proxy_id=index_proxy,
-            cookies = None,
+            cookies = cookie,
         )
         vk_account = await self.database.vk_account.add(new_data)
         await self.database.commit()
