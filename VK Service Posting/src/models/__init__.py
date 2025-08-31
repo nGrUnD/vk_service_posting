@@ -10,3 +10,4 @@ from src.models.workerpost import WorkerPostOrm
 from src.models.schedule_posting import SchedulePostingOrm
 from src.models.category import CategoryOrm
 from src.models.clip_list import ClipListOrm
+from src.models.vk_account_group import VKAccountGroupOrm
