@@ -215,7 +215,7 @@ def get_vk_token_retry(database_manager, vk_account_id: int, proxy: str = None, 
 def parse_vk_profile_backup_sync(vk_account_id_database: int, proxy: str, user_id: int):
     database_manager = SyncSessionLocal()
     try:
-        vk_token = get_vk_token_retry(database_manager, vk_account_id_database)
+        vk_token = get_vk_token_retry(database_manager, vk_account_id_database, proxy)
         vk_account_data = parse_vk_profile(vk_token, vk_account_id_database, proxy)
         groups_data = get_vk_account_groups(vk_token, vk_account_data['vk_account_id'], proxy)
 
