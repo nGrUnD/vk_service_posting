@@ -6,8 +6,8 @@ from sqlalchemy import select
 from src.celery_app import app
 from src.celery_app.celery_db import SyncSessionLocal
 from src.models.vk_account import VKAccountOrm
-from src.models.vk_account_group import VKAccountGroupOrm
 from src.models.vk_group import VKGroupOrm
+from src.models.vk_account_group import VKAccountGroupOrm
 from src.services.auth import AuthService
 from src.database import Base
 
