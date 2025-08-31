@@ -53,6 +53,9 @@ async def get_all_logins(database: DataBaseDep, user_id: UserIdDep,):
 
     accounts = []
     for account in all_accounts:
+        if account.login is None:
+            accounts.append(f'curl vk id: {account.vk_account_id}')
+            continue
         login = account.login
         password = service_auth.decrypt_data(account.encrypted_password)
         accounts.append(f"{login}:{password}")
@@ -66,6 +69,9 @@ async def get_pending_logins(database: DataBaseDep, user_id: UserIdDep,):
 
     accounts = []
     for account in all_accounts:
+        if account.login is None:
+            accounts.append(f'curl vk id: {account.vk_account_id}')
+            continue
         login = account.login
         password = service_auth.decrypt_data(account.encrypted_password)
         accounts.append(f"{login}:{password}")
@@ -80,6 +86,9 @@ async def get_blocked_logins(database: DataBaseDep, user_id: UserIdDep,):
 
     accounts = []
     for account in all_accounts:
+        if account.login is None:
+            accounts.append(f'curl vk id: {account.vk_account_id}')
+            continue
         login = account.login
         password = service_auth.decrypt_data(account.encrypted_password)
         accounts.append(f"{login}:{password}")
@@ -93,6 +102,9 @@ async def get_working_logins(database: DataBaseDep, user_id: UserIdDep,):
 
     accounts = []
     for account in all_accounts:
+        if account.login is None:
+            accounts.append(f'curl vk id: {account.vk_account_id}')
+            continue
         login = account.login
         password = service_auth.decrypt_data(account.encrypted_password)
         accounts.append(f"{login}:{password}")
