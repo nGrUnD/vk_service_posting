@@ -4,8 +4,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
 #from src.models.vk_account import VKAccountOrm
 #from src.models.vk_group import VKGroupOrm
-
-Base = declarative_base()
+from src.database import Base
 
 
 class VKAccountGroupOrm(Base):
