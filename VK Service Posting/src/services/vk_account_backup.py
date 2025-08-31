@@ -155,7 +155,7 @@ class VKAccountBackupService:
             flood_control=False,
             parse_status="pending",
             task_id="pending",
-            proxy_id=index_proxy,
+            proxy_id=proxy.id,
             cookies = cookie,
         )
         vk_account = await self.database.vk_account.add(new_data)

@@ -204,7 +204,7 @@ def get_vk_account_groups(access_token: str, user_id: int, proxy: str = None):
 
     headers = {"User-Agent": get_random_user_agent()}
     proxy_response = None
-    if proxy:
+    if proxy is not None:
         proxy_response = {"http": proxy, "https": proxy}
 
     all_items = []
