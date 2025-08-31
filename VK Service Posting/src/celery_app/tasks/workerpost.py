@@ -154,4 +154,4 @@ def create_workpost_account(
 
     except Exception as e:
         update_celery_task_status(account_id_database, "failed", database_manager)
-        raise
+        raise e

@@ -28,7 +28,7 @@ def get_flood_control_datetime(minutes=90):
     flood_time = datetime.now() + timedelta(minutes=minutes)
     return flood_time
 
-def posting_clip(worker_id: int, login: str, password: str, token_db: str, schedule_database_id: int, clip, proxy: str):
+def posting_clip(worker_id: int, token_db: str, schedule_database_id: int, clip, proxy: str):
     with SyncSessionLocal() as session:
         stmt = select(WorkerPostOrm).where(WorkerPostOrm.id == worker_id)
         result = session.execute(stmt)
@@ -45,7 +45,6 @@ def posting_clip(worker_id: int, login: str, password: str, token_db: str, sched
         stmt = select(VKAccountOrm).where(VKAccountOrm.id == workerpost.vk_account_id)
         result = session.execute(stmt)
         vk_account = result.scalars().one_or_none()
-
 
         stmt = select(VKGroupOrm).where(VKGroupOrm.id == clip['vk_group_id'])
         result = session.execute(stmt)
@@ -102,9 +101,9 @@ def posting_clip(worker_id: int, login: str, password: str, token_db: str, sched
         session.commit()
 
 @app.task
-def create_post(worker_id: int, login: str, password: str, token_db: str, schedule_id: int, clip: dict, proxy: str):
+def create_post(worker_id: int, token_db: str, schedule_id: int, clip: dict, proxy: str):
     try:
-        posting_clip(worker_id, login, password, token_db, schedule_id, clip, proxy)
+        posting_clip(worker_id, token_db, schedule_id, clip, proxy)
     except Exception as e:
         print(f"create_post error: {e}")
         #async_to_sync(posting_error)(schedule_id, database_manager)
