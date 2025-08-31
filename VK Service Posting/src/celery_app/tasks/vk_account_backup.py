@@ -122,7 +122,7 @@ def update_db_vk_account(database_manager, vk_account_id_database: int, data: di
         if check_account_db:
             session.delete(account)
             session.commit()
-            print(f'Удалён дубликат vk id: {data['vk_account_id']}')
+            print(f'Удалён дубликат vk id: {data["vk_account_id"]}')
             return
 
 
