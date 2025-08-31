@@ -6,7 +6,7 @@ from sqlalchemy import (
     TIMESTAMP,
     ForeignKey,
     String,
-    Boolean, func
+    Boolean, func, Integer
 )
 from sqlalchemy.orm import (
     Mapped,
@@ -37,8 +37,8 @@ class VKAccountOrm(Base):
     name: Mapped[str]
     second_name: Mapped[str]
     groups_count: Mapped[int]
-    vk_group_id: Mapped[int]
-    flood_control: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    vk_group_id: Mapped[int] = mapped_column(Integer, nullable=True)
+    flood_control: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     parse_status: Mapped[str]
     task_id: Mapped[str]
 

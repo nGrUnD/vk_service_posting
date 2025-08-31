@@ -115,6 +115,17 @@ def update_db_vk_account(database_manager, vk_account_id_database: int, data: di
         if not account:
             raise ValueError(f"Account {vk_account_id_database} not found")
 
+        stmt = select(VKAccountOrm).where(VKAccountOrm.vk_account_id == data['vk_account_id'])
+        result = session.execute(stmt)
+        check_account_db = result.scalars().one_or_none()
+
+        if check_account_db:
+            session.delete(account)
+            session.commit()
+            print(f'Удалён дубликат vk id: {data['vk_account_id']}')
+            return
+
+
         account.vk_account_id = data['vk_account_id']
         account.name = account.login
         account.second_name = ""
