@@ -247,6 +247,39 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id"),
     )
+    # Добавить после создания таблиц vk_account и vk_group
+    op.create_table(
+        "vk_account_group",
+        sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
+        sa.Column("vk_account_id", sa.BigInteger(), nullable=False),
+        sa.Column("vk_group_id", sa.BigInteger(), nullable=False),
+        sa.Column("role", sa.String(), nullable=False),  # 'main', 'poster', etc.
+        sa.Column(
+            "created_at",
+            sa.TIMESTAMP(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.TIMESTAMP(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.ForeignKeyConstraint(
+            ["vk_account_id"],
+            ["vk_account.id"],
+            ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(
+            ["vk_group_id"],
+            ["vk_group.id"],
+            ondelete="CASCADE"
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("vk_account_id", "vk_group_id", name="uq_vk_account_group"),
+    )
+
     op.create_table(
         "schedule_posting",
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),

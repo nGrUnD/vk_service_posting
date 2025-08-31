@@ -191,3 +191,90 @@ def get_vk_account_admin_groups(access_token: str, user_id: int, proxy: str) -> 
         "count": total_count,
         "groups": groups,
     }
+
+def get_vk_account_groups(access_token: str, user_id: int, proxy: str = None):
+    """
+    Получает все группы пользователя VK (не только админские),
+    возвращает всю доступную базовую информацию о них.
+    """
+    url = "https://api.vk.com/method/groups.get"
+    version = "5.131"
+    delay = 0.34
+    count_per_request = 1000
+
+    headers = {"User-Agent": get_random_user_agent()}
+    proxy_response = None
+    if proxy:
+        proxy_response = {"http": proxy, "https": proxy}
+
+    all_items = []
+    offset = 0
+
+    params = {
+        "access_token": access_token,
+        "v": version,
+        "extended": 1,               # чтобы вернуть подробную информацию о группах
+        "user_id": user_id,
+        "count": count_per_request,
+        "offset": offset,
+        "fields": "photo_200"  # нужные поля
+        # !! filter убираем, иначе будет только admin
+    }
+
+    # Первый запрос
+    response = requests.get(url, params=params, headers=headers, proxies=proxy_response)
+    response_json = response.json()
+
+    if "error" in response_json:
+        raise Exception(f"Ошибка при получении данных: {response_json['error']['error_msg']}")
+
+    data = response_json["response"]
+    total_count = data["count"]
+    all_items.extend(data["items"])
+
+    # Загружаем постранично
+    while offset + count_per_request < total_count:
+        offset += count_per_request
+        params["offset"] = offset
+        time.sleep(delay)
+
+        response = requests.get(url, params=params, headers=headers, proxies=proxy_response)
+        response_json = response.json()
+
+        if "error" in response_json:
+            if "access_token has expired" in response_json['error']['error_msg']:
+                print("⛔ Токен протух")
+                raise Exception("Требуется обновление access_token")
+            else:
+                raise Exception(f"Ошибка при получении данных (offset={offset}): {response_json['error']['error_msg']}")
+
+        data = response_json["response"]
+        new_items = data.get("items", [])
+
+        if not new_items:
+            print("⚠️ Пустой ответ, останавливаемся.")
+            break
+
+        all_items.extend(new_items)
+        print(f"Получено {len(all_items)} из {total_count}")
+
+    # Форматирование результата
+    groups = []
+    for group in all_items:
+        group_id = group["id"]
+        groups.append({
+            "group_id": group_id,
+            "vk_group_url": f"https://vk.com/{group.get('screen_name', f'club{group_id}')}",
+            "avatar_url": group.get("photo_200"),
+            "name": group.get("name"),
+            #"type": group.get("type"),                # group / page / event
+            #"activity": group.get("activity"),        # тип деятельности
+            #"status": group.get("status"),            # статус/описание
+            #"members_count": group.get("members_count"),
+            #"description": group.get("description"),
+        })
+
+    return {
+        "count": total_count,
+        "groups": groups,
+    }

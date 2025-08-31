@@ -5,6 +5,7 @@ from typing import List
 
 from src.schemas.celery_task import CeleryTaskAdd, CeleryTaskUpdate
 from src.schemas.vk_account import VKAccountUpdate
+from src.schemas.vk_account_group import VKAccountGroupUpdate
 from src.schemas.workerpost import WorkerPostRequestAdd
 from src.services.auth import AuthService
 from src.utils.database_manager import DataBaseManager
@@ -52,13 +53,14 @@ class WorkerPostService:
                 #await self.database.commit()
                 continue
 
-            vk_accounts_for_group_db = await self.database.vk_account.get_all_filtered(account_type="backup", parse_status="success", flood_control=False, vk_group_id=vk_group_id)
-            if not vk_accounts_for_group_db:
+            vk_account_groups_db = await self.database.vk_account_group.get_all_filtered(vk_group_id=vk_group_database.id, role="backup")
+            if not vk_account_groups_db:
                 print(f"vk group id нет у backup account: {vk_group_id}")
                 failed_group_ids.append(vk_group_id)
                 continue
 
-            vk_account = vk_accounts_for_group_db[0]
+            target_vk_account_group_db = vk_account_groups_db[0]
+            vk_account = await self.database.vk_account.get_one_or_none(id=target_vk_account_group_db.vk_account_id)
 
             await self.database.vk_account.edit(
                 VKAccountUpdate(account_type="posting"),
@@ -66,10 +68,16 @@ class WorkerPostService:
                 id=vk_account.id
             )
 
+            await self.database.vk_account_group.edit(
+                VKAccountGroupUpdate(role="posting"),
+                exclude_unset=True,
+                id=target_vk_account_group_db.id,
+            )
+
             await self.database.commit()
 
 
-            password = AuthService().decrypt_data(vk_account.encrypted_password)
+            #password = AuthService().decrypt_data(vk_account.encrypted_password)
             token_db = vk_account.token
 
             proxy_db = await self.database.proxy.get_one_or_none(id=vk_account.proxy_id)
@@ -85,8 +93,6 @@ class WorkerPostService:
                 vk_group_id_database=vk_group_database.id,
                 category_id_database=category_database.id,
                 user_id=user_id,
-                login=vk_account.login,
-                password=password,
                 token_db=token_db,
                 proxy=proxy_http
             )

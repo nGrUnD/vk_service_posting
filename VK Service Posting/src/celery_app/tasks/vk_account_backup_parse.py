@@ -6,12 +6,13 @@ from sqlalchemy import select
 from src.celery_app import app
 from src.celery_app.celery_db import SyncSessionLocal
 from src.models.vk_account import VKAccountOrm
+from src.models.vk_account_group import VKAccountGroupOrm
 from src.models.vk_group import VKGroupOrm
 from src.services.auth import AuthService
 from src.database import Base
 
 from src.vk_api_methods.vk_account import get_vk_account_data, get_vk_session_by_log_pass, \
-    get_vk_account_admin_groups
+    get_vk_account_admin_groups, get_vk_account_groups
 from src.vk_api_methods.vk_auth import get_new_token_request
 from src.vk_api_methods.vk_clip import is_token_expired
 from vk_api import vk_api
@@ -146,11 +147,31 @@ def _add_or_edit_vk_group_db(session, data: dict, vk_account_id_database: int, u
     group.vk_group_type = "main"
     group.parse_status = "success"
 
+def add_vk_account_group_db(session, vk_account_id_database: int, user_id: int, group_data: dict) -> None:
+    print(f"group data: {group_data}")
+    vk_group_id = group_data["group_id"]
+    vk_group_url = group_data["vk_group_url"]
+    avatar_url = group_data["avatar_url"]
+    name = group_data["name"]
+
+    stmt = select(VKGroupOrm).where(VKGroupOrm.vk_group_id == vk_group_id, VKGroupOrm.parse_status == "success", VKGroupOrm.vk_group_type == "main")
+    result = session.execute(stmt)
+    vk_group_db = result.scalars().one_or_none()
+
+    if not vk_group_db:
+        return
+
+    new_vk_account_group = VKAccountGroupOrm(
+        vk_account_id = vk_account_id_database,
+        vk_group_id = vk_group_db.id,
+        role = "backup"
+    )
+    session.add(new_vk_account_group)
 
 def update_vk_groups_database(database_manager, vk_account_id_database: int, user_id: int, groups_data: dict):
     with database_manager as session:
         for group_data in groups_data:
-            _add_or_edit_vk_group_db(session, group_data, vk_account_id_database, user_id)
+            add_vk_account_group_db(session, vk_account_id_database, user_id, group_data)
         session.commit()
 
 def mark_vk_account_failure_by_task_id(database_manager, vk_account_id: int):
@@ -196,7 +217,7 @@ def parse_vk_profile_backup_sync(vk_account_id_database: int, proxy: str, user_i
     try:
         vk_token = get_vk_token_retry(database_manager, vk_account_id_database)
         vk_account_data = parse_vk_profile(vk_token, vk_account_id_database, proxy)
-        groups_data = get_vk_account_admin_groups(vk_token, vk_account_data['vk_account_id'], proxy)
+        groups_data = get_vk_account_groups(vk_token, vk_account_data['vk_account_id'], proxy)
 
         groups_groups_data = groups_data["groups"]
         groups_count = len(groups_groups_data)

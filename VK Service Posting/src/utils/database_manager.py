@@ -5,6 +5,7 @@ from src.repositories.proxy import ProxyRepository
 from src.repositories.schedule_posting import SchedulePostingRepository
 from src.repositories.user import UserRepository
 from src.repositories.vk_account import VKAccountRepository
+from src.repositories.vk_account_group import VKAccountGroupRepository
 from src.repositories.vk_clip import VKClipRepository
 from src.repositories.vk_group import VKGroupRepository
 from src.repositories.workerpost import WorkerPostRepository
@@ -27,6 +28,7 @@ class DataBaseManager:
         self.workerpost = WorkerPostRepository(self.session)
         self.schedule_posting = SchedulePostingRepository(self.session)
         self.proxy = ProxyRepository(self.session)
+        self.vk_account_group = VKAccountGroupRepository(self.session)
 
         return self
 

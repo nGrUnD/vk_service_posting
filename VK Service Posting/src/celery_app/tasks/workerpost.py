@@ -74,7 +74,9 @@ def create_workpost(
         main_account_curl = AuthService().decrypt_data(vk_main_account_database.encrypted_curl)
         main_account_token = TokenService.get_token_from_curl(main_account_curl)
 
-        assign_editor_role(vk_group_database.vk_group_id, vk_account_database.vk_account_id, main_account_token)
+        is_editor_role = assign_editor_role(vk_group_database.vk_group_id, vk_account_database.vk_account_id, main_account_token)
+        if not is_editor_role:
+            raise "not take editor role"
 
         workerpost_add = WorkerPostOrm(
             user_id=user_id,
@@ -116,8 +118,6 @@ def create_workpost_account(
         vk_group_id_database: int,
         category_id_database: int,
         user_id: int,
-        login: str,
-        password: str,
         token_db : str,
         proxy: str,
 ):
