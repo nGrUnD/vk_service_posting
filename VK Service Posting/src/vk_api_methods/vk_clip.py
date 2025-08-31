@@ -161,7 +161,7 @@ def vk_api_get_owner_short_videos(owner_id: int, token: str, proxy: str = None, 
 
 
 def get_all_owner_short_videos(owner_id: int,
-                               login, password, token_db: str, cookie_db, proxy: str = None,
+                               token_db: str, cookie_db, proxy: str = None,
                                api_version: str = '5.251',
                                page_size: int = 100,
                                delay: float = 0.34) -> List[Dict[str, Any]]:

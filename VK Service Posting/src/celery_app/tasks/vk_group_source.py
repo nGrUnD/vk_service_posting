@@ -133,7 +133,7 @@ def load_cookies_db(vk_account_db_id: int):
         return vk_account.cookies
 
 @app.task(bind=True, name="src.tasks.parse_vk_group_clips_sync")
-def parse_vk_group_clips_sync(self, vk_group_id: int, login: str, password: str, token_db: str, vk_account_db_id: int, proxy: str,
+def parse_vk_group_clips_sync(self, vk_group_id: int, token_db: str, cookies: str, vk_account_db_id: int, proxy: str,
                               user_id: int, clip_list_id: int, vk_group_database_id: int, viewers: int,
                               mindate: datetime):
     task_id = self.request.id
@@ -142,7 +142,7 @@ def parse_vk_group_clips_sync(self, vk_group_id: int, login: str, password: str,
         cookie_db = load_cookies_db(vk_account_db_id)
         # Важно: в ВК id паблика с минусом для публичных групп
         owner_id = -vk_group_id if not str(vk_group_id).startswith("-") else vk_group_id
-        clips = get_all_owner_short_videos(owner_id, login, password, token_db, cookie_db, proxy)
+        clips = get_all_owner_short_videos(owner_id, token_db, cookie_db, proxy)
 
         filtred_clips = filter_clips(clips, viewers, mindate)
 
