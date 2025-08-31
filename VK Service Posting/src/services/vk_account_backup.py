@@ -102,14 +102,14 @@ class VKAccountBackupService:
             )
 
             # (опционально) создаем celery_task запись
-            celery_task_add = CeleryTaskAdd(
-                task_id= task.id,
-                type= "add account",
-                user_id=user_id,
-                vk_account_id=vk_account_db.id,
-                status="starting"
-            )
-            await self.database.celery_task.add(celery_task_add)
+           # celery_task_add = CeleryTaskAdd(
+           #     task_id= task.id,
+           #     type= "add account",
+           #     user_id=user_id,
+           #     vk_account_id=vk_account_db.id,
+           #     status="starting"
+           # )
+           # await self.database.celery_task.add(celery_task_add)
 
         await self.database.commit()
 
