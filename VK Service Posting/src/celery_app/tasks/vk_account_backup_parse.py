@@ -75,7 +75,7 @@ def parse_vk_profile(vk_token, vk_account_id_database: int, proxy: str) -> dict:
     vk_count_groups = 0
     vk_link = f"https://vk.com/id{vk_account_id}"
 
-    vk_group_id = get_group_id(vk_token, vk_account_id, proxy)
+    #vk_group_id = get_group_id(vk_token, vk_account_id, proxy)
 
     vk_account_data = {
         "vk_account_id": vk_account_id,
@@ -84,7 +84,7 @@ def parse_vk_profile(vk_token, vk_account_id_database: int, proxy: str) -> dict:
         "vk_account_url": vk_link,
         "avatar_url": vk_account_data["avatar_url"],
         "groups_count": vk_count_groups,
-        "vk_group_id": vk_group_id,
+        "vk_group_id": "",
     }
 
     return vk_account_data
