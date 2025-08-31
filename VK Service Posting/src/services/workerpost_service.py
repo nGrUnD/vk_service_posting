@@ -39,6 +39,8 @@ class WorkerPostService:
         failed_account_log_pass = []
         failed_group_ids = []
 
+        used_account_ids = set()
+
         #vk_accounts_backup_free = await self.database.vk_account.get_all_filtered(account_type="backup", parse_status="success", flood_control=False)
 
         #for vk_account_backup_db, vk_group_id in zip(vk_accounts_backup_free, vk_groups_ids):
@@ -54,12 +56,24 @@ class WorkerPostService:
                 continue
 
             vk_account_groups_db = await self.database.vk_account_group.get_all_filtered(vk_group_id=vk_group_database.id, role="backup")
-            if not vk_account_groups_db:
-                print(f"vk group id нет у backup account: {vk_group_id}")
+            #if not vk_account_groups_db:
+            #    print(f"vk group id нет у backup account: {vk_group_id}")
+            #    failed_group_ids.append(vk_group_id)
+            #    continue
+
+            # Фильтруем аккаунты, исключая уже использованные в этой сессии
+            available_accounts = [
+                acc for acc in vk_account_groups_db
+                if acc.vk_account_id not in used_account_ids
+            ]
+
+            if not available_accounts:
+                print(f"Нет доступных backup аккаунтов для группы: {vk_group_id}")
                 failed_group_ids.append(vk_group_id)
                 continue
 
-            target_vk_account_group_db = vk_account_groups_db[0]
+            target_vk_account_group_db = available_accounts[0]
+            used_account_ids.add(target_vk_account_group_db.vk_account_id)
             vk_account = await self.database.vk_account.get_one_or_none(id=target_vk_account_group_db.vk_account_id)
 
             await self.database.vk_account.edit(
@@ -153,10 +167,16 @@ class WorkerPostService:
 
         return workposts_info
 
-    async def revert_account_backup(self, account_id_db):
+    async def revert_account_backup(self, account_id_db, vk_group_id_db):
         await self.database.vk_account.edit(
             VKAccountUpdate(account_type="backup"),
             exclude_unset=True,
             id=account_id_db
+        )
+        vk_account_group_db = await self.database.vk_account_group.get_one_or_none(vk_account_id=account_id_db, vk_group_id=vk_group_id_db)
+        await self.database.vk_account_group.edit(
+            VKAccountGroupUpdate(role="backup"),
+            exclude_unset=True,
+            id=vk_account_group_db.id,
         )
         await self.database.commit()

@@ -84,8 +84,9 @@ async def delete_workpost(
     workpost_db =  await database.workerpost.get_one_or_none(id=workerpost_id)
     service_workpost = WorkerPostService(database)
     vk_account = await database.vk_account.get_one_or_none(id=workpost_db.vk_account_id)
+    vk_group = await database.vk_group.get_one_or_none(id=workpost_db.vk_group_id)
 
-    await service_workpost.revert_account_backup(vk_account.id) # меняет тип аккаунта на backup
+    await service_workpost.revert_account_backup(vk_account.id, vk_group.id) # меняет тип аккаунта на backup
 
     await database.workerpost.delete(id=workerpost_id, user_id=user_id)
     await database.commit()
