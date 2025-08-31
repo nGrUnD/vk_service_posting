@@ -76,7 +76,7 @@ export default function AddCurlAccountPage() {
         let cancelled = false;
 
         const run = async () => {
-            const savedId = localStorage.getItem('vkAccountId');
+            const savedId = localStorage.getItem('VKAccountBackupCurlId');
             if (!savedId) {
                 if (!cancelled) setLoadingAccount(false);
                 return;
@@ -96,7 +96,7 @@ export default function AddCurlAccountPage() {
                         console.error('Ошибка при удалении аккаунта:', e);
                     }
                 }
-                localStorage.removeItem('vkAccountId');
+                localStorage.removeItem('VKAccountBackupCurlId');
             } finally {
                 if (!cancelled) setLoadingAccount(false);
             }
@@ -121,7 +121,7 @@ export default function AddCurlAccountPage() {
                 .get(`/users/{user_id}/vk_accounts/${newAccount.id}`)
                 .then(res => {
                     setNewAccount(res.data);
-                    localStorage.setItem('vkAccountId', res.data.id);
+                    localStorage.setItem('VKAccountBackupCurlId', res.data.id);
                     messageApi.success('VK аккаунт успешно обработан!');
                 })
                 .catch(async () => {
@@ -133,7 +133,7 @@ export default function AddCurlAccountPage() {
                             console.error('Ошибка при удалении аккаунта:', err);
                         }
                     }
-                    localStorage.removeItem('vkAccountId');
+                    localStorage.removeItem('VKAccountBackupCurlId');
                 });
         } else if (taskStatus === 'failure' && prevTaskStatusRef.current !== 'failure') {
             messageApi.error('Не удалось обработать VK аккаунт');
@@ -155,7 +155,7 @@ export default function AddCurlAccountPage() {
                 curl: curlCommand,
             });
             setNewAccount(data);
-            localStorage.setItem('vkAccountId', data.id);
+            localStorage.setItem('VKAccountBackupCurlId', data.id);
             setCurlCommand('');
             messageApi.info('Запущен процесс обработки VK аккаунта...');
             setTaskUpdated(prev => prev + 1);
@@ -170,7 +170,7 @@ export default function AddCurlAccountPage() {
                     console.error('Ошибка при удалении аккаунта:', err);
                 }
             }
-            localStorage.removeItem('vkAccountId');
+            localStorage.removeItem('VKAccountBackupCurlId');
         } finally {
             setLoadingConnect(false);
         }
@@ -194,7 +194,7 @@ export default function AddCurlAccountPage() {
                     console.error('Ошибка при удалении аккаунта:', err);
                 }
             }
-            localStorage.removeItem('vkAccountId');
+            localStorage.removeItem('VKAccountBackupCurlId');
         }
     };
 
