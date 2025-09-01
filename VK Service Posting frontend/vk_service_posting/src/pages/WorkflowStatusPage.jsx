@@ -228,6 +228,13 @@ export default function WorkflowStatusPage() {
             title: 'Флудконтроль',
             dataIndex: 'floodControl',
             key: 'floodControl',
+            render: (_, record) => {
+                if (record.vk_account?.flood_control && record.vk_account?.flood_control_time) {
+                    const date = new Date(record.vk_account.flood_control_time);
+                    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                }
+                return 'Нет';
+            }
         },
         {
             title: 'В работе',

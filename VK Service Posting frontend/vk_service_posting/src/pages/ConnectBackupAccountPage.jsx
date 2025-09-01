@@ -115,7 +115,6 @@ export default function ConnectBackupAccountPage() {
                 setSkippedAccounts(failedFormatted);
                 setInputAccounts('');
                 messageApi.success('Обработка аккаунтов начата.');
-                await fetchLoadedAccounts();
             } else {
                 messageApi.error('Ошибка при обработке запроса.');
             }
@@ -222,47 +221,31 @@ export default function ConnectBackupAccountPage() {
 
                         </div>
 
-                        {/* Правая часть */}
-                        <div className="flex-1 flex flex-col">
-                            <div className="flex justify-between items-center mb-2">
-                                <Title level={5}>Загруженные аккаунты</Title>
-                                <Space>
-                                    <Button
-                                        icon={<ReloadOutlined />}
-                                        size="small"
-                                        onClick={async () => {
-                                            setRefreshing(true);
-                                            await Promise.all([
-                                                fetchAllAccounts(),
-                                                fetchBlockedAccounts(),
-                                                fetchWorkingAccounts(),
-                                                fetchPendingAccounts(),
-                                            ]);
-                                            setRefreshing(false);
-                                        }}
-                                        loading={refreshing}
-                                    >
-                                        Обновить
-                                    </Button>
-                                    <Button
-                                        type="link"
-                                        danger
-                                        icon={<DeleteOutlined/>}
-                                        onClick={handleDeleteSelected}
-                                        loading={loading}
-                                    >
-                                        Удалить выбранные
-                                    </Button>
-                                </Space>
-                            </div>
-
-                        </div>
                     </div>
 
                     <div className="mt-6 text-center">
                         <Button type="primary" size="large" onClick={handleConnect} loading={loading}>
                             Подключить
                         </Button>
+                        <Button
+                            icon={<ReloadOutlined />}
+                            size="small"
+                            onClick={async () => {
+                                setRefreshing(true);
+                                await Promise.all([
+                                    fetchAllAccounts(),
+                                    fetchBlockedAccounts(),
+                                    fetchWorkingAccounts(),
+                                    fetchPendingAccounts(),
+                                ]);
+                                setRefreshing(false);
+                            }}
+                            loading={refreshing}
+                            style={{ marginLeft: 12 }}  // 🔑 добавляем отступ слева
+                        >
+                            Обновить
+                        </Button>
+
                     </div>
                 </Card>
             </div>
