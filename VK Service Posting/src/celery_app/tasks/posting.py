@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 from src.celery_app import app
@@ -25,7 +25,7 @@ def posting_error(schedule_database_id: int, database_manager):
 
 def get_flood_control_datetime(minutes=90):
     """Устанавливает flood control на указанное количество минут"""
-    flood_time = datetime.now() + timedelta(minutes=minutes)
+    flood_time = datetime.now(timezone.utc) + timedelta(minutes=minutes)
     return flood_time
 
 def posting_clip(worker_id: int, token_db: str, schedule_database_id: int, clip, proxy: str):

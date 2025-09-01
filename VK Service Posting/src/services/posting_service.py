@@ -1,5 +1,5 @@
 import random
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 import os
 import glob
@@ -95,9 +95,15 @@ class PostingService:
             proxy = await self.proxy.get_one_or_none(id=vk_account.proxy_id)
 
             if vk_account.flood_control:
-                if datetime.now() < vk_account.flood_control_time:
-                    logging.info(f'VK ACCOUNT #{vk_account.vk_account_id} flood control: {vk_account.flood_control_time}')
-                    continue
+                logging.info(f'VK ACCOUNT #{vk_account.vk_account_id} flood control True. Check!')
+                try:
+                    if datetime.now(timezone.utc) < vk_account.flood_control_time:
+                        logging.info(f'VK ACCOUNT #{vk_account.vk_account_id} flood control: {vk_account.flood_control_time}')
+                        continue
+                except Exception as e:
+                    logging.info(e)
+
+                logging.info(f'VK ACCOUNT #{vk_account.vk_account_id} flood control False. Save Database!')
                 await self.vk_account_repo.edit(VKAccountUpdate(flood_control=False), exclude_unset=True, id=vk_account.id)
                 await self.session.commit()
 
