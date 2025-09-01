@@ -79,8 +79,9 @@ def posting_clip(worker_id: int, token_db: str, schedule_database_id: int, clip,
                 proxy
             )
         except Exception as e:
-            schedule_update_data.status = "error"
-            session.commit()
+            if schedule_update_data:
+                schedule_update_data.status = "error"
+                session.commit()
 
             if hasattr(e, "code") and e.code == 9:
                 print("VK Flood control error!")
@@ -96,9 +97,9 @@ def posting_clip(worker_id: int, token_db: str, schedule_database_id: int, clip,
 
 
         #schedule_update_data.clip_id = clip_id
-        schedule_update_data.status = "success"
+        #schedule_update_data.status = "success"
 
-        session.commit()
+        #session.commit()
 
 @app.task
 def create_post(worker_id: int, token_db: str, schedule_id: int, clip: dict, proxy: str):
