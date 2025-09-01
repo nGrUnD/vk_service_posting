@@ -73,94 +73,96 @@ class PostingService:
         logging.info(minute)
         workposts = await self.workpost_repo.get_all()
         self.delete_all_mp4_files()
-        for workpost in workposts:
-            #print(workpost)
-            category = await self.category_repo.get_one_or_none(id=workpost.category_id)
-            #print(category)
-            if not category or not category.is_active:
-                logging.error("Нет категории или не активно")
-                continue
+        try:
+            for workpost in workposts:
+                # print(workpost)
+                category = await self.category_repo.get_one_or_none(id=workpost.category_id)
+                # print(category)
+                if not category or not category.is_active:
+                    logging.error("Нет категории или не активно")
+                    continue
 
-            hourly_limit = category.hourly_limit
-            #print(f"hourly_limit: {hourly_limit}")
-            minute_post = int(60 / hourly_limit)
+                hourly_limit = category.hourly_limit
+                # print(f"hourly_limit: {hourly_limit}")
+                minute_post = int(60 / hourly_limit)
 
-            is_can_post = minute % minute_post == 0
-            if not is_can_post:
-                continue
+                is_can_post = minute % minute_post == 0
+                if not is_can_post:
+                    continue
 
-            logging.info("post")
-            clip_list = await self.clip_list.get_one_or_none(id=category.clip_list_id)
-            vk_account = await self.vk_account_repo.get_one_or_none(id=workpost.vk_account_id)
-            proxy = await self.proxy.get_one_or_none(id=vk_account.proxy_id)
+                logging.info("post")
+                clip_list = await self.clip_list.get_one_or_none(id=category.clip_list_id)
+                vk_account = await self.vk_account_repo.get_one_or_none(id=workpost.vk_account_id)
+                proxy = await self.proxy.get_one_or_none(id=vk_account.proxy_id)
 
-            if vk_account.flood_control:
-                logging.info(f'VK ACCOUNT #{vk_account.vk_account_id} flood control True. Check!')
-                try:
+                if vk_account.flood_control:
+                    logging.info(f'VK ACCOUNT #{vk_account.vk_account_id} flood control True. Check!')
                     if datetime.now(timezone.utc) < vk_account.flood_control_time:
-                        logging.info(f'VK ACCOUNT #{vk_account.vk_account_id} flood control: {vk_account.flood_control_time}')
+                        logging.info(
+                            f'VK ACCOUNT #{vk_account.vk_account_id} flood control: {vk_account.flood_control_time}')
                         continue
-                except Exception as e:
-                    logging.info(e)
 
-                logging.info(f'VK ACCOUNT #{vk_account.vk_account_id} flood control False. Save Database!')
-                await self.vk_account_repo.edit(VKAccountUpdate(flood_control=False), exclude_unset=True, id=vk_account.id)
-                await self.session.commit()
+                    logging.info(f'VK ACCOUNT #{vk_account.vk_account_id} flood control False. Save Database!')
+                    await self.vk_account_repo.edit(VKAccountUpdate(flood_control=False), exclude_unset=True,
+                                                    id=vk_account.id)
+                    await self.session.commit()
 
-            if not proxy:
-                logging.error("Не удалось найти прокси")
-                continue
+                if not proxy:
+                    logging.error("Не удалось найти прокси")
+                    continue
 
-            proxy_http = proxy.http
+                proxy_http = proxy.http
 
-            random_clip = await self.vk_clip.get_random_one(clip_list_id=clip_list.id)
-            if not random_clip:
-                logging.error("Не удалось получить случайный клип")
-                continue
+                random_clip = await self.vk_clip.get_random_one(clip_list_id=clip_list.id)
+                if not random_clip:
+                    logging.error("Не удалось получить случайный клип")
+                    continue
 
-            clip_data = {
-                "id": random_clip.id,
-                "user_id": random_clip.user_id,
-                "clip_list_id": random_clip.clip_list_id,
-                "vk_group_id": random_clip.vk_group_id,
+                clip_data = {
+                    "id": random_clip.id,
+                    "user_id": random_clip.user_id,
+                    "clip_list_id": random_clip.clip_list_id,
+                    "vk_group_id": random_clip.vk_group_id,
 
-                "vk_id": random_clip.vk_id,
-                "files": random_clip.files,
-                "views": random_clip.views,
-                "date": random_clip.date.isoformat(),
-                "frames_file": random_clip.frames_file,
+                    "vk_id": random_clip.vk_id,
+                    "files": random_clip.files,
+                    "views": random_clip.views,
+                    "date": random_clip.date.isoformat(),
+                    "frames_file": random_clip.frames_file,
 
-                "parse_status": random_clip.parse_status,
-                "task_id": random_clip.task_id,
+                    "parse_status": random_clip.parse_status,
+                    "task_id": random_clip.task_id,
 
-                "created_at": random_clip.created_at,
-                "updated_at": random_clip.updated_at,
-            }
-            schedule_posting_add = SchedulePostingAdd(
-                workpost_id=workpost.id,
-                clip_id=random_clip.id,
-                task_id="",
-                status="",
-            )
+                    "created_at": random_clip.created_at,
+                    "updated_at": random_clip.updated_at,
+                }
+                schedule_posting_add = SchedulePostingAdd(
+                    workpost_id=workpost.id,
+                    clip_id=random_clip.id,
+                    task_id="",
+                    status="",
+                )
 
-            schedule_posting = await self.schedule_posting.add(schedule_posting_add)
+                schedule_posting = await self.schedule_posting.add(schedule_posting_add)
 
-            #login = vk_account.login
-            #password = AuthService().decrypt_data(vk_account.encrypted_password)
-            token_db = vk_account.token
+                # login = vk_account.login
+                # password = AuthService().decrypt_data(vk_account.encrypted_password)
+                token_db = vk_account.token
 
+                task = create_post.delay(
+                    workpost.id, token_db, schedule_posting.id, clip_data, proxy_http
+                )
 
-            task = create_post.delay(
-                workpost.id, token_db, schedule_posting.id, clip_data, proxy_http
-            )
+                schedule_posting_update_data = SchedulePostingUpdate(
+                    task_id=task.id,
+                    status="starting",
+                )
 
-            schedule_posting_update_data = SchedulePostingUpdate(
-                task_id=task.id,
-                status="starting",
-            )
+                await self.schedule_posting.edit(schedule_posting_update_data,
+                                                 exclude_unset=True,
+                                                 id=schedule_posting.id)
+        except Exception as e:
+            logging.info(e)
 
-            await self.schedule_posting.edit(schedule_posting_update_data,
-                                             exclude_unset=True,
-                                             id=schedule_posting.id)
 
         await self.session.commit()
