@@ -20,8 +20,6 @@ export default function ConnectBackupAccountPage() {
     const [inputAccounts, setInputAccounts] = useState('');
     const [processingAccounts, setProcessingAccounts] = useState([]);
     const [skippedAccounts, setSkippedAccounts] = useState([]);
-    const [loadedAccounts, setLoadedAccounts] = useState([]);
-    const [selected, setSelected] = useState({});
     const [loading, setLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
     const [allAccounts, setAllAccounts] = useState([]);
@@ -32,7 +30,6 @@ export default function ConnectBackupAccountPage() {
 
 
     useEffect(() => {
-        fetchLoadedAccounts();
         fetchAllAccounts();
         fetchBlockedAccounts();
         fetchWorkingAccounts();
@@ -49,22 +46,6 @@ export default function ConnectBackupAccountPage() {
             console.error(e);
             messageApi.error("Ошибка загрузки всех аккаунтов");
         }
-    };
-
-    const fetchLoadedAccounts = async () => {
-        setRefreshing(true);
-        try {
-            const response = await api.get('/users/{user_id}/vk_accounts/vk_account_backup_out');
-            if (Array.isArray(response.data)) {
-                setLoadedAccounts(response.data);
-            } else {
-                messageApi.error('Ошибка при получении загруженных аккаунтов.');
-            }
-        } catch (error) {
-            console.error(error);
-            messageApi.error('Ошибка при загрузке аккаунтов.');
-        }
-        setRefreshing(false);
     };
 
     const fetchAllAccounts = async () => {
@@ -141,55 +122,6 @@ export default function ConnectBackupAccountPage() {
         } catch (error) {
             console.error(error);
             messageApi.error('Ошибка соединения с сервером.');
-        }
-
-        setLoading(false);
-    };
-
-    const toggleSelection = (accountId) => {
-        setSelected(prev => ({...prev, [accountId]: !prev[accountId]}));
-    };
-
-    const handleDeleteSelected = async () => {
-        const toDeleteIds = Object.entries(selected)
-            .filter(([_, checked]) => checked)
-            .map(([id]) => parseInt(id));
-
-        if (!toDeleteIds.length) {
-            messageApi.info('Выберите аккаунты для удаления.');
-            return;
-        }
-
-        // Получаем логины выбранных аккаунтов
-        const loginsToDelete = loadedAccounts
-            .filter(acc => toDeleteIds.includes(acc.id))
-            .map(acc => acc.vk_cred?.login)
-            .filter(Boolean); // на всякий случай исключаем undefined/null
-
-        if (!loginsToDelete.length) {
-            messageApi.error('Не удалось определить логины выбранных аккаунтов.');
-            return;
-        }
-
-        setLoading(true);
-
-        try {
-            // Отправляем DELETE запрос с массивом логинов в теле
-            await api.delete(`/users/{user_id}/vk_accounts/delete_list_logins`, {
-                data: {logins: loginsToDelete},
-                headers: {'Content-Type': 'application/json'}
-            });
-
-            messageApi.success('Выбранные аккаунты успешно удалены.');
-
-            // Обновляем список загруженных аккаунтов (или фильтруем локально)
-            await fetchLoadedAccounts();
-
-            // Сбрасываем выделение
-            setSelected({});
-        } catch (error) {
-            console.error(error);
-            messageApi.error('Ошибка при удалении аккаунтов.');
         }
 
         setLoading(false);
@@ -301,7 +233,6 @@ export default function ConnectBackupAccountPage() {
                                         onClick={async () => {
                                             setRefreshing(true);
                                             await Promise.all([
-                                                fetchLoadedAccounts(),
                                                 fetchAllAccounts(),
                                                 fetchBlockedAccounts(),
                                                 fetchWorkingAccounts(),
@@ -325,42 +256,6 @@ export default function ConnectBackupAccountPage() {
                                 </Space>
                             </div>
 
-                            <div className="overflow-y-auto border border-gray-200 rounded p-2 max-h-[320px]">
-                                <List
-                                    bordered
-                                    size="small"
-                                    dataSource={loadedAccounts}
-                                    locale={{emptyText: 'Нет аккаунтов'}}
-                                    renderItem={item => (
-                                        <List.Item>
-                                            <Checkbox
-                                                checked={selected[item.id]}
-                                                onChange={() => toggleSelection(item.id)}
-                                                className="flex items-center gap-2 w-full"
-                                            >
-                                                <div className="flex items-center gap-2">
-                                                    <img
-                                                        src={item.avatar_url}
-                                                        alt="avatar"
-                                                        className="w-8 h-8 rounded-full object-cover"
-                                                    />
-                                                    <div>
-                                                        <div><strong>{item.vk_cred?.login}</strong></div>
-                                                        <div>{item.name} {item.second_name}</div>
-                                                        <a
-                                                            href={item.vk_account_url}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                        >
-                                                            {item.vk_account_url}
-                                                        </a>
-                                                    </div>
-                                                </div>
-                                            </Checkbox>
-                                        </List.Item>
-                                    )}
-                                />
-                            </div>
                         </div>
                     </div>
 
