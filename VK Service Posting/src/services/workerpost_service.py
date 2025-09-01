@@ -82,11 +82,13 @@ class WorkerPostService:
                 id=vk_account.id
             )
 
-            await self.database.vk_account_group.edit(
-                VKAccountGroupUpdate(role="posting"),
-                exclude_unset=True,
-                id=target_vk_account_group_db.id,
-            )
+            vk_account_groups_fromAcc_db = await self.database.vk_account_group.get_all_filtered(vk_account_id=vk_account.id)
+            for vk_account_group_from_acc in vk_account_groups_fromAcc_db:
+                await self.database.vk_account_group.edit(
+                    VKAccountGroupUpdate(role="posting"),
+                    exclude_unset=True,
+                    id=vk_account_group_from_acc.id,
+                )
 
             await self.database.commit()
 
