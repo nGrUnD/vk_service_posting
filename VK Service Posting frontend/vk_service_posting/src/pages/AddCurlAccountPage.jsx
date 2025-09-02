@@ -213,14 +213,6 @@ export default function AddCurlAccountPage() {
                     <Tag color={color}>
                         {icon} {label}
                     </Tag>
-                    {(status === 'failure' || status === 'success') && (
-                        <button
-                            onClick={handleRetry}
-                            className="px-3 py-1 text-sm rounded bg-blue-500 text-white hover:bg-blue-600 transition"
-                        >
-                            Обновить
-                        </button>
-                    )}
                 </div>
                 {status === 'pending' && (
                     <span className="text-sm text-gray-500">Обычно это занимает меньше минуты</span>
