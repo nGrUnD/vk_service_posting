@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Table, Tag, Spin } from "antd";
+import dayjs from "dayjs";
 import api from "../api/axios";
 
 export default function AccountTable() {
@@ -78,7 +79,8 @@ export default function AccountTable() {
             title: "Флуд время",
             dataIndex: "flood_control_time",
             key: "flood_control_time",
-            render: (val) => val ?? "-",
+            render: (val) =>
+                val ? dayjs(val).format("YYYY-MM-DD HH:mm") : "-", // 👈 форматировали
         },
         {
             title: "Парсинг",
@@ -97,6 +99,12 @@ export default function AccountTable() {
             title: "Тип",
             dataIndex: "account_type",
             key: "account_type",
+            filters: [
+                { text: "main", value: "main" },
+                { text: "backup", value: "backup" },
+                { text: "parser", value: "parser" },
+            ],
+            onFilter: (value, record) => record.account_type === value,
         },
         {
             title: "Куки",
@@ -107,21 +115,17 @@ export default function AccountTable() {
     ];
 
     return (
-        <div className="p-4">
-            {loading ? (
-                <div className="flex justify-center items-center min-h-[200px]">
-                    <Spin />
-                </div>
-            ) : (
-                <Table
-                    rowKey="id"
-                    columns={columns}
-                    dataSource={accounts}
-                    bordered
-                    className="shadow-md"
-                    pagination={{ pageSize: 10 }}
-                />
-            )}
+        <div className="mt-8">
+            <h2 className="text-lg font-semibold mb-4">Подключённые аккаунты</h2>
+            <Table
+                rowKey="id"
+                columns={columns}
+                dataSource={accounts}
+                loading={loading}
+                bordered
+                className="shadow-md"
+                pagination={{ pageSize: 10 }}
+            />
         </div>
     );
 }
