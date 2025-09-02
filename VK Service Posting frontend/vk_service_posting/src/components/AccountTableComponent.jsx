@@ -16,7 +16,7 @@ export default function AccountTable() {
     useEffect(() => {
         const fetchAccounts = async () => {
             try {
-                const { data } = await api.get("/users/{user_id}/vk_accounts");
+                const { data } = await api.get("/users/{user_id}/vk_accounts/all");
                 setAccounts(data);
             } catch (err) {
                 console.error("Ошибка при загрузке аккаунтов", err);
