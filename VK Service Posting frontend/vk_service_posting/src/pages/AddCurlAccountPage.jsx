@@ -5,6 +5,7 @@ import AccountAvatar from '../components/AccountAvatar.jsx';
 import AccountInfo from '../components/AccountInfo.jsx';
 import CurlInputField from '../components/CurlInputField.jsx';
 import ButtonConnect from '../components/ButtonConnect.jsx';
+import AccountTable from '../components/AccountTableComponent.jsx'; // 👈 Добавил импорт
 import { Spin, Alert, message, Tag } from 'antd';
 
 // Хук: следим за статусом задачи VK аккаунта
@@ -299,6 +300,9 @@ export default function AddCurlAccountPage() {
             </div>
 
             {renderGroups()}
+
+            {/* 👇 Таблица всех аккаунтов */}
+            <AccountTable />
         </div>
     );
 }

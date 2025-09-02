@@ -53,7 +53,7 @@ async def get_all_logins(database: DataBaseDep, user_id: UserIdDep,):
 
     accounts = []
     for account in all_accounts:
-        if account.login is "":
+        if account.login == "":
             accounts.append(f'curl vk id: {account.vk_account_id}')
             continue
         login = account.login
@@ -69,7 +69,7 @@ async def get_pending_logins(database: DataBaseDep, user_id: UserIdDep,):
 
     accounts = []
     for account in all_accounts:
-        if account.login is "":
+        if account.login == "":
             accounts.append(f'curl vk id: {account.vk_account_id}')
             continue
         login = account.login
@@ -86,7 +86,7 @@ async def get_blocked_logins(database: DataBaseDep, user_id: UserIdDep,):
 
     accounts = []
     for account in all_accounts:
-        if account.login is "":
+        if account.login == "":
             accounts.append(f'curl vk id: {account.vk_account_id}')
             continue
         login = account.login
@@ -102,7 +102,7 @@ async def get_working_logins(database: DataBaseDep, user_id: UserIdDep,):
 
     accounts = []
     for account in all_accounts:
-        if account.login is "":
+        if account.login == "":
             accounts.append(f'curl vk id: {account.vk_account_id}')
             continue
         login = account.login
