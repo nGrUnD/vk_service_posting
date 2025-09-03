@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Table, Tag, Spin } from "antd";
+import { Table, Tag, Spin, Button, Popconfirm, message } from "antd";
 import dayjs from "dayjs";
 import api from "../api/axios";
 
@@ -14,26 +14,37 @@ export default function AccountTable() {
         in_progress: "orange",
     };
 
+    const fetchAccounts = async () => {
+        setLoading(true);
+        try {
+            const { data } = await api.get("/users/{user_id}/vk_accounts/all");
+            setAccounts(data);
+        } catch (err) {
+            console.error("Ошибка при загрузке аккаунтов", err);
+            message.error("Не удалось загрузить аккаунты");
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
-        const fetchAccounts = async () => {
-            try {
-                const { data } = await api.get("/users/{user_id}/vk_accounts/all");
-                setAccounts(data);
-            } catch (err) {
-                console.error("Ошибка при загрузке аккаунтов", err);
-            } finally {
-                setLoading(false);
-            }
-        };
         fetchAccounts();
     }, []);
 
+    // Удаление аккаунта
+    const handleDelete = async (id) => {
+        try {
+            await api.delete(`/users/{user_id}/vk_accounts/${id}`);
+            message.success("Аккаунт удален");
+            fetchAccounts(); // обновить таблицу
+        } catch (err) {
+            console.error(err);
+            message.error("Ошибка при удалении аккаунта");
+        }
+    };
+
     const columns = [
-        {
-            title: "ID VK",
-            dataIndex: "vk_account_id",
-            key: "vk_account_id",
-        },
+        { title: "ID VK", dataIndex: "vk_account_id", key: "vk_account_id" },
         {
             title: "VK Аккаунт",
             key: "vk_account_url",
@@ -53,34 +64,23 @@ export default function AccountTable() {
                 </a>
             ),
         },
-        {
-            title: "Login",
-            dataIndex: "login",
-            key: "login",
-        },
+        { title: "Login", dataIndex: "login", key: "login" },
         {
             title: "ID Proxy",
             dataIndex: "proxy_id",
             key: "proxy_id",
             render: (val) => val ?? "-",
         },
-        {
-            title: "VK Паблики",
-            dataIndex: "groups_count",
-            key: "groups_count",
-        },
+        { title: "VK Паблики", dataIndex: "groups_count", key: "groups_count" },
         {
             title: "Флудконтроль",
-            dataIndex: "flood_control",
-            key: "flood_control",
-            render: (val) => (val ? "✅" : "❌"),
-        },
-        {
-            title: "Флуд время",
-            dataIndex: "flood_control_time",
-            key: "flood_control_time",
-            render: (val) =>
-                val ? dayjs(val).format("YYYY-MM-DD HH:mm") : "-", // 👈 форматировали
+            key: "floodControl",
+            render: (_, record) => {
+                if (record.flood_control && record.flood_control_time) {
+                    return dayjs(record.flood_control_time).format("YYYY-MM-DD HH:mm");
+                }
+                return "Нет";
+            },
         },
         {
             title: "Парсинг",
@@ -103,7 +103,6 @@ export default function AccountTable() {
                 { text: "main", value: "main" },
                 { text: "backup", value: "backup" },
                 { text: "parser", value: "parser" },
-                { text: "posting", value: "posting" },
             ],
             onFilter: (value, record) => record.account_type === value,
         },
@@ -112,6 +111,22 @@ export default function AccountTable() {
             dataIndex: "cookies",
             key: "cookies",
             render: (cookies) => (cookies ? "Есть" : "—"),
+        },
+        {
+            title: "Действия",
+            key: "actions",
+            render: (_, record) => (
+                <Popconfirm
+                    title="Удалить аккаунт?"
+                    okText="Да"
+                    cancelText="Нет"
+                    onConfirm={() => handleDelete(record.id)}
+                >
+                    <Button danger size="small">
+                        Удалить
+                    </Button>
+                </Popconfirm>
+            ),
         },
     ];
 
