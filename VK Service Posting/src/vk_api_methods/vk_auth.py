@@ -158,6 +158,7 @@ def get_new_token(old_token: str, cookie, proxy_http: str = None):
 def get_new_token_request(access_token: str, cookie: str, proxy: str = None):
     user_agent = get_random_user_agent()
     session = requests.Session()
+    print(f'Proxy: {proxy}')
     session.proxies.update({
         "http": proxy,
         "https": proxy

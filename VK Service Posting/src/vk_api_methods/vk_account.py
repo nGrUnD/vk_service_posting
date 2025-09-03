@@ -65,12 +65,11 @@ def get_vk_account_data(access_token: str, proxy: str = None):
         "fields": "photo_200"  # Поля, которые нужно получить
     }
 
-    proxy_response = None
-    if proxy is not None:
-        proxy_response = {
-            "http": proxy,
-            "https": proxy,
-        }
+    print(f'Proxy: {proxy}')
+    proxy_response = {
+        "http": proxy,
+        "https": proxy,
+    }
 
     # Отправка запроса
     headers = {"User-Agent": get_random_user_agent()}
@@ -203,9 +202,8 @@ def get_vk_account_groups(access_token: str, user_id: int, proxy: str = None):
     count_per_request = 1000
 
     headers = {"User-Agent": get_random_user_agent()}
-    proxy_response = None
-    if proxy is not None:
-        proxy_response = {"http": proxy, "https": proxy}
+    print(f'Proxy: {proxy}')
+    proxy_response = {"http": proxy, "https": proxy}
 
     all_items = []
     offset = 0
