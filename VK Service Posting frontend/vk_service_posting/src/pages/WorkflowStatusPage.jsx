@@ -9,6 +9,7 @@ import {
 } from 'antd';
 import api from '../api/axios';
 import {ReloadOutlined, SearchOutlined, SettingOutlined} from '@ant-design/icons';
+import dayjs from "dayjs";
 
 const {Title} = Typography;
 
@@ -39,7 +40,7 @@ export default function WorkflowStatusPage() {
             const json = response.data;
 
             const tableData = json.map((item) => {
-                const {workpost, vk_group, vk_account, category, clip_list} = item;
+                const { workpost, vk_group, vk_account, category, clip_list } = item;
 
                 return {
                     key: workpost.id,
@@ -56,10 +57,11 @@ export default function WorkflowStatusPage() {
                         repost: category.repost_enabled,
                         inWork: category.is_active,
                     },
-                    floodControl: vk_account.flood_control ? 'Да' : 'Нет',
+                    // 👇 сохраняем "как есть"
+                    floodControl: vk_account.flood_control,
+                    floodControlTime: vk_account.flood_control_time,
                 };
             });
-
             setData(tableData);
         } catch (error) {
             console.error(error);
@@ -226,12 +228,10 @@ export default function WorkflowStatusPage() {
         },
         {
             title: 'Флудконтроль',
-            dataIndex: 'floodControl',
             key: 'floodControl',
             render: (_, record) => {
-                if (record.vk_account?.flood_control && record.vk_account?.flood_control_time) {
-                    const date = new Date(record.vk_account.flood_control_time);
-                    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                if (record.floodControl && record.floodControlTime) {
+                    return dayjs(record.floodControlTime).format("YYYY-MM-DD HH:mm");
                 }
                 return 'Нет';
             }
