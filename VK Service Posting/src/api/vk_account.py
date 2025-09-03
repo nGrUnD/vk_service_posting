@@ -261,6 +261,10 @@ async def delete_vk_account(
         database: DataBaseDep,
 ):
     """Удаляет привязанный VK аккаунт и связанные данные"""
+    celery_tasks_db = await database.celery_task.get_all_filtered(vk_account_id=vk_account_id)
+    for task in celery_tasks_db:
+        await database.celery_task.delete(id=task.id)
+
     await database.vk_account.delete(id=vk_account_id, user_id=user_id)
     await database.commit()
 
