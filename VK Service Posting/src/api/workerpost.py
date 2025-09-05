@@ -43,7 +43,7 @@ async def get_workerpost_postedclips_count(
     if not workerpost:
         raise HTTPException(404, "Не найден workerpost")
 
-    count = await database.schedule_posting.count_filtered(workerpost_id=workerpost.id, status="success")
+    count = await database.schedule_posting.count_filtered(workpost_id=workerpost.id, status="success")
     return {"count": count}
 
 @router.get("/{workerpost_id}/status", summary="Статус парсинга VK Постинг")
