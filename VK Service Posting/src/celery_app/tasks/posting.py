@@ -95,11 +95,11 @@ def posting_clip(worker_id: int, token_db: str, schedule_database_id: int, clip,
                 raise e
 
 
+        if schedule_update_data:
+            schedule_update_data.clip_id = clip_id
+            schedule_update_data.status = "success"
 
-        #schedule_update_data.clip_id = clip_id
-        #schedule_update_data.status = "success"
-
-        #session.commit()
+        session.commit()
 
 @app.task
 def create_post(worker_id: int, token_db: str, schedule_id: int, clip: dict, proxy: str):

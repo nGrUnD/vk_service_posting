@@ -10,6 +10,7 @@ import {
 import api from '../api/axios';
 import {ReloadOutlined, SearchOutlined, SettingOutlined} from '@ant-design/icons';
 import dayjs from "dayjs";
+import PostedClipsCount from '../components/PostedClipsCount.jsx';
 
 const {Title} = Typography;
 
@@ -225,6 +226,14 @@ export default function WorkflowStatusPage() {
             dataIndex: ['category', 'repost'],
             key: 'repost',
             render: (val) => (val ? 'Да' : 'Нет'),
+        },
+        // 👇 Новая колонка
+        {
+            title: 'Запостенные клипы',
+            key: 'postedClips',
+            render: (_, record) => (
+                <PostedClipsCount workerpostId={record.key} />
+            ),
         },
         {
             title: 'Флудконтроль',

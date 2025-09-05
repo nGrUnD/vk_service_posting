@@ -144,6 +144,7 @@ class PostingService:
                 )
 
                 schedule_posting = await self.schedule_posting.add(schedule_posting_add)
+                await self.session.commit()
 
                 # login = vk_account.login
                 # password = AuthService().decrypt_data(vk_account.encrypted_password)
@@ -161,6 +162,8 @@ class PostingService:
                 await self.schedule_posting.edit(schedule_posting_update_data,
                                                  exclude_unset=True,
                                                  id=schedule_posting.id)
+                await self.session.commit()
+
         except Exception as e:
             logging.info(e)
 
