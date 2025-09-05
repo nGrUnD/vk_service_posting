@@ -6,10 +6,12 @@ services:
     container_name: backend
     env_file: "./VK Service Posting/.env"
     depends_on:
-      redis:
-        condition: service_started
-      postgres:
-        condition: service_healthy
+      - redis
+      - postgres
+      #redis:
+      #  condition: service_started
+      #postgres:
+      #  condition: service_healthy
     working_dir: /app
     volumes:
       - "./VK Service Posting:/app"
@@ -57,11 +59,11 @@ services:
       POSTGRES_DB: ${DB_NAME}
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASS}
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
+    #healthcheck:
+    #  test: ["CMD-SHELL", "pg_isready -U postgres"]
+    #  interval: 5s
+    #  timeout: 5s
+    #  retries: 10
     ports:
       - "5432:5432"
 
