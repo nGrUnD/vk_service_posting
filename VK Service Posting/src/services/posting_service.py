@@ -140,7 +140,7 @@ class PostingService:
                     workpost_id=workpost.id,
                     clip_id=random_clip.id,
                     task_id="",
-                    status="",
+                    status="starting",
                 )
 
                 schedule_posting = await self.schedule_posting.add(schedule_posting_add)
@@ -156,7 +156,6 @@ class PostingService:
 
                 schedule_posting_update_data = SchedulePostingUpdate(
                     task_id=task.id,
-                    status="starting",
                 )
 
                 await self.schedule_posting.edit(schedule_posting_update_data,

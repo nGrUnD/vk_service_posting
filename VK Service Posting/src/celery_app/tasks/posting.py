@@ -80,7 +80,7 @@ def posting_clip(worker_id: int, token_db: str, schedule_database_id: int, clip,
             )
         except Exception as e:
             if schedule_update_data:
-                schedule_update_data.status = "error"
+                session.delete(schedule_update_data)
                 session.commit()
 
             if hasattr(e, "code") and e.code == 9:
