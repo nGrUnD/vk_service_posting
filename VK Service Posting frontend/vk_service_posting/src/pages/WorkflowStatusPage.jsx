@@ -229,7 +229,7 @@ export default function WorkflowStatusPage() {
         },
         // 👇 Новая колонка
         {
-            title: 'Запостенные клипы',
+            title: 'Постинг клипы',
             key: 'postedClips',
             render: (_, record) => (
                 <PostedClipsCount workerpostId={record.key} />
