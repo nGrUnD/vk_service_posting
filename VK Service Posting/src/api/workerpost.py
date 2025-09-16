@@ -46,6 +46,20 @@ async def get_workerpost_postedclips_count(
     count = await database.schedule_posting.count_filtered(workpost_id=workerpost.id, status="success")
     return {"count": count}
 
+@router.get("/{workerpost_id}/posted_clips/last_date")
+async def get_workerpost_posted_clips_last_date(
+        user_id: UserIdDep,
+        database: DataBaseDep,
+        workerpost_id: int,
+):
+    workerpost = await database.workerpost.get_one_or_none(id=workerpost_id)
+    if not workerpost:
+        raise HTTPException(404, "Не найден workerpost")
+
+    datetime = await database.schedule_posting.get_last_posted_date(workpost_id=workerpost.id, status="success")
+    return {"datetime": datetime}
+
+
 @router.get("/{workerpost_id}/status", summary="Статус парсинга VK Постинг")
 async def get_vk_group_status(
       user_id: UserIdDep,

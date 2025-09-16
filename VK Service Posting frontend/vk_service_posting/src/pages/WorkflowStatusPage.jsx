@@ -10,7 +10,7 @@ import {
 import api from '../api/axios';
 import {ReloadOutlined, SearchOutlined, SettingOutlined} from '@ant-design/icons';
 import dayjs from "dayjs";
-import PostedClipsCount from '../components/PostedClipsCount.jsx';
+import LastPostedDate from "../components/ClipsLastDate.jsx";
 
 const {Title} = Typography;
 
@@ -232,7 +232,7 @@ export default function WorkflowStatusPage() {
             title: 'Постинг клипы',
             key: 'postedClips',
             render: (_, record) => (
-                <PostedClipsCount workerpostId={record.key} />
+                <LastPostedDate workerpostId={record.key} />
             ),
         },
         {
