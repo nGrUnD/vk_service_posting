@@ -72,18 +72,8 @@ async def get_workerpost_block_status(
         raise HTTPException(404, "Не найден workerpost")
 
     vk_account = await database.vk_account.get_one_or_none(id=workerpost.vk_account_id)
-    proxy = await database.proxy.get_one_or_none(id=vk_account.proxy_id)
-    token = get_new_token_request(vk_account.token, vk_account.cookies, proxy.http)
-    try:
-        token_is_expired = is_token_expired(token, proxy.http)
-        if token_is_expired:
-            return {"status": "OK"}
-
-    except Exception as e:
-        print(e)
+    if vk_account.account_type == "blocked":
         return {"status": "blocked"}
-
-
     return {"status": "OK"}
 
 @router.get("/{workerpost_id}/status", summary="Статус парсинга VK Постинг")

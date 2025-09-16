@@ -91,6 +91,12 @@ def posting_clip(worker_id: int, token_db: str, schedule_database_id: int, clip,
                 session.commit()
 
                 raise e
+            elif hasattr(e, "code") and e.code == 5 and "user is blocked" in str(e).lower():
+                print("VK account is blocked!")
+                vk_account.account_type = "blocked" # account blocked
+                session.commit()
+                raise e
+
             else:
                 raise e
 

@@ -10,7 +10,6 @@ export default function AccountStatus({ workerpostId }) {
 
         const fetchStatus = async () => {
             try {
-                const userId = localStorage.getItem("user_id");
                 const res = await api.get(
                     `/users/{user_id}/workerpost/${workerpostId}/vk_account/block_status`
                 );
