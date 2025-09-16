@@ -11,6 +11,7 @@ import api from '../api/axios';
 import {ReloadOutlined, SearchOutlined, SettingOutlined} from '@ant-design/icons';
 import dayjs from "dayjs";
 import LastPostedDate from "../components/ClipsLastDate.jsx";
+import AccountStatus from "../components/VKAccountStatus.jsx";
 
 const {Title} = Typography;
 
@@ -233,6 +234,13 @@ export default function WorkflowStatusPage() {
             key: 'postedClips',
             render: (_, record) => (
                 <LastPostedDate workerpostId={record.key} />
+            ),
+        },
+        {
+            title: 'Статус аккаунта',
+            key: 'accountStatus',
+            render: (_, record) => (
+                <AccountStatus workerpostId={record.key} />
             ),
         },
         {

@@ -3,6 +3,8 @@ from fastapi import APIRouter, HTTPException, status, Body
 from src.api.dependencies import DataBaseDep, UserIdDep
 from src.schemas.workerpost import WorkerPostRequestAdd
 from src.services.workerpost_service import WorkerPostService
+from src.vk_api_methods.vk_auth import get_new_token_request
+from src.vk_api_methods.vk_clip import is_token_expired
 
 router = APIRouter(prefix="/users/{user_id}/workerpost", tags=["VK Постинг"])
 
@@ -59,6 +61,30 @@ async def get_workerpost_posted_clips_last_date(
     datetime = await database.schedule_posting.get_last_posted_date(workpost_id=workerpost.id, status="success")
     return {"last_date": datetime}
 
+@router.get("/{workerpost_id}/vk_account/block_status")
+async def get_workerpost_block_status(
+        user_id: UserIdDep,
+        database: DataBaseDep,
+        workerpost_id: int,
+):
+    workerpost = await database.workerpost.get_one_or_none(id=workerpost_id)
+    if not workerpost:
+        raise HTTPException(404, "Не найден workerpost")
+
+    vk_account = await database.vk_account.get_one_or_none(workerpost.vk_account_id)
+    proxy = await database.proxy.get_one_or_none(id=vk_account.proxy_id)
+    token = get_new_token_request(vk_account.token, vk_account.cookies, proxy.http)
+    try:
+        token_is_expired = is_token_expired(token, proxy.http)
+        if token_is_expired:
+            return {"status": "OK"}
+
+    except Exception as e:
+        print(e)
+        return {"status": "blocked"}
+
+
+    return {"status": "OK"}
 
 @router.get("/{workerpost_id}/status", summary="Статус парсинга VK Постинг")
 async def get_vk_group_status(
