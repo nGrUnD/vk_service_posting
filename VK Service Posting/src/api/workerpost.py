@@ -71,7 +71,7 @@ async def get_workerpost_block_status(
     if not workerpost:
         raise HTTPException(404, "Не найден workerpost")
 
-    vk_account = await database.vk_account.get_one_or_none(workerpost.vk_account_id)
+    vk_account = await database.vk_account.get_one_or_none(id=workerpost.vk_account_id)
     proxy = await database.proxy.get_one_or_none(id=vk_account.proxy_id)
     token = get_new_token_request(vk_account.token, vk_account.cookies, proxy.http)
     try:
