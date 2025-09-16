@@ -103,6 +103,7 @@ export default function AccountTable() {
                 { text: "main", value: "main" },
                 { text: "backup", value: "backup" },
                 { text: "posting", value: "posting" },
+                { text: "blocked", value: "blocked" },
             ],
             onFilter: (value, record) => record.account_type === value,
         },
