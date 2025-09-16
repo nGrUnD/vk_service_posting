@@ -57,7 +57,7 @@ async def get_workerpost_posted_clips_last_date(
         raise HTTPException(404, "Не найден workerpost")
 
     datetime = await database.schedule_posting.get_last_posted_date(workpost_id=workerpost.id, status="success")
-    return {"datetime": datetime}
+    return {"last_date": datetime}
 
 
 @router.get("/{workerpost_id}/status", summary="Статус парсинга VK Постинг")
