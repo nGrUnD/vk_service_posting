@@ -170,11 +170,15 @@ class WorkerPostService:
         return workposts_info
 
     async def revert_account_backup(self, account_id_db, vk_group_id_db):
-        await self.database.vk_account.edit(
-            VKAccountUpdate(account_type="backup"),
-            exclude_unset=True,
-            id=account_id_db
-        )
+        vk_account = await self.database.vk_account.get_one_or_none(id=account_id_db)
+
+        if vk_account.account_type != "blocked":
+            await self.database.vk_account.edit(
+                VKAccountUpdate(account_type="backup"),
+                exclude_unset=True,
+                id=account_id_db
+            )
+
         vk_account_group_db = await self.database.vk_account_group.get_one_or_none(vk_account_id=account_id_db, vk_group_id=vk_group_id_db)
         await self.database.vk_account_group.edit(
             VKAccountGroupUpdate(role="backup"),
