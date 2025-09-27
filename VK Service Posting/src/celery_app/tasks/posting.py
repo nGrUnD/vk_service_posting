@@ -66,6 +66,7 @@ def posting_clip(worker_id: int, token_db: str, schedule_database_id: int, clip,
 
         cookie_db = vk_account.cookies
         #cookie = list_to_cookiejar(cookie_db)
+        print(f"VK Account Name: {vk_account.name}")
         token = get_new_token_request(token_db, cookie_db, proxy)
 
         clip_filename = download_clip_by_url(clip_url, vk_clip_owner_id, clip_id)
