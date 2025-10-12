@@ -97,6 +97,9 @@ def read_all_credentials(file_path="account.txt"):
         print(f"[!] Ошибка чтения файла: {e}")
         return []
 
+def vk_com_to_ru(url: str) -> str:
+    return url.replace('vk.com', 'vk.ru')
+
 def press_f5(driver):
     """Нажимает F5 для обновления страницы"""
     print("[*] Нажимаем F5 для обновления страницы...")
@@ -412,6 +415,7 @@ def subscribe_to_public(driver, public_url: str, log_signal = None, timeout: int
         str: Статус операции ("already_subscribed", "subscribed", "error")
     """
     try:
+        public_url = vk_com_to_ru(public_url)
         print(f"[*] Переходим к паблику: {public_url}")
         if log_signal:
             log_signal.emit(f"[*] Переходим к паблику: {public_url}")
@@ -970,7 +974,7 @@ def vk_login(login: str, password: str, vkpublic = None, proxy = None, log_signa
 
     driver.get("https://vk.ru/")
 
-    wait = WebDriverWait(driver, 10)  # ждём до 10 секунд
+    wait = WebDriverWait(driver, 20)  # ждём до 10 секунд
     # Ждём появления кнопки "Войти другим способом"
     button = wait.until(EC.element_to_be_clickable(
         (By.XPATH,

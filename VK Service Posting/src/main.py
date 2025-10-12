@@ -26,10 +26,9 @@ import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-logging.getLogger('seleniumwire').setLevel(logging.WARNING)
-logging.getLogger('urllib3').setLevel(logging.WARNING)
-logging.getLogger('WDM').setLevel(logging.WARNING)
-logging.getLogger('selenium.webdriver.remote.remote_connection').setLevel(logging.WARNING)
+for name in logging.Logger.manager.loggerDict.keys():
+    if name.startswith('seleniumwire'):
+        logging.getLogger(name).setLevel(logging.WARNING)
 
 async def scheduler_loop():
     logger.info("✅ Scheduler loop started")
