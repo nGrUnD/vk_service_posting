@@ -221,7 +221,7 @@ class VKAccountBackupService:
             vk_account_db = await self.database.vk_account.add(new_data)
             await self.database.commit()
 
-            task = connect_vk_account_autocurl.delay(vk_account_db.id, login, password, vk_group_url, proxy_http)
+            task = connect_vk_account_autocurl.delay(user_id, vk_account_db.id, login, password, vk_group_url, proxy_http)
 
             await self.database.vk_account.edit(VKAccountUpdate(task_id=task.id), exclude_unset=True,
                                                 id=vk_account_db.id)
