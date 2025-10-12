@@ -11,6 +11,14 @@ class Settings(BaseSettings):
     postgres_db: str
     REDIS_PASSWORD: str
 
+    JWT_SECRET_KEY: str
+    JWT_ALGORITHM: str
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int
+
+    FERNET_SECRET_KEY: str
+
+    API_KEY_2CAPTCHA: str
+
     @property
     def DB_URL(self):
         return f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASS}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
@@ -21,11 +29,6 @@ class Settings(BaseSettings):
         return self.DB_URL.replace('postgresql+asyncpg://', 'postgresql://')
 
 
-    JWT_SECRET_KEY: str
-    JWT_ALGORITHM: str
-    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int
-
-    FERNET_SECRET_KEY: str
 
     model_config = SettingsConfigDict(env_file=".env")
 

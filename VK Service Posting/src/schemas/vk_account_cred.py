@@ -7,3 +7,7 @@ class VKCredsRequestAdd(BaseModel):
 class VKAccountCredRequestAdd(BaseModel):
     login: str
     password: str
+
+class VKAccountCredRequestAutoCurlAdd(BaseModel):
+    creds: str
+    groups: str

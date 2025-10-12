@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, status, Body
 
 from src.api.dependencies import DataBaseDep, UserIdDep
 from src.schemas.vk_account import VKAccountAddCURL, DeleteVKAccountsLoginsRequest
-from src.schemas.vk_account_cred import VKCredsRequestAdd
+from src.schemas.vk_account_cred import VKCredsRequestAdd, VKAccountCredRequestAutoCurlAdd
 from src.services.auth import AuthService
 from src.services.vk_account_backup import VKAccountBackupService
 from src.services.vk_account_main import VKAccountMainService
@@ -216,7 +216,7 @@ async def create_vk_account_curl_main(
     status_code=status.HTTP_201_CREATED,
     summary="Добавить VK аккаунт по cURL(BASH) Запасной"
 )
-async def create_vk_account_curl_main(
+async def create_vk_account_curl_backup(
     user_id: UserIdDep,
     database: DataBaseDep,
     curl_command: VKAccountAddCURL,
@@ -226,6 +226,23 @@ async def create_vk_account_curl_main(
             user_id=user_id,
             curl=curl_command.curl,
         )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+@router.post("/create_accounts_autocurl_backup", status_code=status.HTTP_201_CREATED, summary="Добавить сразу много аккаунтов Запасных по log:pass AutoCURL")
+async def create_vk_accounts_autocurl_backup(
+        user_id: UserIdDep,
+        database: DataBaseDep,
+        request_add: VKAccountCredRequestAutoCurlAdd,
+):
+    vk_creds_str = request_add.creds
+    vk_groups_str = request_add.groups
+    try:
+        detail = await VKAccountBackupService(database).create_vk_accounts_autocurl(user_id, vk_creds_str, vk_groups_str)
+        return {"status": "OK", "detail": detail}
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

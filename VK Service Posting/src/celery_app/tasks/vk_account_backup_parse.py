@@ -31,7 +31,6 @@ def get_vk_account_data_retry(vk_account_id_db: int, proxy: str, retries: int = 
         token = vk_account_database.token
         cookie = vk_account_database.cookies
 
-
         for attempt in range(1, retries + 1):
             try:
                 access_token = get_new_token_request(token, cookie, proxy)
@@ -44,6 +43,7 @@ def get_vk_account_data_retry(vk_account_id_db: int, proxy: str, retries: int = 
                 time.sleep(3)
 
     raise ValueError(f"Не удалось авторизоваться после {retries} попыток")
+
 
 def get_group_id(access_token: str, vk_account_id: int, proxy: str = None):
     session = requests.Session()
@@ -70,12 +70,11 @@ def parse_vk_profile(vk_token, vk_account_id_database: int, proxy: str) -> dict:
         print(e)
         vk_account_data, token = get_vk_account_data_retry(vk_account_id_database, proxy)
 
-
     vk_account_id = vk_account_data["id"]
     vk_count_groups = 0
     vk_link = f"https://vk.com/id{vk_account_id}"
 
-    #vk_group_id = get_group_id(vk_token, vk_account_id, proxy)
+    # vk_group_id = get_group_id(vk_token, vk_account_id, proxy)
 
     vk_account_data = {
         "vk_account_id": vk_account_id,
@@ -88,6 +87,7 @@ def parse_vk_profile(vk_token, vk_account_id_database: int, proxy: str) -> dict:
     }
 
     return vk_account_data
+
 
 def update_db_vk_account(database_manager, vk_account_id_database: int, data: dict, count_groups: int):
     with database_manager as session:
@@ -106,8 +106,10 @@ def update_db_vk_account(database_manager, vk_account_id_database: int, data: di
         account.groups_count = count_groups
         account.parse_status = "success"
         account.vk_group_id = data['vk_group_id']
+        account.account_type = "backup"
 
         session.commit()
+
 
 def _add_or_edit_vk_group_db(session, data: dict, vk_account_id_database: int, user_id: int):
     print(f"group data: {data}")
@@ -147,6 +149,7 @@ def _add_or_edit_vk_group_db(session, data: dict, vk_account_id_database: int, u
     group.vk_group_type = "main"
     group.parse_status = "success"
 
+
 def add_vk_account_group_db(session, vk_account_id_database: int, user_id: int, group_data: dict) -> None:
     print(f"group data: {group_data}")
     vk_group_id = group_data["group_id"]
@@ -154,7 +157,8 @@ def add_vk_account_group_db(session, vk_account_id_database: int, user_id: int, 
     avatar_url = group_data["avatar_url"]
     name = group_data["name"]
 
-    stmt = select(VKGroupOrm).where(VKGroupOrm.vk_group_id == vk_group_id, VKGroupOrm.parse_status == "success", VKGroupOrm.vk_group_type == "main")
+    stmt = select(VKGroupOrm).where(VKGroupOrm.vk_group_id == vk_group_id, VKGroupOrm.parse_status == "success",
+                                    VKGroupOrm.vk_group_type == "main")
     result = session.execute(stmt)
     vk_group_db = result.scalars().one_or_none()
 
@@ -162,17 +166,19 @@ def add_vk_account_group_db(session, vk_account_id_database: int, user_id: int, 
         return
 
     new_vk_account_group = VKAccountGroupOrm(
-        vk_account_id = vk_account_id_database,
-        vk_group_id = vk_group_db.id,
-        role = "backup"
+        vk_account_id=vk_account_id_database,
+        vk_group_id=vk_group_db.id,
+        role="backup"
     )
     session.add(new_vk_account_group)
+
 
 def update_vk_groups_database(database_manager, vk_account_id_database: int, user_id: int, groups_data: dict):
     with database_manager as session:
         for group_data in groups_data:
             add_vk_account_group_db(session, vk_account_id_database, user_id, group_data)
         session.commit()
+
 
 def mark_vk_account_failure_by_task_id(database_manager, vk_account_id: int):
     with database_manager as session:
@@ -185,6 +191,7 @@ def mark_vk_account_failure_by_task_id(database_manager, vk_account_id: int):
         account.parse_status = "failure"
         print(f"vk_account: {vk_account_id}")
         session.commit()
+
 
 def get_vk_token_retry(database_manager, vk_account_id: int, proxy: str = None, retries: int = 10):
     with database_manager as session:

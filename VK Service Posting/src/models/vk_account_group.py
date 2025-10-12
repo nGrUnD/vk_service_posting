@@ -13,7 +13,7 @@ class VKAccountGroupOrm(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     vk_account_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("vk_account.id", ondelete="CASCADE"), nullable=False)
     vk_group_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("vk_group.id", ondelete="CASCADE"), nullable=False)
-    role: Mapped[str] = mapped_column(String, nullable=False)  # 'main', 'poster', 'backup'
+    role: Mapped[str] = mapped_column(String, nullable=False)  # 'main', 'poster', 'backup', 'connect'
 
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True),

@@ -11,6 +11,7 @@ from src.services.auth import AuthService
 from src.schemas.vk_account import VKAccountAdd, VKAccountUpdate
 from src.celery_app.tasks.vk_account_backup import get_vk_account_cred
 from src.utils.database_manager import DataBaseManager
+from src.celery_app.tasks.vk_account_autocurl import connect_vk_account_autocurl
 
 class VKAccountLogPass:
     def __init__(self, login: str, password: str):
@@ -36,6 +37,13 @@ class VKAccountLogPass:
 class VKAccountBackupService:
     def __init__(self, database: DataBaseManager):
         self.database = database
+
+    @staticmethod
+    def parse_vk_groups(vk_groups_str: str) -> List[str]:
+        vk_groups = []
+        for line in vk_groups_str.strip().splitlines():
+            vk_groups.append(line)
+        return vk_groups
 
     async def create_accounts(self, user_id: int, vk_creds: str):
         vk_accounts_log_pass = VKAccountLogPass.parse_creds(vk_creds)
@@ -121,7 +129,6 @@ class VKAccountBackupService:
 
 
     async def create_account_curl(self, user_id: int, curl: str):
-
         encrypted_curl = AuthService().encrypt_data(curl)
 
         # Прокси
@@ -169,6 +176,60 @@ class VKAccountBackupService:
 
         return vk_account
 
+    async def create_vk_accounts_autocurl(self, user_id: int, vk_creds_str: str, vk_groups_str: str):
+        vk_accounts_log_pass = VKAccountLogPass.parse_creds(vk_creds_str)
+        vk_groups = self.parse_vk_groups(vk_groups_str)
+        # Прокси
+        proxies = await self.database.proxy.get_all()
+
+        for account, group in zip(vk_accounts_log_pass, vk_groups):
+            login = account.login
+            password = account.password
+            encrypted_password = AuthService().encrypt_data(password)
+            vk_group_url = group.strip()
+
+            # ваша логика
+            print(login, password, vk_group_url)
+
+            index_proxy = 0
+            if proxies:
+                index_proxy = random.randint(0, len(proxies) - 1)
+                proxy = proxies[index_proxy % len(proxies)]
+                proxy_http = proxy.http
+            else:
+                proxy_http = None
+
+            new_data = VKAccountAdd(
+                user_id=user_id,
+                vk_account_id=0,
+                token="",
+                encrypted_curl="",
+                login=login,
+                encrypted_password="",
+                account_type="connect",
+                vk_account_url="",
+                avatar_url="",
+                name="pending",
+                second_name="pending",
+                groups_count=0,
+                flood_control=False,
+                parse_status="pending",
+                task_id="pending",
+                proxy_id=proxy.id,
+                cookies="",
+            )
+            vk_account_db = await self.database.vk_account.add(new_data)
+            await self.database.commit()
+
+            task = connect_vk_account_autocurl.delay(vk_account_db.id, login, password, vk_group_url, proxy_http)
+
+            await self.database.vk_account.edit(VKAccountUpdate(task_id=task.id), exclude_unset=True,
+                                                id=vk_account_db.id)
+
+            await self.database.commit()
+
+
+        return "OK"
 
     async def delete_accounts(self, logins: list[str]):
         vk_accounts = await self.database.vk_account.get_all_where(VKAccountOrm.login.in_(logins))

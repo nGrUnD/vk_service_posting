@@ -20,6 +20,7 @@ import AddCurlAccountPage from "./pages/AddCurlAccountPage.jsx";
 
 import 'antd/dist/reset.css';
 import './index.css';
+import AddAutoCurlAccountPage from "./pages/AddAutoCurlAccountPage.jsx";
 
 const container = document.getElementById('root');
 const root = createRoot(container);
@@ -47,6 +48,7 @@ root.render(
                         <Route path="main-account" element={<DashboardAccount />} />
                         <Route path="connect-account" element={<ConnectAccountPage />} />
                         <Route path="connect-backup-account" element={<ConnectBackupAccountPage />} />
+                        <Route path="add-autocurl_account" element={<AddAutoCurlAccountPage />} />
                         <Route path="add-curl-account" element={<AddCurlAccountPage />} />
                         <Route path="connect-source-group" element={<SourceGroupPage />} />
                         <Route path="category-settings" element={<CatergorySettingsPage />} />

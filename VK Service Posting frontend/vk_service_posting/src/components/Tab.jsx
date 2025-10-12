@@ -29,6 +29,10 @@ export default function MainTab() {
             key: 'connect-backup-account',
         },
         {
+            label: 'Подключить Auto cURL аккаунты',
+            key: 'add-autocurl_account',
+        },
+        {
             label: 'Подключить cURL аккаунт',
             key: 'add-curl-account',
         },

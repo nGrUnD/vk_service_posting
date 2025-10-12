@@ -101,6 +101,7 @@ export default function AccountTable() {
             key: "account_type",
             filters: [
                 { text: "main", value: "main" },
+                { text: "connect", value: "connect" },
                 { text: "backup", value: "backup" },
                 { text: "posting", value: "posting" },
                 { text: "blocked", value: "blocked" },
