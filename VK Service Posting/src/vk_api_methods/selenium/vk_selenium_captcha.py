@@ -7,7 +7,8 @@ import base64
 import gzip
 import zlib
 from time import sleep
-
+import tempfile
+import shutil
 import zstandard as zstd
 
 import requests
@@ -942,6 +943,16 @@ def vk_login(login: str, password: str, vkpublic = None, proxy = None, log_signa
     options.add_argument("--start-maximized")
     options.add_argument("--headless=new")
 
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_argument('--disable-blink-features=AutomationControlled')
+    options.add_argument('--disable-infobars')
+
+    tmpdir = tempfile.mkdtemp(prefix="chrome-profile-")
+    options.add_argument(f"--user-data-dir={tmpdir}")
+    # обязательно изолируйте и кэш:
+    options.add_argument(f"--disk-cache-dir={tmpdir}/cache")
+
     seleniumwire_options = {
         'proxy': {
             'http': proxy,
@@ -994,6 +1005,7 @@ def vk_login(login: str, password: str, vkpublic = None, proxy = None, log_signa
 
     if has_too_many_attempts_alert(driver):
         driver.quit()
+        shutil.rmtree(tmpdir, ignore_errors=True)
         return False
 
     solve_vk_slider_captcha(driver, log_signal)
@@ -1036,6 +1048,7 @@ def vk_login(login: str, password: str, vkpublic = None, proxy = None, log_signa
 
     if has_too_many_attempts_alert(driver):
         driver.quit()
+        shutil.rmtree(tmpdir, ignore_errors=True)
         return False
 
     solve_vk_slider_captcha(driver, log_signal)
@@ -1052,6 +1065,7 @@ def vk_login(login: str, password: str, vkpublic = None, proxy = None, log_signa
 
     print("[*] Авторизация завершена.")
     driver.quit()
+    shutil.rmtree(tmpdir, ignore_errors=True)
     return curl, sub
 
 #if __name__ == "__main__":
