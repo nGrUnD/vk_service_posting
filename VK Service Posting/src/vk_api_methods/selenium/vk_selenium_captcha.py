@@ -949,9 +949,9 @@ def vk_login(login: str, password: str, vkpublic = None, proxy = None, log_signa
 
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
-    options.add_argument('--disable-blink-features=AutomationControlled')
-    options.add_argument('--disable-infobars')
-    options.add_argument(f'--user-agent={get_random_user_agent()}')
+    #options.add_argument('--disable-blink-features=AutomationControlled')
+    #options.add_argument('--disable-infobars')
+    #options.add_argument(f'--user-agent={get_random_user_agent()}')
 
     tmpdir = tempfile.mkdtemp(prefix="chrome-profile-")
     options.add_argument(f"--user-data-dir={tmpdir}")
