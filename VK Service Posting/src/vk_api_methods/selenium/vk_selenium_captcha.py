@@ -442,20 +442,37 @@ def subscribe_to_public(driver, public_url: str, log_signal = None, timeout: int
 
         # Ищем кнопку "Подписаться"
         subscribe_locators = [
-            # По ID
-            #(By.ID, "join_button"),
-            # По классу и тексту
+            # По классу и тексту (RU/EN + казахский вариант)
             (By.XPATH,
              "//button[contains(@class,'FlatButton--primary') and .//span["
              "  contains(normalize-space(.), 'Подписаться')"
+             "  or contains(normalize-space(.), 'Вступить')"
+             "  or contains(normalize-space(.), 'Подать заявку')"
              "  or contains(normalize-space(.), 'Follow')"
              "  or contains(normalize-space(.), 'Join')"
+             "  or contains(normalize-space(.), 'Request')"
+             "  or contains(normalize-space(.), 'Subscribe')"
+             "  or contains(normalize-space(.), 'Жазылу')"
              "]]"),
+            # Когда текст на самом button, а не только в span
+            (By.XPATH,
+             "//button[contains(@class,'FlatButton--primary') and ("
+             "  contains(normalize-space(.), 'Подписаться')"
+             "  or contains(normalize-space(.), 'Вступить')"
+             "  or contains(normalize-space(.), 'Подать заявку')"
+             "  or contains(normalize-space(.), 'Follow')"
+             "  or contains(normalize-space(.), 'Join')"
+             "  or contains(normalize-space(.), 'Request')"
+             "  or contains(normalize-space(.), 'Subscribe')"
+             "  or contains(normalize-space(.), 'Жазылу')"
+             ")]"),
             # По полному XPath (как запасной вариант)
             (By.XPATH,
              "/html/body/div[4]/div/div/div[2]/div[2]/div[3]/div/div/div[1]/div[2]/div[3]/div/aside/div/button"),
-            # Более гибкий поиск по тексту
-            (By.XPATH, "//button[.//span[text()='Подписаться']]"),
+            (By.XPATH,
+             "/html/body/div[4]/div/div/div[2]/div[2]/div[3]/div/div/div[1]/div[2]/div[3]/div/aside/div/button"),
+            # Более гибкий поиск по тексту внутри span (RU/EN)
+            (By.XPATH, "//button[.//span[text()='Подписаться'] or .//span[text()='Follow'] or .//span[text()='Join']]"),
         ]
 
         subscribe_button = None
