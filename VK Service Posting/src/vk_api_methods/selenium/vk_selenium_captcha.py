@@ -446,7 +446,11 @@ def subscribe_to_public(driver, public_url: str, log_signal = None, timeout: int
             #(By.ID, "join_button"),
             # По классу и тексту
             (By.XPATH,
-             "//button[contains(@class, 'FlatButton--primary') and .//span[contains(text(), 'Подписаться')]]"),
+             "//button[contains(@class,'FlatButton--primary') and .//span["
+             "  contains(normalize-space(.), 'Подписаться')"
+             "  or contains(normalize-space(.), 'Follow')"
+             "  or contains(normalize-space(.), 'Join')"
+             "]]"),
             # По полному XPath (как запасной вариант)
             (By.XPATH,
              "/html/body/div[4]/div/div/div[2]/div[2]/div[3]/div/div/div[1]/div[2]/div[3]/div/aside/div/button"),
