@@ -21,6 +21,7 @@ from selenium.webdriver import ActionChains
 from selenium.webdriver.support import expected_conditions as EC
 from seleniumwire.utils import decode
 
+from .vk.vk_curl_build import get_vk_curl_v2
 from .vk.vk_max import check_for_max_window
 from .vk.vk_sms import check_for_sms_window
 from src.config import settings
@@ -515,7 +516,7 @@ def find_save_curl(driver, login: str, password: str, log_signal = None):
     print("[*] Ищем curl (Bash) на странице...")
     if log_signal:
         log_signal.emit("[*] Ищем curl (Bash) на странице...")
-    curl_command = get_vk_curl(driver)
+    curl_command = get_vk_curl_v2(driver)
     if curl_command is None:
         if log_signal:
             log_signal.emit("[-] cURL не найден")

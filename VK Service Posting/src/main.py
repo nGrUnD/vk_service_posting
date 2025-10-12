@@ -26,6 +26,7 @@ import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+logging.getLogger('seleniumwire').setLevel(logging.WARNING)
 
 async def scheduler_loop():
     logger.info("✅ Scheduler loop started")
