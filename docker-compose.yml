@@ -25,7 +25,7 @@ services:
     environment:
       - PYTHONPATH=/app/src
 
-  celery:
+  celery-default:
     build: "./VK Service Posting"
     env_file: "./VK Service Posting/.env"
     depends_on:
@@ -37,7 +37,32 @@ services:
     working_dir: /app
     environment:
       - PYTHONPATH=/app/src
-    command: celery -A src.celery_app worker --loglevel=info
+    command: >
+      celery -A src.celery_app worker
+      -Q default
+      --loglevel=info
+      --concurrency=4
+    restart: unless-stopped
+
+  celery-heavy:
+    build: "./VK Service Posting"
+    env_file: "./VK Service Posting/.env"
+    depends_on:
+      - backend
+      - redis
+      - postgres
+    volumes:
+      - "./VK Service Posting:/app"
+    working_dir: /app
+    environment:
+      - PYTHONPATH=/app/src
+    command: >
+      celery -A src.celery_app worker
+      -Q heavy
+      --loglevel=info
+      --concurrency=1
+      --prefetch-multiplier=1
+    restart: unless-stopped
 
   frontend:
     build: "./VK Service Posting frontend"
