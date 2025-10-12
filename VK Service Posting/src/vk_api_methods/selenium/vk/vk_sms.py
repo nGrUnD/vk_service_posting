@@ -113,7 +113,7 @@ def handle_sms_confirmation_window(driver, log_signal = None, wait_time=10):
     try:
         # Ждём появления заголовка "Введите код из SMS"
         sms_title = WebDriverWait(driver, wait_time).until(
-            EC.presence_of_element_located((By.XPATH, "//h1//span[contains(text(), 'Введите код из')]"))
+            EC.presence_of_element_located((By.XPATH, "//h1//span[contains(., 'Введите код из') or contains(., 'Enter SMS code')]"))
         )
         print("[*] SMS Обнаружено окно ввода кода из SMS")
 
@@ -158,7 +158,7 @@ def check_for_sms_window(driver, log_signal = None):
         print("[*] Проверяем SMS")
         if log_signal:
             log_signal.emit("[*] Проверяем SMS")
-        driver.find_element(By.XPATH, "//h1//span[contains(text(), 'Введите код из')]")
+        driver.find_element(By.XPATH, "//h1//span[contains(., 'Введите код из') or contains(., 'Enter SMS code')]")
         handle_sms_confirmation_window(driver)
         return True
     except NoSuchElementException:

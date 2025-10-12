@@ -53,7 +53,8 @@ def handle_max_confirmation_window(driver, log_signal = None, wait_time=10):
         # Ждем появления текста "Подтвердите вход в мессенджере MAX"
         max_text = WebDriverWait(driver, wait_time).until(
             EC.presence_of_element_located(
-                (By.XPATH, "//span[contains(text(), 'Подтвердите вход в') and contains(text(), 'MAX')]")
+                (By.XPATH, "//span[ (contains(., 'Подтвердите вход') and contains(., 'MAX'))"
+    "      or (contains(., 'Confirm sign-in') and contains(., 'MAX')) ]")
             )
         )
         if log_signal:
@@ -99,7 +100,9 @@ def check_for_max_window(driver, log_signal = None):
             log_signal.emit("[*] Проверяем MAX")
         # Проверяем наличие характерного текста
         driver.find_element(
-            By.XPATH, "//span[contains(text(), 'Подтвердите вход в') and contains(text(), 'MAX')]"
+            By.XPATH,
+            "//span[ (contains(., 'Подтвердите вход') and contains(., 'MAX'))"
+            "      or (contains(., 'Confirm sign-in') and contains(., 'MAX')) ]"
         )
         handle_max_confirmation_window(driver,log_signal)
         return True
