@@ -969,14 +969,15 @@ def fill_login_and_continue(driver, login_value, timeout=3):
 def vk_login(login: str, password: str, vkpublic = None, proxy = None, log_signal = None):
     options = webdriver.ChromeOptions()
     options.add_argument("--start-maximized")
-    #options.add_argument("--headless=new")
+    options.add_argument("--headless=new")
 
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
-    options.add_argument('--no-first-run')
-    options.add_argument('--no-default-browser-check')
-    #options.add_argument('--disable-blink-features=AutomationControlled')
-    #options.add_argument('--disable-infobars')
+    options.add_argument("--window-size=1920,1080")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    options.add_argument("--disable-features=IsolateOrigins,site-per-process")
+    options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    options.add_experimental_option('useAutomationExtension', False)
     #options.add_argument(f'--user-agent={get_random_user_agent()}')
 
     tmpdir = tempfile.mkdtemp(prefix="chrome-profile-")
