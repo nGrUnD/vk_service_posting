@@ -973,6 +973,8 @@ def vk_login(login: str, password: str, vkpublic = None, proxy = None, log_signa
 
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
+    options.add_argument('--no-first-run')
+    options.add_argument('--no-default-browser-check')
     #options.add_argument('--disable-blink-features=AutomationControlled')
     #options.add_argument('--disable-infobars')
     #options.add_argument(f'--user-agent={get_random_user_agent()}')
