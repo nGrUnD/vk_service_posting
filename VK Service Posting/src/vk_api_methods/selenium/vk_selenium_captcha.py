@@ -969,7 +969,7 @@ def fill_login_and_continue(driver, login_value, timeout=3):
 def vk_login(login: str, password: str, vkpublic = None, proxy = None, log_signal = None):
     options = webdriver.ChromeOptions()
     options.add_argument("--start-maximized")
-    options.add_argument("--headless=new")
+    #options.add_argument("--headless=new")
 
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
