@@ -396,6 +396,7 @@ def skip_phone_validation_if_exists(driver, log_signal = None, timeout=3):
         return True
     except TimeoutException:
         # Попапа не было → просто продолжаем
+        print("[!] Поп апа не было")
         return False
     except Exception as e:
         print(f"[!] Ошибка при попытке пропустить ввод номера: {e}")
@@ -489,8 +490,6 @@ def subscribe_to_public(driver, public_url: str, log_signal = None, timeout: int
             print(f"[!] Не удалось скипнуть валидацию по номеру телефона")
             if log_signal:
                 log_signal.emit(f"[!] Не удалось скипнуть валидацию по номеру телефона")
-
-            return False
 
         time.sleep(2)  # Ждём обработки подписки
 
