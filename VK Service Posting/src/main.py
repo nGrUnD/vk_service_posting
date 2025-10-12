@@ -24,7 +24,7 @@ import src.models  # 👈 это активирует импорты из models
 from src.services.posting_service import PostingService
 import logging
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
 
 async def scheduler_loop():
