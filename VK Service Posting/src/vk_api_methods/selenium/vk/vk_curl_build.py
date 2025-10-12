@@ -106,7 +106,7 @@ def _request_to_curl(req) -> str:
 
     return " ".join(parts)
 
-def get_vk_curl_v2(driver, timeout: int = 300) -> str | None:
+def get_vk_curl_v2(driver, timeout: int = 300, reloadtime: int = 10) -> str | None:
     """
     Ждём запросы, в которых есть access_token.
     Приоритет:
@@ -125,6 +125,7 @@ def get_vk_curl_v2(driver, timeout: int = 300) -> str | None:
     end = time.time() + timeout
     last_seen_without_token = None
 
+    timer_reload = 0
     while time.time() < end:
         # Обновляем список запросов на каждом шаге
         for req in driver.requests:
@@ -151,6 +152,10 @@ def get_vk_curl_v2(driver, timeout: int = 300) -> str | None:
                 return _request_to_curl(req)
 
         time.sleep(0.3)
+        timer_reload += 0.3
+        if timer_reload > reloadtime:
+            timer_reload = 0
+            driver.refresh()
 
     # Если ничего не нашли — вернём последний web_token без токена (для отладки),
     # чтобы вы могли посмотреть сформированный curl и понять, что ещё перехватить.
