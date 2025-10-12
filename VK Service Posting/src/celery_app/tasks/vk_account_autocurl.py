@@ -20,12 +20,12 @@ def connect_vk_account_autocurl(user_id: int, vk_account_id: int, login: str, pa
 
     try:
         curl, vk_group_sub = vk_login(login, password, vk_group_url, proxy_http)
+        update_db_vk_account_end(database_manager, vk_account_id, curl, vk_group_sub)
     except Exception as e:
         update_db_vk_account_error(database_manager, vk_account_id, str(e))
         raise e
 
     # End Database Update (Curl, token + cookie)
-    update_db_vk_account_end(database_manager, vk_account_id, curl, vk_group_sub)
 
     # New Task Parse VK Account + Database Update task id
     task_parse = parse_vk_profile_backup_sync.delay(vk_account_id, proxy_http, user_id)
@@ -59,6 +59,8 @@ def update_db_vk_account_error(database_manager, vk_account_id: int, error: str)
 
 
 def update_db_vk_account_end(database_manager, vk_account_id: int, curl: str, vk_group_sub: bool):
+    print(f"curl: {curl}")
+    print(f"vk_group_sub: {vk_group_sub}")
     with database_manager as session:
         stmt = select(VKAccountOrm).where(VKAccountOrm.id == vk_account_id)
         result = session.execute(stmt)

@@ -24,6 +24,8 @@ from seleniumwire.utils import decode
 from .vk.vk_max import check_for_max_window
 from .vk.vk_sms import check_for_sms_window
 from src.config import settings
+from ...utils.rand_user_agent import get_random_user_agent
+
 
 def read_vk_public_links(file_path="public_links.txt"):
     """
@@ -520,6 +522,7 @@ def find_save_curl(driver, login: str, password: str, log_signal = None):
         print("[-] cURL не найден")
         return None
 
+    print("[*] cURL найден!")
     return curl_command
 
 def _read_left_pct(thumb):
@@ -947,6 +950,7 @@ def vk_login(login: str, password: str, vkpublic = None, proxy = None, log_signa
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--disable-blink-features=AutomationControlled')
     options.add_argument('--disable-infobars')
+    options.add_argument(f'--user-agent={get_random_user_agent()}')
 
     tmpdir = tempfile.mkdtemp(prefix="chrome-profile-")
     options.add_argument(f"--user-data-dir={tmpdir}")
@@ -1006,7 +1010,7 @@ def vk_login(login: str, password: str, vkpublic = None, proxy = None, log_signa
     if has_too_many_attempts_alert(driver):
         driver.quit()
         shutil.rmtree(tmpdir, ignore_errors=True)
-        return False
+        return None, False
 
     solve_vk_slider_captcha(driver, log_signal)
     solve_simple_captcha(driver, log_signal)
@@ -1049,7 +1053,7 @@ def vk_login(login: str, password: str, vkpublic = None, proxy = None, log_signa
     if has_too_many_attempts_alert(driver):
         driver.quit()
         shutil.rmtree(tmpdir, ignore_errors=True)
-        return False
+        return None, False
 
     solve_vk_slider_captcha(driver, log_signal)
     solve_simple_captcha(driver, log_signal)
