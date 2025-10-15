@@ -18,6 +18,7 @@ from src.api.clip_list import router as router_clip_list
 from src.api.workerpost import router as router_workerpost
 from src.api.proxy import router as router_proxy
 from src.api.tools import router as router_tools
+from src.api.vk_account_group import router as router_vk_account_group
 
 import src.models  # 👈 это активирует импорты из models/__init__.py
 
@@ -72,6 +73,7 @@ app.include_router(router_clip_list)
 app.include_router(router_workerpost)
 app.include_router(router_proxy)
 app.include_router(router_tools)
+app.include_router(router_vk_account_group)
 
 @app.on_event("startup")
 async def start_scheduler():

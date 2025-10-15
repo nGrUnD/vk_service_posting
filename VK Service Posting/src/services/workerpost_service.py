@@ -49,7 +49,7 @@ class WorkerPostService:
 
             vk_group_database = await self.database.vk_group.get_one_or_none(vk_group_id=vk_group_id)
             if not vk_group_database:
-                print(f"vk group id нет у main account: {vk_group_id}")
+                logging.info(f"vk group id нет у main account: {vk_group_id}")
                 failed_group_ids.append(vk_group_id)
                 #await self.database.vk_account_cred.delete(id=current_cred.id)
                 #await self.database.commit()
@@ -68,7 +68,7 @@ class WorkerPostService:
             ]
 
             if not available_accounts:
-                print(f"Нет доступных backup аккаунтов для группы: {vk_group_id}")
+                logging.info(f"Нет доступных backup аккаунтов для группы: {vk_group_id}")
                 failed_group_ids.append(vk_group_id)
                 continue
 

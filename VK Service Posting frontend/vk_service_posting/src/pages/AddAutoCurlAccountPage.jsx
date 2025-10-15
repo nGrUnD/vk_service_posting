@@ -10,6 +10,8 @@ import {
     message,
 } from 'antd';
 import api from '../api/axios';
+import AccountTable from "../components/AccountTableComponent.jsx";
+import VkAccountGroupTable from "../components/VKAccountGroupTableComponent.jsx";
 
 const {Content} = Layout;
 const {Title} = Typography;
@@ -121,7 +123,9 @@ export default function AddAutoCurlAccountPage() {
                             </div>
                         </Form>
                     </Content>
+                    <VkAccountGroupTable />
                 </Layout>
+
             </div>
         </div>
     );
