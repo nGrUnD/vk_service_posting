@@ -1,14 +1,9 @@
 import React, {useState, useEffect} from 'react';
 import {
-    Card,
-    Typography,
-    Table,
-    Space,
-    Button,
-    Input, Modal, Popconfirm, Switch, Select, message,
+    Card, Typography, Table, Space, Button, Input, Modal, Popconfirm, Switch, Select, message,
 } from 'antd';
 import api from '../api/axios';
-import {ReloadOutlined, SearchOutlined, SettingOutlined} from '@ant-design/icons';
+import {ReloadOutlined, SettingOutlined} from '@ant-design/icons';
 import dayjs from "dayjs";
 import LastPostedDate from "../components/ClipsLastDate.jsx";
 import AccountStatus from "../components/VKAccountStatus.jsx";
@@ -29,7 +24,6 @@ export default function WorkflowStatusPage() {
     const [categories, setCategories] = useState([]);
     const [editingCategoryFull, setEditingCategoryFull] = useState(null);
 
-
     const fetchData = async () => {
         setLoading(true);
         try {
@@ -37,15 +31,14 @@ export default function WorkflowStatusPage() {
             if (response.status !== 200) {
                 throw new Error('Ошибка загрузки данных');
             }
-
-            // Используем response.data вместо response.json()
             const json = response.data;
 
             const tableData = json.map((item) => {
                 const { workpost, vk_group, vk_account, category, clip_list } = item;
 
                 return {
-                    key: workpost.id,
+                    key: workpost.id,          // для React таблицы
+                    id: workpost.id,           // ← явное поле ID для сортировки и отображения
                     groupName: vk_group.name,
                     groupUrl: vk_group.vk_group_url,
                     accountName: `${vk_account.name} ${vk_account.second_name || ''}`.trim(),
@@ -59,7 +52,6 @@ export default function WorkflowStatusPage() {
                         repost: category.repost_enabled,
                         inWork: category.is_active,
                     },
-                    // 👇 сохраняем "как есть"
                     floodControl: vk_account.flood_control,
                     floodControlTime: vk_account.flood_control_time,
                 };
@@ -106,9 +98,7 @@ export default function WorkflowStatusPage() {
     };
 
     const openModal = (categoryKey) => {
-        // categoryKey — id категории, или весь объект категории, зависит от вызова
         if (categoryKey) {
-            // Ищем полный объект категории по id из списка categories
             const fullCategory = categories.find(c => c.id === categoryKey.id || c.id === categoryKey);
             setEditingCategoryFull(fullCategory);
             if (fullCategory) {
@@ -147,17 +137,16 @@ export default function WorkflowStatusPage() {
         try {
             await api.delete(`/users/{user_id}/workerpost/${id}`);
             messageApi.success('Рабочий процесс удалён');
-            fetchData(); // Обновить таблицу
+            fetchData();
         } catch (error) {
             console.error(error);
             messageApi.error('Ошибка при удалении рабочего процесса');
         }
     };
 
-
     useEffect(() => {
         loadCategories();
-        loadClipLists(); // ← Загрузим списки при монтировании
+        loadClipLists();
     }, []);
 
     useEffect(() => {
@@ -183,6 +172,15 @@ export default function WorkflowStatusPage() {
         : data;
 
     const columns = [
+        // Новая колонка ID
+        {
+            title: 'ID',
+            dataIndex: 'id',
+            key: 'id',
+            sorter: (a, b) => Number(a.id) - Number(b.id), // числовая сортировка
+            defaultSortOrder: 'descend',                    // опционально: стартовать по убыванию
+            width: 100,
+        },
         {
             title: 'ВК группа',
             dataIndex: 'groupName',
@@ -228,7 +226,6 @@ export default function WorkflowStatusPage() {
             key: 'repost',
             render: (val) => (val ? 'Да' : 'Нет'),
         },
-        // 👇 Новая колонка
         {
             title: 'Постинг клипы',
             key: 'postedClips',
@@ -294,7 +291,6 @@ export default function WorkflowStatusPage() {
     return (
         <div>
             {contextHolder}
-
             <div className="min-h-screen bg-gray-50 p-6">
                 <Card className="max-w-full">
                     <div className="flex flex-col gap-6">
@@ -399,7 +395,6 @@ export default function WorkflowStatusPage() {
                                         value: list.id
                                     }))}
                                 />
-
                                 <div className="flex items-center justify-between">
                                     <span>В расписании / В работе:</span>
                                     <Switch
@@ -409,7 +404,6 @@ export default function WorkflowStatusPage() {
                                 </div>
                             </div>
                         </Modal>
-
                     </div>
                 </Card>
             </div>
