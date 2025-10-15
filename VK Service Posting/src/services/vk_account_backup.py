@@ -1,3 +1,4 @@
+import logging
 import re
 from typing import List
 import random
@@ -188,8 +189,13 @@ class VKAccountBackupService:
             encrypted_password = AuthService().encrypt_data(password)
             vk_group_url = group.strip()
 
+            vk_account_db = await self.database.vk_account.get_one_or_none(login=login)
+            if vk_account_db:
+                logging.info(f"{login} уже есть в базе данных")
+                continue
+
             # ваша логика
-            print(login, password, vk_group_url)
+            logging.info(f"{login, password, vk_group_url}")
 
             index_proxy = 0
             if proxies:
