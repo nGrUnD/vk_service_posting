@@ -46,3 +46,5 @@ class VKAccountGroupService:
                 "account": acc_map.get(ag.vk_account_id),
                 "group": grp_map.get(ag.vk_group_id),
             })
+
+        return result
