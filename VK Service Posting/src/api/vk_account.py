@@ -250,7 +250,7 @@ async def create_vk_accounts_autocurl_backup(
         )
 
 
-@router.post("/{account_id}/retry", status_code=status.HTTP_204_NO_CONTENT, summary="Обновить данные аккаунта")
+@router.post("/retry", status_code=status.HTTP_204_NO_CONTENT, summary="Обновить данные аккаунта")
 async def retry_vk_account(
     user_id: UserIdDep,
     database: DataBaseDep,

@@ -175,7 +175,7 @@ export default function DashboardAccount() {
 
         setLoadingRetry(true);
         try {
-            await api.post(`/users/${user.id}/vk_accounts/${newAccount.id}/retry`);
+            await api.post(`/users/${user.id}/vk_accounts/retry`);
             messageApi.info('Повторная обработка запущена...');
             setNewAccount(prev => ({ ...prev, parse_status: 'pending' }));
             setTaskUpdated(prev => prev + 1);
