@@ -253,14 +253,13 @@ async def create_vk_accounts_autocurl_backup(
 @router.post("/{account_id}/retry", status_code=status.HTTP_204_NO_CONTENT, summary="Обновить данные аккаунта")
 async def retry_vk_account(
     user_id: UserIdDep,
-    account_id: int,
     database: DataBaseDep,
     current_user_id: UserIdDep,
 ):
     if current_user_id != user_id:
         raise HTTPException(status_code=403, detail="Нет доступа")
 
-    return await VKAccountMainService(database).retry_account(user_id=user_id, vk_account_id=account_id)
+    return await VKAccountMainService(database).retry_account(user_id=user_id)
 
 @router.delete("/delete_list_logins", status_code=status.HTTP_204_NO_CONTENT, summary="Удалить VK аккаунт по list логинам")
 async def delete_vk_accounts_list_logins(

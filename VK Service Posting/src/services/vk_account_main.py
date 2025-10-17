@@ -86,16 +86,14 @@ class VKAccountMainService:
             'second': {'id': res2.id if res2 else None, 'status': res2.status if res2 else None}
         }
 
-    async def retry_account(self, user_id: int, vk_account_id: int):
-        # 1. Найти аккаунт
-        vk_account = await self.database.vk_account.get_one_or_none(id=vk_account_id)
+    async def retry_account(self, user_id: int):
+        vk_account = await self.database.vk_account.get_one_or_none(account_type="main")
         if not vk_account:
             raise HTTPException(
                 status_code=404,
-                detail=f"Аккаунт не найден с id {vk_account_id}"
+                detail=f"Аккаунт не найден main"
             )
 
-        # 2. Проверить владельца
         if vk_account.user_id != user_id:
             raise HTTPException(
                 status_code=403,

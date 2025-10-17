@@ -204,11 +204,11 @@ export default function DashboardAccount() {
     const renderStatusTag = () => {
         const status = newAccount?.parse_status;
 
-        if (!status || !statusMap[status]) {
-            return <Tag color="default">Неизвестно</Tag>;
-        }
-
-        const { color, icon, label } = statusMap[status];
+        const { color, icon, label } = statusMap[status] || {
+            color: 'default',
+            icon: '⚪',
+            label: 'Неизвестно',
+        };
 
         return (
             <div className="flex flex-col gap-2">
@@ -217,18 +217,18 @@ export default function DashboardAccount() {
                         {icon} {label}
                     </Tag>
 
-                    {(status === 'failure' || status === 'success') && (
-                        <Button
-                            type="primary"
-                            icon={<ReloadOutlined />}   // 🔄 иконка обновления
-                            loading={loadingRetry}
-                            onClick={handleRetry}
-                            size="small"
-                            className="bg-blue-500 border-none hover:bg-blue-600"
-                        >
-                            Обновить
-                        </Button>
-                    )}
+                    <button
+                        onClick={handleRetry}
+                        disabled={loadingRetry}
+                        className={`px-3 py-1 text-sm rounded flex items-center gap-1 transition ${
+                            loadingRetry
+                                ? 'bg-blue-400 cursor-not-allowed text-white'
+                                : 'bg-blue-500 hover:bg-blue-600 text-white'
+                        }`}
+                    >
+                        <ReloadOutlined spin={loadingRetry} />
+                        {loadingRetry ? 'Обновление...' : 'Обновить'}
+                    </button>
                 </div>
 
                 {status === 'pending' && (
