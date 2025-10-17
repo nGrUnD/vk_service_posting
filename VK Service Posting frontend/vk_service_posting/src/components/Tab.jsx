@@ -24,10 +24,12 @@ export default function MainTab() {
             key: 'connect-account',
             //disabled: true,
         },
+        /*
         {
             label: 'Подключить запасные аккаунты',
             key: 'connect-backup-account',
         },
+        */
         {
             label: 'Подключить Auto cURL аккаунты',
             key: 'add-autocurl_account',

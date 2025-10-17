@@ -12,3 +12,4 @@ from src.celery_app.tasks.workerpost import *
 from src.celery_app.tasks.posting import *
 from src.celery_app.tasks.vk_account_backup import *
 from src.celery_app.tasks.vk_account_autocurl import *
+from src.celery_app.tasks.vk_account_main_update_groups import *

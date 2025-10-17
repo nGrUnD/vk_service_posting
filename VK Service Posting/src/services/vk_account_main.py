@@ -1,11 +1,12 @@
 import random
+import re
 
 from celery.result import AsyncResult
 from celery import chain
 from fastapi import HTTPException
 
 from src.celery_app import app as celery_app
-from src.celery_app.tasks import parse_vk_group_sync
+from src.celery_app.tasks import parse_vk_group_sync, vk_account_main_update_groups
 from src.celery_app.tasks.db_update_vk_account_group import update_db_group_async
 from src.models.celery_task import CeleryTaskOrm
 from src.models.vk_group import VKGroupOrm
@@ -101,16 +102,16 @@ class VKAccountMainService:
                 detail=f"Доступ запрещён!"
             )
 
-        # 3. Взять зашифрованный curl
         encrypted_curl = vk_account.encrypted_curl
-
-        #await self.create_account_curl(user_id, encrypted_curl, "main")
-        #return {"status": "retry_started", "task_id": 0}
         curl = AuthService().decrypt_data(encrypted_curl)
-        vk_token = TokenService.get_token_from_curl(curl, None)
 
-        # 4. Сгенерировать новый task_id
-        task = parse_vk_profile_main_sync.delay(vk_token, vk_account.id, None, user_id)
+        access_token = re.search(r"access_token=([^&]+)", curl).group(1).split("'")[0]
+        cookie = re.search(
+            r"-b([^&]+)", curl).group(1).split("'")[1]
+
+        account_id = vk_account.vk_account_id
+
+        task = vk_account_main_update_groups.delay(user_id, vk_account.id, account_id, cookie, access_token, None)
         new_task_id = task.id
 
         # 5. Обновить task_id в базе

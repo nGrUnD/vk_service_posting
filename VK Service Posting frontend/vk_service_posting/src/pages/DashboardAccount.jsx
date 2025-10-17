@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
+import { ReloadOutlined } from '@ant-design/icons'; // 👈 добавили иконку
 import AccountAvatar from '../components/AccountAvatar.jsx';
 import AccountInfo from '../components/AccountInfo.jsx';
 import CurlInputField from '../components/CurlInputField.jsx';
@@ -45,6 +46,7 @@ export default function DashboardAccount() {
     const [user, setUser] = useState(null);
     const [loadingAuth, setLoadingAuth] = useState(true);
     const [loadingAccount, setLoadingAccount] = useState(true);
+    const [loadingRetry, setLoadingRetry] = useState(false);
     const [error, setError] = useState(null);
 
     const [curlCommand, setCurlCommand] = useState('');
@@ -171,6 +173,7 @@ export default function DashboardAccount() {
     const handleRetry = async () => {
         if (!newAccount) return;
 
+        setLoadingRetry(true);
         try {
             await api.post(`/users/${user.id}/vk_accounts/${newAccount.id}/retry`);
             messageApi.info('Повторная обработка запущена...');
@@ -186,6 +189,8 @@ export default function DashboardAccount() {
                 }
             }
             localStorage.removeItem('vkAccountId');
+        } finally {
+            setLoadingRetry(false);
         }
     };
 
@@ -211,19 +216,25 @@ export default function DashboardAccount() {
                     <Tag color={color} style={{ userSelect: 'none' }}>
                         {icon} {label}
                     </Tag>
+
                     {(status === 'failure' || status === 'success') && (
-                        <button
+                        <Button
+                            type="primary"
+                            icon={<ReloadOutlined />}   // 🔄 иконка обновления
+                            loading={loadingRetry}
                             onClick={handleRetry}
-                            className="px-3 py-1 text-sm rounded bg-blue-500 text-white hover:bg-blue-600 transition"
+                            size="small"
+                            className="bg-blue-500 border-none hover:bg-blue-600"
                         >
                             Обновить
-                        </button>
+                        </Button>
                     )}
                 </div>
+
                 {status === 'pending' && (
                     <span className="text-sm text-gray-500">
-                        Обычно это занимает меньше минуты
-                    </span>
+                    Обычно это занимает меньше минуты...
+                </span>
                 )}
             </div>
         );

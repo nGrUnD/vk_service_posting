@@ -31,7 +31,7 @@ message.config({
     duration: 3,
     maxCount: 3,
 });
-
+// <Route path="connect-backup-account" element={<ConnectBackupAccountPage />} />
 root.render(
     <React.StrictMode>
         <ConfigProvider
@@ -47,7 +47,6 @@ root.render(
                         <Route index element={<Navigate to="main-account" replace />} />
                         <Route path="main-account" element={<DashboardAccount />} />
                         <Route path="connect-account" element={<ConnectAccountPage />} />
-                        <Route path="connect-backup-account" element={<ConnectBackupAccountPage />} />
                         <Route path="add-autocurl_account" element={<AddAutoCurlAccountPage />} />
                         <Route path="add-curl-account" element={<AddCurlAccountPage />} />
                         <Route path="connect-source-group" element={<SourceGroupPage />} />
