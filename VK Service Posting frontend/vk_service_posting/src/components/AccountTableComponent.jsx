@@ -18,7 +18,9 @@ export default function AccountTable() {
         setLoading(true);
         try {
             const { data } = await api.get("/users/{user_id}/vk_accounts/all");
-            setAccounts(data);
+            // 👇 сортируем по id DESC перед рендером
+            const sortedData = [...data].sort((a, b) => b.id - a.id);
+            setAccounts(sortedData);
         } catch (err) {
             console.error("Ошибка при загрузке аккаунтов", err);
             message.error("Не удалось загрузить аккаунты");
@@ -44,6 +46,15 @@ export default function AccountTable() {
     };
 
     const columns = [
+        // 👇 добавляем колонку ID, с встроенной сортировкой (если нужно вручную переключать)
+        {
+            title: "ID",
+            dataIndex: "id",
+            key: "id",
+            sorter: (a, b) => a.id - b.id,
+            defaultSortOrder: "descend",
+            width: 90,
+        },
         { title: "ID VK", dataIndex: "vk_account_id", key: "vk_account_id" },
         {
             title: "VK Аккаунт",
@@ -135,15 +146,16 @@ export default function AccountTable() {
     return (
         <div className="mt-8">
             <h2 className="text-lg font-semibold mb-4">Подключённые аккаунты</h2>
-            <Table
-                rowKey="id"
-                columns={columns}
-                dataSource={accounts}
-                loading={loading}
-                bordered
-                className="shadow-md"
-                pagination={{ pageSize: 10 }}
-            />
+            <Spin spinning={loading}>
+                <Table
+                    rowKey="id"
+                    columns={columns}
+                    dataSource={accounts}
+                    bordered
+                    className="shadow-md"
+                    pagination={{ pageSize: 10 }}
+                />
+            </Spin>
         </div>
     );
 }
