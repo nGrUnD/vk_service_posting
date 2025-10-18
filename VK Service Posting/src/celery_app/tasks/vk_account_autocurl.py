@@ -128,7 +128,7 @@ def try_add_vk_group_main(database_manager, vk_account_id: int, vk_group_url: st
         result = session.execute(stmt)
         vk_account_main_db = result.scalars().one_or_none()
 
-        access_token = vk_account_db.access_token
+        access_token = vk_account_db.token
         cookies = vk_account_db.cookies
 
         vk_token = get_new_token_request(access_token, cookies, proxy_http)
@@ -166,7 +166,7 @@ def try_add_workerpost(database_manager, vk_account_id: int, vk_group_url: str, 
         vk_account_main_db = result.scalars().one_or_none()
 
 
-        access_token = vk_account_db.access_token
+        access_token = vk_account_db.token
         cookies = vk_account_db.cookies
 
         try:
