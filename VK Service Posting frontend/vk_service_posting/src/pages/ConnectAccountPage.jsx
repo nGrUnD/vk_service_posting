@@ -23,12 +23,11 @@ export default function ConnectAccountPage() {
     const [categories, setCategories] = useState({});
     const [accountCount, setAccountCount] = useState(null);
 
-    const userId = 1; // 🔁 Замените на реальный user_id или получите из контекста / auth
 
     useEffect(() => {
         const fetchCategories = async () => {
             try {
-                const res = await api.get(`/users/${userId}/categories/get_all`);
+                const res = await api.get(`/users/{user_id}/categories/get_all`);
                 const data = res.data.reduce((acc, cat) => {
                     acc[cat.id] = cat;
                     return acc;
@@ -41,7 +40,7 @@ export default function ConnectAccountPage() {
 
         const fetchAccountCount = async () => {
             try {
-                const res = await api.get(`/users/${userId}/vk_accounts/vk_account_backup_count`);
+                const res = await api.get(`/users/{user_id}/vk_accounts/vk_account_backup_count`);
                 setAccountCount(res.data.count);
             } catch {
                 messageApi.error('Не удалось загрузить количество аккаунтов');
@@ -79,7 +78,7 @@ export default function ConnectAccountPage() {
                 category_id: values.category,
             };
 
-            await api.post(`/users/${userId}/workerpost/create_workerpost`, payload);
+            await api.post(`/users/{user_id}/workerpost/create_workerpost`, payload);
 
             messageApi.success('Сообщества успешно подключены!');
             form.resetFields();

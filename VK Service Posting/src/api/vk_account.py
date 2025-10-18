@@ -240,8 +240,9 @@ async def create_vk_accounts_autocurl_backup(
 ):
     vk_creds_str = request_add.creds
     vk_groups_str = request_add.groups
+    category_id_db = request_add.category_id
     try:
-        detail = await VKAccountBackupService(database).create_vk_accounts_autocurl(user_id, vk_creds_str, vk_groups_str)
+        detail = await VKAccountBackupService(database).create_vk_accounts_autocurl(user_id, vk_creds_str, vk_groups_str, category_id_db)
         return {"status": "OK", "detail": detail}
     except ValueError as e:
         raise HTTPException(

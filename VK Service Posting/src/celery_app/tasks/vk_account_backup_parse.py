@@ -218,8 +218,7 @@ def get_vk_token_retry(database_manager, vk_account_id: int, proxy: str = None, 
         return None
 
 
-@app.task
-def parse_vk_profile_backup_sync(vk_account_id_database: int, proxy: str, user_id: int):
+def parse_vk_profile_backup(vk_account_id_database: int, proxy: str, user_id: int):
     database_manager = SyncSessionLocal()
     try:
         vk_token = get_vk_token_retry(database_manager, vk_account_id_database, proxy)
@@ -238,3 +237,7 @@ def parse_vk_profile_backup_sync(vk_account_id_database: int, proxy: str, user_i
     except Exception as e:
         mark_vk_account_failure_by_task_id(database_manager, vk_account_id_database)
         raise
+
+@app.task
+def parse_vk_profile_backup_sync(vk_account_id_database: int, proxy: str, user_id: int):
+    parse_vk_profile_backup(vk_account_id_database, proxy, user_id)

@@ -177,7 +177,7 @@ class VKAccountBackupService:
 
         return vk_account
 
-    async def create_vk_accounts_autocurl(self, user_id: int, vk_creds_str: str, vk_groups_str: str):
+    async def create_vk_accounts_autocurl(self, user_id: int, vk_creds_str: str, vk_groups_str: str, category_id_db: int):
         vk_accounts_log_pass = VKAccountLogPass.parse_creds(vk_creds_str)
         vk_groups = self.parse_vk_groups(vk_groups_str)
         # Прокси
@@ -211,7 +211,7 @@ class VKAccountBackupService:
                 token="",
                 encrypted_curl="",
                 login=login,
-                encrypted_password="",
+                encrypted_password=encrypted_password,
                 account_type="connect",
                 vk_account_url="",
                 avatar_url="",
@@ -227,7 +227,7 @@ class VKAccountBackupService:
             vk_account_db = await self.database.vk_account.add(new_data)
             await self.database.commit()
 
-            task = connect_vk_account_autocurl.delay(user_id, vk_account_db.id, login, password, vk_group_url, proxy_http)
+            task = connect_vk_account_autocurl.delay(user_id, vk_account_db.id, login, password, vk_group_url, category_id_db, proxy_http)
 
             await self.database.vk_account.edit(VKAccountUpdate(task_id=task.id), exclude_unset=True,
                                                 id=vk_account_db.id)

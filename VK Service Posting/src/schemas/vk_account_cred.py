@@ -11,3 +11,4 @@ class VKAccountCredRequestAdd(BaseModel):
 class VKAccountCredRequestAutoCurlAdd(BaseModel):
     creds: str
     groups: str
+    category_id: int

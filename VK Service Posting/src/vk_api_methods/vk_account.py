@@ -5,7 +5,8 @@ import requests
 
 from src.services.vk_token_service import TokenService
 from src.utils.rand_user_agent import get_random_user_agent
-from src.vk_api_methods.vk_clip import get_clips_counts_for_groups
+from src.vk_api_methods.vk_auth import get_new_token_request
+from src.vk_api_methods.vk_clip import get_clips_counts_for_groups, is_token_expired
 from vk_api import vk_api
 
 
@@ -139,6 +140,7 @@ def get_vk_account_admin_groups(access_token: str, user_id: int, proxy: str) -> 
         offset += count_per_request
         params["offset"] = offset
         time.sleep(delay)
+
 
         response = requests.get(url, params=params, headers=headers, proxies=proxy_response)
         response_json = response.json()
@@ -275,4 +277,55 @@ def get_vk_account_groups(access_token: str, user_id: int, proxy: str = None):
     return {
         "count": total_count,
         "groups": groups,
+    }
+
+
+def get_vk_group_info(access_token: str, vk_group_id: str, proxy: str = None):
+    """
+    Получает информацию об одной группе VK по её ID.
+
+    :param access_token: токен доступа VK
+    :param vk_group_id: ID группы (число или короткое имя, например "227197531" или "mygroup")
+    :param proxy: прокси (опционально)
+    :return: словарь с информацией о группе
+    """
+    url = "https://api.vk.com/method/groups.getById"
+    version = "5.131"
+
+    headers = {"User-Agent": get_random_user_agent()}
+    print(f'Proxy: {proxy}')
+    proxy_response = {"http": proxy, "https": proxy} if proxy else None
+
+    params = {
+        "access_token": access_token,
+        "v": version,
+        "group_id": vk_group_id,
+        "fields": "photo_200,members_count,description"
+    }
+
+    response = requests.get(url, params=params, headers=headers, proxies=proxy_response)
+    response_json = response.json()
+
+    if "error" in response_json:
+        error_msg = response_json['error']['error_msg']
+        if "access_token has expired" in error_msg:
+            print("⛔ Токен протух")
+            raise Exception("Требуется обновление access_token")
+        else:
+            raise Exception(f"Ошибка при получении данных группы: {error_msg}")
+
+    data = response_json.get("response")
+    if not data or len(data) == 0:
+        raise Exception(f"Группа с ID {vk_group_id} не найдена")
+
+    group = data[0]
+    group_id = group["id"]
+
+    return {
+        "group_id": group_id,
+        "vk_group_url": f"https://vk.com/{group.get('screen_name', f'club{group_id}')}",
+        "avatar_url": group.get("photo_200"),
+        "name": group.get("name"),
+        "members_count": group.get("members_count"),
+        "description": group.get("description"),
     }
