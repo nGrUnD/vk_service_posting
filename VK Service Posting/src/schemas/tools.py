@@ -8,7 +8,7 @@ class AccountInput(BaseModel):
 class AccountCheckResult(BaseModel):
     login: str
     password: str
-    status: Literal["Work", "Blocked", "FloodControl", "NotExists"]
+    status: Literal["Work", "Blocked", "FloodControl", "NotExists", "Error"]
 
 class AccountCheckResponse(BaseModel):
     results: List[AccountCheckResult]
