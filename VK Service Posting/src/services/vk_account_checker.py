@@ -42,13 +42,11 @@ class AccountChecker:
     async def _check_one(self, login: str, password: str, proxy_http: str, semaphore: asyncio.Semaphore):
         async with semaphore:
             try:
-                async with aiohttp.ClientSession() as session:
-                    session.connector_owner = False
-                    session._default_headers.update({
-                        "User-Agent": get_random_user_agent(),
-                    })
-                    connector = aiohttp.TCPConnector(ssl=False)
-                    # Псевдо-обёртка вокруг vk_api на основе run_in_executor
+                async with aiohttp.ClientSession(
+                        connector=aiohttp.TCPConnector(ssl=False),
+                        headers={"User-Agent": get_random_user_agent()}
+                ) as session:
+                    # Мы всё равно используем sync VK API внутри run_in_executor
                     status = await asyncio.get_event_loop().run_in_executor(
                         None, self._sync_check, login, password, proxy_http
                     )
