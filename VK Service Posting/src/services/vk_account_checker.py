@@ -77,7 +77,7 @@ class AccountChecker:
             return "Work"
         except vk_api.AuthError as err:
             err_str = str(err).lower()
-            logging.info(err_str)
+            print(err_str)
             if "blocked" in err_str:
                 return "Blocked"
             elif "not exists" in err_str:
@@ -85,7 +85,7 @@ class AccountChecker:
             else:
                 return "FloodControl"
         except Exception as error:
-            logging.info(str(error))
+            print(str(error))
             return "Error"
 
     async def change_password(self, data):
