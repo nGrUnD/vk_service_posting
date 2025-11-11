@@ -71,18 +71,21 @@ class AccountChecker:
         vk_session = vk_api.VkApi(login=login, password=password, session=session)
         vk_session.api_version = "5.251"
         vk_session.app_id = 6287487
+        vk_session.token = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01234"
         try:
             vk_session.auth()
             return "Work"
         except vk_api.AuthError as err:
             err_str = str(err).lower()
+            logging.info(err_str)
             if "blocked" in err_str:
                 return "Blocked"
             elif "not exists" in err_str:
                 return "NotExists"
             else:
                 return "FloodControl"
-        except Exception:
+        except Exception as error:
+            logging.info(str(error))
             return "Error"
 
     async def change_password(self, data):
