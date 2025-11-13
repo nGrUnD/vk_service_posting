@@ -1,6 +1,7 @@
 import asyncio
 import random
 import string
+from functools import partial
 
 import aiohttp
 import requests
@@ -8,6 +9,7 @@ import requests
 from src.celery_app.tasks import vk_checker_add_account
 from src.schemas.vk_account import VKAccountAdd, VKAccountUpdate
 from src.services.auth import AuthService
+from src.vk_api_methods.vk_auth import get_new_token_request
 from vk_api.vk_api import vk_api
 import logging
 
@@ -73,74 +75,94 @@ class AccountChecker:
 
             await self.database.commit()
 
+    @staticmethod
+    def _change_password_sync(login: str, old_password: str, proxy_http: str, token: str, cookie: str):
+        """
+        Блокирующая часть: requests.Session + vk_api.
+        Выполняется в пуле потоков через run_in_executor.
+        Возвращает (new_password, new_token). Может кидать исключение.
+        """
+        session = requests.Session()
+        session.proxies.update({
+            'http': proxy_http,
+            'https': proxy_http
+        })
+        session.headers.update({
+            "User-Agent": get_random_user_agent()
+        })
+
+        access_token = get_new_token_request(token, cookie, proxy_http)
+
+        vk_session = vk_api.VkApi(token=access_token, session=session)
+        vk_session.api_version = "5.251"
+        vk_session.app_id = 6287487
+
+        new_password = generate_password()
+        vk = vk_session.get_api()
+        resp = vk.account.changePassword(old_password=old_password, new_password=new_password)
+        new_token = resp.get("token")
+        return new_password, new_token
+
+    async def _change_password_one(self, login: str, old_password: str, user_id: int, semaphore: asyncio.Semaphore):
+        """
+        Одна асинхронная задача смены пароля для одного аккаунта.
+        Возвращает AccountChangeResult.
+        """
+        try:
+            # 1) получить запись аккаунта
+            vk_account_db = await self.database.vk_account.get_one_or_none(login=login)
+            if not vk_account_db:
+                return AccountChangeResult(login=login, password=old_password + "\tNot found account")
+
+            # 2) прокси
+            proxy_db = await self.database.proxy.get_one_or_none(id=vk_account_db.proxy_id)
+            proxy_http = proxy_db.http if proxy_db else None
+
+            # 3) выполнить блокирующую часть в пуле потоков
+            async with semaphore:
+                loop = asyncio.get_running_loop()
+                new_password, new_token = await loop.run_in_executor(
+                    None,
+                    partial(
+                        self._change_password_sync,
+                        login,
+                        old_password,
+                        proxy_http,
+                        vk_account_db.token,
+                        vk_account_db.cookies
+                    )
+                )
+
+            # 4) сохранить изменения в БД (асинхронно)
+            encrypted_password = AuthService().encrypt_data(new_password)
+            await self.database.vk_account.edit(
+                VKAccountUpdate(encrypted_password=encrypted_password, token=new_token),
+                exclude_unset=True,
+                id=vk_account_db.id
+            )
+            await self.database.commit()
+
+            logging.info(f"Login: {login} NewPassword: {new_password}")
+            return AccountChangeResult(login=login, password=new_password)
+
+        except Exception as e:
+            logging.exception(f"Ошибка при смене пароля для {login}: {e}")
+            return AccountChangeResult(login=login, password=old_password + f"\t{e}")
+
     async def change_password(self, data, user_id: int):
+        """
+        Параллельно меняем пароли со стабильным ограничением concurrency.
+        """
+        # подготовка задач
+        semaphore = asyncio.Semaphore(self.concurrency_limit)
+        tasks = []
 
-        proxies = await self.database.proxy.get_all()
-        index_proxy = random.randint(0, len(proxies)-1)
-
-        new_accounts = []
         for acc in data.accounts:
-            try:
-                login, password = acc.split(":")
-            except ValueError:
+            if ":" not in acc:
                 continue
+            login, password = acc.split(":", 1)
+            tasks.append(self._change_password_one(login, password, user_id, semaphore))
 
-            proxy = proxies[index_proxy % len(proxies)]
-            proxy_http = proxy.http
-            index_proxy += 1
-
-            session = requests.Session()
-            session.proxies.update({
-                'http': proxy_http,
-                'https': proxy_http
-            })
-            session.headers.update({
-                "User-Agent": (get_random_user_agent())
-            })
-            vk_session = vk_api.VkApi(login=login, password=password, session=session)
-            vk_session.api_version = "5.251"
-            vk_session.app_id = 6287487
-            vk_session.token = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01234"
-            blocked = False
-            flood_control = False
-            not_exists = False
-            try:
-                vk_session.auth()
-            except vk_api.AuthError as error_msg:
-                if "blocked" in str(error_msg).lower():
-                    blocked = True
-                if "not exists" in str(error_msg).lower():
-                    not_exists = True
-                logging.error(error_msg)
-                flood_control = True
-
-            status = "Work"
-            if flood_control:
-                status = "FloodControl"
-
-            if not_exists:
-                status = "NotExists"
-
-            if blocked:
-                status = "Blocked"
-
-            logging.info(f"Login: {login} Status: {status}")
-
-            if status == "Work":
-                new_password = generate_password()
-                logging.info(f"Login: {login} NewPassword: {new_password} Status: {status}")
-
-                vk = vk_session.get_api()
-                try:
-                    request = vk.account.changePassword(old_password=password, new_password=new_password)
-                    logging.info(request)
-                    new_token = request['token']
-                    logging.info(new_token)
-                    new_accounts.append(AccountChangeResult(login=login, password=new_password))
-                except Exception as error_msg:
-                    logging.info(error_msg)
-                    new_accounts.append(AccountChangeResult(login=login, password=password + "\tОшибка"))
-            else:
-                new_accounts.append(AccountChangeResult(login=login, password=password + "\t" + status))
-
-        return new_accounts
+        # запуск параллельно
+        results = await asyncio.gather(*tasks)
+        return results

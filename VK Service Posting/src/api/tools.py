@@ -11,7 +11,7 @@ async def account_checker(data: AccountInput, database: DataBaseDep, user_id: Us
     service_checker = AccountChecker(database)
     results = await service_checker.add_account(data, user_id)
 
-    return AccountCheckResponse(results=results)
+    return {"status": "OK", "detail": results}
 
 
 # ==== Эндпоинт смены паролей ====

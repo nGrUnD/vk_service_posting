@@ -80,7 +80,7 @@ export default function AccountCheckerPage() {
                                     onClick={handleChangePasswords}
                                     loading={loadingChange}
                                 >
-                                    Сменить пароль (All)
+                                    Сменить пароль (max 20)
                                 </Button>
                             </Space>
                         </div>
