@@ -194,7 +194,6 @@ class VKAccountBackupService:
                 logging.info(f"{login} уже есть в базе данных")
                 continue
 
-            # ваша логика
             logging.info(f"{login, password, vk_group_url}")
 
             index_proxy = 0

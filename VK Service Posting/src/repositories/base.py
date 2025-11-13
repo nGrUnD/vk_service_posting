@@ -9,7 +9,18 @@ class BaseRepository:
         self.session = session
 
     async def get_all_filtered(self, **filter_by):
-        query = select(self.model).filter_by(**filter_by)
+        query = select(self.model)
+
+        for key, value in filter_by.items():
+            column = getattr(self.model, key)
+
+            if isinstance(value, (list, tuple)):
+                # Если передан список — используем IN
+                query = query.where(column.in_(value))
+            else:
+                # Если одно значение — обычное равенство
+                query = query.where(column == value)
+
         result = await self.session.execute(query)
         return [self.schema.model_validate(model) for model in result.scalars().all()]
 

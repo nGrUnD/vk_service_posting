@@ -2,13 +2,13 @@ import React, { useState } from 'react';
 import { Button, Card, Input, Typography, message, Space } from 'antd';
 import { ReloadOutlined, LockOutlined } from '@ant-design/icons';
 import api from '../api/axios';
+import AccountTableChecker from '../components/AccountTableCheckerComponent.jsx';
 
 const { Title } = Typography;
 const { TextArea } = Input;
 
 export default function AccountCheckerPage() {
     const [inputAccounts, setInputAccounts] = useState('');
-    const [checkedAccounts, setCheckedAccounts] = useState('');
     const [changedPasswords, setChangedPasswords] = useState('');
     const [loadingCheck, setLoadingCheck] = useState(false);
     const [loadingChange, setLoadingChange] = useState(false);
@@ -23,10 +23,7 @@ export default function AccountCheckerPage() {
                     .map(line => line.trim())
                     .filter(Boolean),
             };
-            const res = await api.post('/tools/account_checker', payload);
-            setCheckedAccounts(
-                res.data.results.map(acc => `${acc.login}:${acc.password} - ${acc.status}`).join('\n')
-            );
+            const res = await api.post('/tools/{user_id}/account_checker', payload);
         } catch (e) {
             messageApi.error('Ошибка при проверке аккаунтов');
         }
@@ -42,7 +39,7 @@ export default function AccountCheckerPage() {
                     .map(line => line.trim())
                     .filter(Boolean),
             };
-            const res = await api.post('/tools/account_change_passwords', payload);
+            const res = await api.post('/tools/{user_id}/account_change_passwords', payload);
             setChangedPasswords(
                 res.data.new_accounts.map(acc => `${acc.login}:${acc.password}`).join('\n')
             );
@@ -55,14 +52,13 @@ export default function AccountCheckerPage() {
     return (
         <div>
             {contextHolder}
-            <div className="min-h-screen w-screen bg-gray-50 p-4">
+            <div className="p-5 max-w-screen-xl mx-auto space-y-6">
                 <Title level={3} className="text-center mb-6">Account Checker</Title>
                 <Card className="h-full w-full" styles={{ body: { padding: 24 } }}>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mt-6 h-[calc(80vh-240px)] w-full">
+                    <div className="grid xl:grid-cols-2 gap-6 h-[calc(60vh-240px)]">
                         {/* 1. Ввод аккаунтов */}
                         <div className="flex flex-col">
-                            <Title level={5}>Добавить аккаунты (login:pass)</Title>
+                            <Title level={5}>Добавить аккаунты (login:pass) - Можно хоть сколько</Title>
                             <TextArea
                                 className="flex-1"
                                 rows={10}
@@ -77,30 +73,16 @@ export default function AccountCheckerPage() {
                                     onClick={handleCheck}
                                     loading={loadingCheck}
                                 >
-                                    Проверить
+                                    Добавить
                                 </Button>
                                 <Button
                                     icon={<LockOutlined />}
                                     onClick={handleChangePasswords}
                                     loading={loadingChange}
                                 >
-                                    Сменить пароль
+                                    Сменить пароль (All)
                                 </Button>
                             </Space>
-                        </div>
-
-                        {/* 2. Результаты проверки */}
-                        <div className="flex flex-col">
-                            <Title level={5}>Результаты проверки</Title>
-                            <TextArea
-                                className="flex-1"
-                                rows={10}
-                                readOnly
-                                placeholder="login:password - Work / Blocked / FloodControl"
-                                value={checkedAccounts}
-                                style={{ backgroundColor: '#f5f5f5', cursor: 'copy' }}
-                                onClick={e => e.target.select()}
-                            />
                         </div>
 
                         {/* 3. Новые пароли */}
@@ -117,6 +99,7 @@ export default function AccountCheckerPage() {
                             />
                         </div>
                     </div>
+                    <AccountTableChecker />
                 </Card>
             </div>
         </div>

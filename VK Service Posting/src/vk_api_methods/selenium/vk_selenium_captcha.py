@@ -1091,7 +1091,9 @@ def vk_login(login: str, password: str, vkpublic = None, proxy = None, log_signa
 
     time.sleep(3)
 
-    sub = subscribe_to_public(driver, vkpublic, log_signal)
+    sub = "None"
+    if vkpublic:
+        sub = subscribe_to_public(driver, vkpublic, log_signal)
 
     time.sleep(3)
 

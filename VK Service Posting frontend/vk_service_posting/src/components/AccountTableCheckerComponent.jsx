@@ -3,7 +3,7 @@ import { Table, Tag, Spin, Button, Popconfirm, message } from "antd";
 import dayjs from "dayjs";
 import api from "../api/axios";
 
-export default function AccountTable() {
+export default function AccountTableChecker() {
     const [accounts, setAccounts] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -17,7 +17,7 @@ export default function AccountTable() {
     const fetchAccounts = async () => {
         setLoading(true);
         try {
-            const { data } = await api.get("/users/{user_id}/vk_accounts/all");
+            const { data } = await api.get("/users/{user_id}/vk_accounts/all_checker_connect");
             // 👇 сортируем по id DESC перед рендером
             const sortedData = [...data].sort((a, b) => b.id - a.id);
             setAccounts(sortedData);
@@ -111,11 +111,7 @@ export default function AccountTable() {
             dataIndex: "account_type",
             key: "account_type",
             filters: [
-                { text: "main", value: "main" },
                 { text: "connect", value: "connect" },
-                { text: "backup", value: "backup" },
-                { text: "posting", value: "posting" },
-                { text: "blocked", value: "blocked" },
                 { text: "checker", value: "checker" },
             ],
             onFilter: (value, record) => record.account_type === value,

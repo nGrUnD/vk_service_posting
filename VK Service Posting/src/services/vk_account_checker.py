@@ -4,6 +4,10 @@ import string
 
 import aiohttp
 import requests
+
+from src.celery_app.tasks import vk_checker_add_account
+from src.schemas.vk_account import VKAccountAdd, VKAccountUpdate
+from src.services.auth import AuthService
 from vk_api.vk_api import vk_api
 import logging
 
@@ -20,75 +24,56 @@ class AccountChecker:
         self.database = database
         self.concurrency_limit = concurrency_limit
 
-    async def check(self, data):
+    async def add_account(self, data, user_id: int):
         proxies = await self.database.proxy.get_all()
         if not proxies:
             raise RuntimeError("Нет доступных прокси")
-
-        semaphore = asyncio.Semaphore(self.concurrency_limit)
-        tasks = []
 
         for i, acc in enumerate(data.accounts):
             if ":" not in acc:
                 continue
             login, password = acc.split(":", 1)
+            encrypted_password = AuthService().encrypt_data(password)
             proxy = proxies[i % len(proxies)]
             proxy_http = proxy.http
-            tasks.append(self._check_one(login, password, proxy_http, semaphore))
 
-        results = await asyncio.gather(*tasks)
-        return [r for r in results if r]  # убрать None при ошибках
+            vk_account_db = await self.database.vk_account.get_one_or_none(login=login)
+            if vk_account_db:
+                logging.info(f"{login} уже есть в базе данных")
+                continue
 
-    async def _check_one(self, login: str, password: str, proxy_http: str, semaphore: asyncio.Semaphore):
-        async with semaphore:
-            try:
-                async with aiohttp.ClientSession(
-                        connector=aiohttp.TCPConnector(ssl=False),
-                        headers={"User-Agent": get_random_user_agent()}
-                ) as session:
-                    # Мы всё равно используем sync VK API внутри run_in_executor
-                    status = await asyncio.get_event_loop().run_in_executor(
-                        None, self._sync_check, login, password, proxy_http
-                    )
-                    return AccountCheckResult(login=login, password=password, status=status)
-            except Exception as e:
-                logging.error(f"Ошибка при проверке {login}: {e}")
-                return None
+            logging.info(f"{login, password, proxy_http}")
 
-    def _sync_check(self, login: str, password: str, proxy_http: str) -> str:
-        """Выполняется в пуле потоков (не блокирует event loop)"""
-        import requests
+            new_data = VKAccountAdd(
+                user_id=user_id,
+                vk_account_id=0,
+                token="",
+                encrypted_curl="",
+                login=login,
+                encrypted_password=encrypted_password,
+                account_type="connect",
+                vk_account_url="",
+                avatar_url="",
+                name="pending",
+                second_name="pending",
+                groups_count=0,
+                flood_control=False,
+                parse_status="pending",
+                task_id="pending",
+                proxy_id=proxy.id,
+                cookies="",
+            )
+            vk_account_db = await self.database.vk_account.add(new_data)
+            await self.database.commit()
 
-        session = requests.Session()
-        session.proxies.update({
-            'http': proxy_http,
-            'https': proxy_http
-        })
-        session.headers.update({
-            "User-Agent": get_random_user_agent()
-        })
+            task = vk_checker_add_account.delay(user_id, vk_account_db.id, login, password, proxy_http)
 
-        vk_session = vk_api.VkApi(login=login, password=password, session=session)
-        vk_session.api_version = "5.251"
-        vk_session.app_id = 6287487
-        vk_session.token = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01234"
-        try:
-            vk_session.auth()
-            return "Work"
-        except vk_api.AuthError as err:
-            err_str = str(err).lower()
-            logging.info(err_str)
-            if "blocked" in err_str:
-                return "Blocked"
-            elif "not exists" in err_str:
-                return "NotExists"
-            else:
-                return "FloodControl"
-        except Exception as error:
-            logging.info(str(error))
-            return "Error"
+            await self.database.vk_account.edit(VKAccountUpdate(task_id=task.id), exclude_unset=True,
+                                                id=vk_account_db.id)
 
-    async def change_password(self, data):
+            await self.database.commit()
+
+    async def change_password(self, data, user_id: int):
 
         proxies = await self.database.proxy.get_all()
         index_proxy = random.randint(0, len(proxies)-1)

@@ -20,6 +20,15 @@ async def get_all_vk_accounts(
     """Возвращает все привязанные VK аккаунты пользователя"""
     return await database.vk_account.get_all_filtered(user_id=user_id)
 
+@router.get("/all_checker_connect", summary="Получить все VK аккаунты пользователя")
+async def get_all_vk_accounts_checker_connect(
+        user_id: UserIdDep,
+        database: DataBaseDep,
+):
+    """Возвращает все привязанные VK аккаунты пользователя"""
+    return await database.vk_account.get_all_filtered(user_id=user_id, account_type=["checker", "connect"])
+
+
 @router.get("/vk_account_backup_count", summary="Получить кол-во Запасных VK аккаунтов")
 async def get_all_vk_accounts_backup(
         user_id: UserIdDep,
