@@ -6,7 +6,7 @@ from src.services.vk_account_checker import AccountChecker
 router = APIRouter(prefix="/tools/{user_id}", tags=["Tools"])
 
 # ==== Эндпоинт проверки аккаунтов ====
-@router.post("/account_checker", response_model=AccountCheckResponse)
+@router.post("/account_checker")
 async def account_checker(data: AccountInput, database: DataBaseDep, user_id: UserIdDep,):
     service_checker = AccountChecker(database)
     results = await service_checker.add_account(data, user_id)
