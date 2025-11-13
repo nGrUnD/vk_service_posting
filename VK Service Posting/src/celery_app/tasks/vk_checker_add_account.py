@@ -20,7 +20,7 @@ def vk_checker_add_account(user_id, vk_account_id_db, login: str, password: str,
         curl, vk_group_sub = vk_login(login, password, None, proxy_http)
 
         update_db_vk_account_end(database_manager, vk_account_id_db, curl, vk_group_sub)
-        parse_vk_profile_backup(vk_account_id_db, proxy_http, user_id)
+        parse_vk_profile_backup(vk_account_id_db, proxy_http, user_id, "checker")
     except Exception as e:
         update_db_vk_account_error(database_manager, vk_account_id_db, str(e))
         raise e

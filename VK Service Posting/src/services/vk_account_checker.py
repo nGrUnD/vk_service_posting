@@ -72,8 +72,9 @@ class AccountChecker:
 
             await self.database.vk_account.edit(VKAccountUpdate(task_id=task.id), exclude_unset=True,
                                                 id=vk_account_db.id)
-
             await self.database.commit()
+
+        return "ALL OK"
 
     @staticmethod
     def _change_password_sync(login: str, old_password: str, proxy_http: str, token: str, cookie: str):

@@ -89,7 +89,7 @@ def parse_vk_profile(vk_token, vk_account_id_database: int, proxy: str) -> dict:
     return vk_account_data
 
 
-def update_db_vk_account(database_manager, vk_account_id_database: int, data: dict, count_groups: int):
+def update_db_vk_account(database_manager, vk_account_id_database: int, data: dict, count_groups: int, account_type_end: str):
     with database_manager as session:
         stmt = select(VKAccountOrm).where(VKAccountOrm.id == vk_account_id_database)
         result = session.execute(stmt)
@@ -106,7 +106,7 @@ def update_db_vk_account(database_manager, vk_account_id_database: int, data: di
         account.groups_count = count_groups
         account.parse_status = "success"
         account.vk_group_id = data['vk_group_id']
-        account.account_type = "backup"
+        account.account_type = account_type_end
 
         session.commit()
 
@@ -218,7 +218,7 @@ def get_vk_token_retry(database_manager, vk_account_id: int, proxy: str = None, 
         return None
 
 
-def parse_vk_profile_backup(vk_account_id_database: int, proxy: str, user_id: int):
+def parse_vk_profile_backup(vk_account_id_database: int, proxy: str, user_id: int, account_type_end: str = "backup"):
     database_manager = SyncSessionLocal()
     try:
         vk_token = get_vk_token_retry(database_manager, vk_account_id_database, proxy)
@@ -231,7 +231,7 @@ def parse_vk_profile_backup(vk_account_id_database: int, proxy: str, user_id: in
         print("=== ВСЕ МОДЕЛИ ===")
         print(Base.metadata.tables.keys())
 
-        update_db_vk_account(database_manager, vk_account_id_database, vk_account_data, groups_count)
+        update_db_vk_account(database_manager, vk_account_id_database, vk_account_data, groups_count, account_type_end)
         update_vk_groups_database(database_manager, vk_account_id_database, user_id, groups_groups_data)
 
     except Exception as e:
