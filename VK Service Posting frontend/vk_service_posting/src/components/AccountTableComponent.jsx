@@ -19,8 +19,9 @@ export default function AccountTable() {
         try {
             const { data } = await api.get("/users/{user_id}/vk_accounts/all");
             // 👇 сортируем по id DESC перед рендером
-            const sortedData = [...data].sort((a, b) => b.id - a.id);
-            setAccounts(sortedData);
+            //const sortedData = [...data].sort((a, b) => b.id - a.id);
+            //setAccounts(sortedData);
+            setAccounts(data);
         } catch (err) {
             console.error("Ошибка при загрузке аккаунтов", err);
             message.error("Не удалось загрузить аккаунты");
