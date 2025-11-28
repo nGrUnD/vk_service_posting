@@ -79,6 +79,7 @@ def posting_clip(worker_id: int, token_db: str, schedule_database_id: int, clip,
                 category.repost_enabled,
                 proxy
             )
+            vk_account.account_type = "posting"
         except Exception as e:
             if schedule_update_data:
                 session.delete(schedule_update_data)
