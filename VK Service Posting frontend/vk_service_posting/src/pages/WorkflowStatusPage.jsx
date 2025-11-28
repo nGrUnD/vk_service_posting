@@ -23,6 +23,38 @@ export default function WorkflowStatusPage() {
     const [clipLists, setClipLists] = useState([]);
     const [loadingClips, setLoadingClips] = useState(false);
     const [categories, setCategories] = useState([]);
+    const [selectedRowKeys, setSelectedRowKeys] = useState([]); // для выделенных пабликов
+    const [bulkDeleting, setBulkDeleting] = useState(false);
+
+    const rowSelection = {
+        selectedRowKeys,
+        onChange: (keys) => setSelectedRowKeys(keys),
+    };
+
+    const deleteSelectedWorkflows = async () => {
+        if (!selectedRowKeys.length) return;
+        Modal.confirm({
+            title: `Удалить ${selectedRowKeys.length} выделенных рабочих процессов?`,
+            okText: "Удалить",
+            cancelText: "Отмена",
+            okButtonProps: {danger: true},
+            onOk: async () => {
+                setBulkDeleting(true);
+                try {
+                    await Promise.all(selectedRowKeys.map(id =>
+                        api.delete(`/users/{user_id}/workerpost/${id}`)
+                    ));
+                    messageApi.success('Выделенные рабочие процессы удалены');
+                    setSelectedRowKeys([]);
+                    fetchData();
+                } catch {
+                    messageApi.error('Ошибка при удалении');
+                } finally {
+                    setBulkDeleting(false);
+                }
+            }
+        });
+    };
 
     const fetchData = async () => {
         setLoading(true);
@@ -342,6 +374,14 @@ export default function WorkflowStatusPage() {
 
                 <Space>
                     <Button icon={<ReloadOutlined/>} onClick={fetchData} loading={loading}/>
+                    <Button
+                        danger
+                        onClick={deleteSelectedWorkflows}
+                        disabled={!selectedRowKeys.length}
+                        loading={bulkDeleting}
+                    >
+                        Удалить выделенные
+                    </Button>
                     <Input.TextArea
                         rows={3}
                         placeholder="Фильтр: названия пабликов"
@@ -358,6 +398,7 @@ export default function WorkflowStatusPage() {
                     dataSource={filteredData}
                     columns={columns}
                     loading={loading}
+                    rowSelection={rowSelection}
                     pagination={{
                         current: currentPage,
                         pageSize: pageSize,
