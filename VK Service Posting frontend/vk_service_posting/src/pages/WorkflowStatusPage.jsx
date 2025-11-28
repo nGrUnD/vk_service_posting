@@ -73,6 +73,7 @@ export default function WorkflowStatusPage() {
 
                     accountName: `${vk_account.name} ${vk_account.second_name || ''}`.trim(),
                     accountUrl: vk_account.vk_account_url,
+                    accountType: vk_account.account_type,
 
                     clipSources: clip_list ? [clip_list.name] : [],
 
@@ -299,7 +300,7 @@ export default function WorkflowStatusPage() {
                 return s1.localeCompare(s2);
             },
             render: (_, record) => {
-                const status = record.workerpost?.vk_account?.account_type;
+                const status = record.accountType;
 
                 if (status === "blocked") {
                     return <span style={{color: "red"}}>Заблокирован</span>;
