@@ -301,9 +301,9 @@ export default function WorkflowStatusPage() {
             render: (_, record) => {
                 const status = record.workerpost?.vk_account?.account_type;
 
-                if (status.compare("blocked")) {
+                if (status === "blocked") {
                     return <span style={{color: "red"}}>Заблокирован</span>;
-                } else {
+                } else if (status) {
                     return <span style={{color: "green"}}>Активен</span>;
                 }
 
