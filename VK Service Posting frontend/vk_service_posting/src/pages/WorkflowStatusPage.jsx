@@ -5,8 +5,6 @@ import {
 import api from '../api/axios';
 import {ReloadOutlined, SettingOutlined} from '@ant-design/icons';
 import dayjs from "dayjs";
-import LastPostedDate from "../components/ClipsLastDate.jsx";
-import AccountStatus from "../components/VKAccountStatus.jsx";
 
 const {Title} = Typography;
 
@@ -373,7 +371,7 @@ export default function WorkflowStatusPage() {
             <Card>
                 <Title level={3}>Статус рабочего процесса</Title>
 
-                <Space>
+                <Space style={{marginBottom: 16}}>
                     <Button icon={<ReloadOutlined/>} onClick={fetchData} loading={loading}/>
                     <Button
                         danger
@@ -383,17 +381,18 @@ export default function WorkflowStatusPage() {
                     >
                         Удалить выделенные
                     </Button>
-                    <Input.TextArea
-                        rows={3}
-                        placeholder="Фильтр: названия пабликов"
-                        value={searchText}
-                        onChange={(e) => {
-                            setSearchText(e.target.value);
-                            setCurrentPage(1);
-                        }}
-                        className="my-4"
-                    />
                 </Space>
+
+                <Input.TextArea
+                    rows={3}
+                    placeholder="Фильтр: названия пабликов"
+                    value={searchText}
+                    onChange={(e) => {
+                        setSearchText(e.target.value);
+                        setCurrentPage(1);
+                    }}
+                    className="my-4"
+                />
 
                 <Table
                     dataSource={filteredData}
