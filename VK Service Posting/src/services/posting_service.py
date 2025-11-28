@@ -136,6 +136,7 @@ class PostingService:
                     "created_at": random_clip.created_at,
                     "updated_at": random_clip.updated_at,
                 }
+
                 schedule_posting_add = SchedulePostingAdd(
                     workpost_id=workpost.id,
                     clip_id=random_clip.id,

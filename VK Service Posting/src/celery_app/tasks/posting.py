@@ -102,6 +102,8 @@ def posting_clip(worker_id: int, token_db: str, schedule_database_id: int, clip,
                 raise e
 
 
+        if workerpost:
+            workerpost.last_post_at = datetime.now()
         if schedule_update_data:
             schedule_update_data.clip_id = clip_id
             schedule_update_data.status = "success"
