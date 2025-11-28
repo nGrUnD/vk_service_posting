@@ -56,7 +56,7 @@ export default function WorkflowStatusPage() {
                     floodControl: vk_account.flood_control,
                     floodControlTime: vk_account.flood_control_time,
 
-                    lastPostExists: false,   // под замену
+                    lastPostExists: workpost.last_post_at,
                 };
             });
 
@@ -230,7 +230,20 @@ export default function WorkflowStatusPage() {
                 return value ? record.lastPostExists : !record.lastPostExists;
             },
             sorter: (a, b) => Number(a.lastPostExists) - Number(b.lastPostExists),
-            render: (_, r) => <LastPostedDate workerpostId={r.key}/>
+            render: (_, r) => {
+                if (!r.lastPostExists) return "Нет данных";
+
+                // форматирование
+                const d = new Date(r.lastPostExists);
+                const formatted = d.toLocaleString("ru-RU", {
+                    day: "2-digit",
+                    month: "2-digit",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                }).replace(",", " -"); // "16.09.2025 - 12:45"
+                return formatted;
+            },
         },
 
         // ========================
