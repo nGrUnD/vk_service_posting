@@ -31,27 +31,20 @@ export default function WorkflowStatusPage() {
 
     const deleteSelectedWorkflows = async () => {
         if (!selectedRowKeys.length) return;
-        Modal.confirm({
-            title: `Удалить ${selectedRowKeys.length} выделенных рабочих процессов?`,
-            okText: "Удалить",
-            cancelText: "Отмена",
-            okButtonProps: {danger: true},
-            onOk: async () => {
-                setBulkDeleting(true);
-                try {
-                    await Promise.all(selectedRowKeys.map(id =>
-                        api.delete(`/users/{user_id}/workerpost/${id}`)
-                    ));
-                    messageApi.success('Выделенные рабочие процессы удалены');
-                    setSelectedRowKeys([]);
-                    fetchData();
-                } catch {
-                    messageApi.error('Ошибка при удалении');
-                } finally {
-                    setBulkDeleting(false);
-                }
-            }
-        });
+
+        setBulkDeleting(true);
+        try {
+            await Promise.all(selectedRowKeys.map(id =>
+                api.delete(`/users/{user_id}/workerpost/${id}`)
+            ));
+            messageApi.success('Выделенные рабочие процессы удалены');
+            setSelectedRowKeys([]);
+            fetchData();
+        } catch {
+            messageApi.error('Ошибка при удалении');
+        } finally {
+            setBulkDeleting(false);
+        }
     };
 
     const fetchData = async () => {
