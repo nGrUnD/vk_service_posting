@@ -374,7 +374,6 @@ export default function WorkflowStatusPage() {
                 <Space style={{marginBottom: 16}}>
                     <Button icon={<ReloadOutlined/>} onClick={fetchData} loading={loading}/>
                     <Button
-                        danger
                         onClick={deleteSelectedWorkflows}
                         disabled={!selectedRowKeys.length}
                         loading={bulkDeleting}
