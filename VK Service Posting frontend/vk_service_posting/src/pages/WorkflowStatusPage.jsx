@@ -229,12 +229,17 @@ export default function WorkflowStatusPage() {
                 // Да = LastPostedDate вернёт дату
                 return value ? record.lastPostExists : !record.lastPostExists;
             },
-            sorter: (a, b) => Number(a.lastPostExists) - Number(b.lastPostExists),
+            sorter: (a, b) => new Date(a.lastPostExists) - new Date(b.lastPostExists),
             render: (_, r) => {
-                if (!r.lastPostExists) return "Нет данных";
+                if (!r.lastPostExists) {
+                    return <span style={{color: "red"}}>Нет данных</span>;
+                }
 
                 // форматирование
                 const d = new Date(r.lastPostExists);
+                const now = new Date();
+                const diffHours = (now - d) / 1000 / 60 / 60; // разница в часах
+
                 const formatted = d.toLocaleString("ru-RU", {
                     day: "2-digit",
                     month: "2-digit",
@@ -242,7 +247,10 @@ export default function WorkflowStatusPage() {
                     hour: "2-digit",
                     minute: "2-digit",
                 }).replace(",", " -"); // "16.09.2025 - 12:45"
-                return formatted;
+
+                const style = diffHours > 4 ? {color: "red"} : {}; // красим, если старше 4 часов
+
+                return <span style={style}>{formatted}</span>;
             },
         },
 
@@ -262,14 +270,12 @@ export default function WorkflowStatusPage() {
                 const status = record.workerpost?.vk_account?.account_type;
 
                 if (status === "blocked") {
-                    return <span style={{ color: "red" }}>Заблокирован</span>;
-                }
-                else
-                {
-                    return <span style={{ color: "green" }}>Активен</span>;
+                    return <span style={{color: "red"}}>Заблокирован</span>;
+                } else {
+                    return <span style={{color: "green"}}>Активен</span>;
                 }
 
-                return <span style={{ color: "gray" }}>{status || "Неизвестно"}</span>;
+                return <span style={{color: "gray"}}>{status || "Неизвестно"}</span>;
             },
         },
         // ========================
