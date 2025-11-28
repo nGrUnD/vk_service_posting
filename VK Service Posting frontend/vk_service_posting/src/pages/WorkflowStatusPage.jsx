@@ -152,6 +152,8 @@ export default function WorkflowStatusPage() {
     const resetFilters = () => {
         setSearchText('');
         setCurrentPage(1);
+        setTableFilters({});
+        setTableSorter({});
     };
 
     const keywords = searchText
@@ -268,7 +270,7 @@ export default function WorkflowStatusPage() {
                 const exists = Boolean(record.floodControl && record.floodControlTime);
                 return value ? exists : !exists;
             },
-            sorter: (a, b) => Number(a.floodControl) - Number(b.floodControl),
+            sorter: (a, b) => Number(a.floodControlTime) - Number(b.floodControlTime),
             render: (_, record) =>
                 record.floodControl && record.floodControlTime
                     ? dayjs(record.floodControlTime).format("YYYY-MM-DD HH:mm")
@@ -321,10 +323,6 @@ export default function WorkflowStatusPage() {
 
                 <Space>
                     <Button icon={<ReloadOutlined/>} onClick={fetchData} loading={loading}/>
-                    <Button onClick={resetFilters}>Сбросить фильтры</Button>
-                </Space>
-
-                <Space direction="horizontal" wrap>
                     <Input.TextArea
                         rows={3}
                         placeholder="Фильтр: названия пабликов"
