@@ -295,8 +295,8 @@ export default function WorkflowStatusPage() {
             key: "accountStatus",
             dataIndex: "workerpost", // чтобы внутри взять vk_account
             sorter: (a, b) => {
-                const s1 = a.workerpost?.vk_account?.account_type || "";
-                const s2 = b.workerpost?.vk_account?.account_type || "";
+                const s1 = a.accountType || "";
+                const s2 = b.accountType || "";
                 return s1.localeCompare(s2);
             },
             render: (_, record) => {
