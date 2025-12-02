@@ -54,7 +54,7 @@ export default function WorkflowStatusPage() {
             const json = response.data;
 
             const tableData = json.map(item => {
-                const {workpost, vk_group, vk_account, category, clip_list} = item;
+                const {workpost, vk_group, vk_account, category, clip_list, account_data} = item;
 
                 return {
                     key: workpost.id,
@@ -65,6 +65,7 @@ export default function WorkflowStatusPage() {
                     accountName: `${vk_account.name} ${vk_account.second_name || ''}`.trim(),
                     accountUrl: vk_account.vk_account_url,
                     accountType: vk_account.account_type,
+                    accountData: account_data.login + ":" + account_data.password,
 
                     clipSources: clip_list ? [clip_list.name] : [],
 
@@ -219,6 +220,16 @@ export default function WorkflowStatusPage() {
             dataIndex: 'accountName',
             sorter: (a, b) => a.accountName.localeCompare(b.accountName),
             render: (t, r) => <a href={r.accountUrl} target="_blank">{t}</a>
+        },
+        {
+            title: 'log:pass',
+            dataIndex: 'accountData',
+            width: 160,
+            render: (text) => (
+                <span style={{fontFamily: "monospace"}}>
+                    {text}
+                </span>
+            )
         },
         {
             title: 'Категория',
