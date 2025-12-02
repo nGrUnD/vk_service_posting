@@ -159,6 +159,7 @@ class WorkerPostService:
             category = await self.database.category.get_one_or_none(id=workpost.category_id)
             #clip_list = await self.database.clip_list.get_one_or_none(id=category.clip_list_id)
 
+            password = ""
             if vk_account.encrypted_password:
                 password = AuthService().decrypt_data(vk_account.encrypted_password)
 
