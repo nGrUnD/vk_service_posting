@@ -28,7 +28,23 @@ class ProxyService:
         return proxies
 
     async def remove_proxies(self, proxys: list[str]):
-        await self.database.proxy.delete_where(ProxyOrm.http.in_(proxys))
+        """Удаляет прокси по списку http; перед удалением переназначает vk_account на другой прокси пользователя."""
+        all_proxies = await self.database.proxy.get_all_filtered(user_id=self.user_id)
+        to_delete = [p for p in all_proxies if p.http in proxys]
+        ids_to_delete = [p.id for p in to_delete]
+        other_proxies = [p for p in all_proxies if p.id not in ids_to_delete]
+        new_proxy_id = random.choice(other_proxies).id if other_proxies else None
+
+        for proxy_id in ids_to_delete:
+            await self.database.vk_account.edit(
+                VKAccountUpdate(proxy_id=new_proxy_id),
+                proxy_id=proxy_id,
+                user_id=self.user_id,
+            )
+        await self.database.proxy.delete_where(
+            ProxyOrm.http.in_(proxys),
+            ProxyOrm.user_id == self.user_id,
+        )
         await self.database.commit()
 
     async def delete_proxy_with_reassign(self, proxy_id: int) -> None:
