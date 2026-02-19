@@ -1,5 +1,8 @@
+import random
+
 from src.models.proxy import ProxyOrm
 from src.schemas.proxy import ProxyAdd
+from src.schemas.vk_account import VKAccountUpdate
 from src.utils.database_manager import DataBaseManager
 
 
@@ -26,4 +29,18 @@ class ProxyService:
 
     async def remove_proxies(self, proxys: list[str]):
         await self.database.proxy.delete_where(ProxyOrm.http.in_(proxys))
+        await self.database.commit()
+
+    async def delete_proxy_with_reassign(self, proxy_id: int) -> None:
+        """Удаляет прокси: сначала переназначает все vk_account с этим proxy_id на другой случайный прокси пользователя."""
+        all_proxies = await self.database.proxy.get_all_filtered(user_id=self.user_id)
+        other_proxies = [p for p in all_proxies if p.id != proxy_id]
+        new_proxy_id = random.choice(other_proxies).id if other_proxies else None
+
+        await self.database.vk_account.edit(
+            VKAccountUpdate(proxy_id=new_proxy_id),
+            proxy_id=proxy_id,
+            user_id=self.user_id,
+        )
+        await self.database.proxy.delete(id=proxy_id, user_id=self.user_id)
         await self.database.commit()

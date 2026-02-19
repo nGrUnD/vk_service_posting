@@ -26,9 +26,7 @@ async def delete_proxy(
     proxy_id: int,
     database: DataBaseDep,
 ):
-    await database.proxy.delete(id=proxy_id, user_id=user_id)
-    await database.commit()
-
+    await ProxyService(database, user_id).delete_proxy_with_reassign(proxy_id)
     return {"status": "OK"}
 
 @router.delete("/{user_id}/delete_list")
