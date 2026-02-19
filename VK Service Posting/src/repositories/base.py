@@ -48,7 +48,7 @@ class BaseRepository:
         model = result.scalars().one()
         return self.schema.model_validate(model)
 
-    async def edit(self, data: BaseModel, exclude_unset: bool = False, **filter_by):
+    async def edit(self, data: BaseModel, exclude_unset: bool = True, **filter_by):
         update_stmt = (
             update(self.model).
             filter_by(**filter_by).
