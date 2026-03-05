@@ -2,6 +2,7 @@ import asyncio
 
 from fastapi import FastAPI
 import uvicorn
+from prometheus_fastapi_instrumentator import Instrumentator
 
 import sys
 from pathlib import Path
@@ -65,6 +66,7 @@ app.add_middleware(
 )
 
 
+Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 app.include_router(router_user_auth)
 app.include_router(router_vk_account)
 app.include_router(router_category)
@@ -78,6 +80,7 @@ app.include_router(router_vk_account_group)
 @app.on_event("startup")
 async def start_scheduler():
     asyncio.create_task(scheduler_loop())
+
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=False) # "127.0.0.1" localhost
