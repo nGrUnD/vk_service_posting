@@ -48,7 +48,7 @@ class WorkerPostUpdate(BaseModel):
     vk_group_id: Optional[int] = None
     vk_account_id: Optional[int] = None
     category_id: Optional[int] = None
-    is_active: Optional[bool]
-    last_post_at: Optional[datetime]
+    is_active: Optional[bool] = None
+    last_post_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
