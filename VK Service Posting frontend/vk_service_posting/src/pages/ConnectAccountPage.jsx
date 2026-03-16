@@ -59,7 +59,6 @@ export default function ConnectAccountPage() {
             description: category.description || '',
             repost: category.repost_enabled || false,
             hourlyLimit: category.hourly_limit || 0,
-            inSchedule: category.is_active || false,
         });
     };
 
@@ -144,10 +143,6 @@ export default function ConnectAccountPage() {
 
                                 <Form.Item name="hourlyLimit" label="Лимит в час">
                                     <InputNumber min={0} style={{ width: '100%' }} disabled />
-                                </Form.Item>
-
-                                <Form.Item name="inSchedule" valuePropName="checked">
-                                    <Checkbox disabled>В расписании / В работе</Checkbox>
                                 </Form.Item>
                             </Col>
                         </Row>

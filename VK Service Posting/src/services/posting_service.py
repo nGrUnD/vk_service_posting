@@ -78,8 +78,12 @@ class PostingService:
                 # print(workpost)
                 category = await self.category_repo.get_one_or_none(id=workpost.category_id)
                 # print(category)
-                if not category or not category.is_active:
-                    logging.error("Нет категории или не активно")
+                if not category:
+                    logging.error("Нет категории")
+                    continue
+
+                if not workpost.is_active:
+                    logging.info(f"Workerpost #{workpost.id} на паузе")
                     continue
 
                 hourly_limit = category.hourly_limit

@@ -18,7 +18,6 @@ export default function CategorySettingsPage() {
         repost_enabled: false,
         daily_limit: 0,
         hourly_limit: 0,
-        is_active: false,
         clip_list_id: null,
     });
 
@@ -60,7 +59,6 @@ export default function CategorySettingsPage() {
                 repost_enabled: category.repost_enabled,
                 daily_limit: category.daily_limit,
                 hourly_limit: category.hourly_limit,
-                is_active: category.is_active,
                 clip_list_id: category.clip_list_id ?? null,
             });
         } else {
@@ -70,7 +68,6 @@ export default function CategorySettingsPage() {
                 repost_enabled: false,
                 daily_limit: 0,
                 hourly_limit: 0,
-                is_active: false,
                 clip_list_id: null,
             });
         }
@@ -82,11 +79,15 @@ export default function CategorySettingsPage() {
             if (editingCategory) { // `/categories/${editingCategory.id}`
                 await api.put(`/users/{user_id}/categories/edit/${editingCategory.id}`, {
                     ...form,
+                    is_active: true,
                     repost_enabled: form.repost_enabled ?? false,
                 });
                 messageApi.success('Категория обновлена');
             } else {
-                await api.post(`/users/{user_id}/categories/add`, form);
+                await api.post(`/users/{user_id}/categories/add`, {
+                    ...form,
+                    is_active: true,
+                });
                 messageApi.success('Категория создана');
             }
             setModalOpen(false);
@@ -130,7 +131,6 @@ export default function CategorySettingsPage() {
                                 <div className="text-sm mt-2 text-gray-500 flex flex-col space-y-1">
                                     <div>Репост: {cat.repost_enabled ? 'Да' : 'Нет'}</div>
                                     <div>Лимит: {cat.daily_limit}/день, {cat.hourly_limit}/час</div>
-                                    <div>Статус: {cat.is_active ? 'В расписании' : 'Пауза'}</div>
                                     <div>
                                         Список клипов: {
                                         clipLists.find(list => list.id === cat.clip_list_id)?.name || 'Не выбран'
@@ -218,14 +218,6 @@ export default function CategorySettingsPage() {
                                 value: list.id
                             }))}
                         />
-
-                        <div className="flex items-center justify-between">
-                            <span>В расписании / В работе:</span>
-                            <Switch
-                                checked={form.is_active}
-                                onChange={checked => setForm({...form, is_active: checked})}
-                            />
-                        </div>
                     </div>
                 </Modal>
             </div>

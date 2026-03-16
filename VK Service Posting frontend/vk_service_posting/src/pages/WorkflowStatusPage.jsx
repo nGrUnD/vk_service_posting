@@ -23,6 +23,7 @@ export default function WorkflowStatusPage() {
     const [categories, setCategories] = useState([]);
     const [selectedRowKeys, setSelectedRowKeys] = useState([]); // для выделенных пабликов
     const [bulkDeleting, setBulkDeleting] = useState(false);
+    const [updatingWorkerpostId, setUpdatingWorkerpostId] = useState(null);
 
     const rowSelection = {
         selectedRowKeys,
@@ -59,6 +60,10 @@ export default function WorkflowStatusPage() {
                 return {
                     key: workpost.id,
                     id: workpost.id,
+                    workerpost: {
+                        id: workpost.id,
+                        isActive: workpost.is_active,
+                    },
                     groupName: vk_group.name,
                     groupUrl: vk_group.vk_group_url,
 
@@ -75,7 +80,6 @@ export default function WorkflowStatusPage() {
                         clipsPerHour: category.hourly_limit,
                         description: category.description,
                         repost: category.repost_enabled,
-                        inWork: category.is_active
                     },
 
                     floodControl: vk_account.flood_control,
@@ -99,7 +103,6 @@ export default function WorkflowStatusPage() {
         repost_enabled: false,
         daily_limit: 0,
         hourly_limit: 0,
-        is_active: false,
         clip_list_id: null,
     });
 
@@ -135,7 +138,6 @@ export default function WorkflowStatusPage() {
                 repost_enabled: fullCategory.repost_enabled || false,
                 daily_limit: fullCategory.daily_limit || 0,
                 hourly_limit: fullCategory.hourly_limit || 0,
-                is_active: fullCategory.is_active || false,
                 clip_list_id: fullCategory.clip_list_id ?? null,
             });
         }
@@ -147,6 +149,7 @@ export default function WorkflowStatusPage() {
         try {
             await api.put(`/users/{user_id}/categories/edit/${editingCategoryFull.id}`, {
                 ...form,
+                is_active: true,
                 repost_enabled: form.repost_enabled ?? false,
             });
             messageApi.success('Категория обновлена');
@@ -155,6 +158,33 @@ export default function WorkflowStatusPage() {
             fetchData();
         } catch {
             messageApi.error('Ошибка при сохранении категории');
+        }
+    };
+
+    const toggleWorkerpostActive = async (workerpostId, nextValue) => {
+        setUpdatingWorkerpostId(workerpostId);
+        try {
+            await api.put(`/users/{user_id}/workerpost/${workerpostId}`, {
+                is_active: nextValue,
+            });
+
+            setData(prevData => prevData.map(item => (
+                item.workerpost.id === workerpostId
+                    ? {
+                        ...item,
+                        workerpost: {
+                            ...item.workerpost,
+                            isActive: nextValue,
+                        },
+                    }
+                    : item
+            )));
+
+            messageApi.success(nextValue ? 'Workerpost запущен' : 'Workerpost поставлен на паузу');
+        } catch {
+            messageApi.error('Не удалось обновить статус workerpost');
+        } finally {
+            setUpdatingWorkerpostId(null);
         }
     };
 
@@ -336,11 +366,29 @@ export default function WorkflowStatusPage() {
         // ========================
         {
             title: 'В работе',
-            dataIndex: ['category', 'inWork'],
+            dataIndex: ['workerpost', 'isActive'],
             filters: yesNoFilter,
-            onFilter: (v, r) => r.category.inWork === v,
-            sorter: (a, b) => Number(a.category.inWork) - Number(b.category.inWork),
-            render: v => (v ? 'Да' : 'Нет')
+            onFilter: (v, r) => r.workerpost.isActive === v,
+            sorter: (a, b) => Number(a.workerpost.isActive) - Number(b.workerpost.isActive),
+            render: (value, record) => (
+                <div className="flex items-center gap-2">
+                    <Switch
+                        checked={value}
+                        checkedChildren="Да"
+                        unCheckedChildren="Нет"
+                        loading={updatingWorkerpostId === record.workerpost.id}
+                        onChange={(checked) => toggleWorkerpostActive(record.workerpost.id, checked)}
+                    />
+                    <span
+                        style={{
+                            color: value ? '#389e0d' : '#cf1322',
+                            fontWeight: 500,
+                        }}
+                    >
+                        {value ? 'Активен' : 'Пауза'}
+                    </span>
+                </div>
+            )
         },
 
         {
@@ -455,13 +503,6 @@ export default function WorkflowStatusPage() {
                             }))}
                         />
 
-                        <div className="flex items-center justify-between">
-                            <span>В работе:</span>
-                            <Switch
-                                checked={form.is_active}
-                                onChange={v => setForm({...form, is_active: v})}
-                            />
-                        </div>
                     </div>
                 </Modal>
             </Card>

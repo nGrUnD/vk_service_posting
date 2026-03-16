@@ -83,7 +83,7 @@ def create_workpost(
             vk_group_id=vk_group_database.id,
             vk_account_id=vk_account_database.id,
             category_id=category_database.id,
-            is_active=category_database.is_active,
+            is_active=True,
             last_post_at=None,
         )
 

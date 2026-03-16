@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, status, Body
 
 from src.api.dependencies import DataBaseDep, UserIdDep
-from src.schemas.workerpost import WorkerPostRequestAdd
+from src.schemas.workerpost import WorkerPostRequestAdd, WorkerPostUpdate
 from src.services.workerpost_service import WorkerPostService
 from src.vk_api_methods.vk_auth import get_new_token_request
 from src.vk_api_methods.vk_clip import is_token_expired
@@ -89,6 +89,34 @@ async def get_vk_group_status(
         "status": workerpost.parse_status,   # pending | success | failure
         "task_id": workerpost.task_id,
     }
+
+
+@router.put("/{workerpost_id}", summary="Обновить конкретный VK постинг")
+async def update_workerpost(
+        user_id: UserIdDep,
+        database: DataBaseDep,
+        workerpost_id: int,
+        workerpost_update: WorkerPostUpdate,
+):
+    workerpost = await database.workerpost.get_one_or_none(
+        id=workerpost_id,
+        user_id=user_id,
+    )
+    if not workerpost:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="VK постинг не найден"
+        )
+
+    await database.workerpost.edit(
+        workerpost_update,
+        exclude_unset=True,
+        id=workerpost_id,
+        user_id=user_id,
+    )
+    await database.commit()
+
+    return {"status": "OK"}
 
 
 @router.post("/create_workerpost", status_code=status.HTTP_201_CREATED, summary="Добавить сразу много групп Источников по url")
