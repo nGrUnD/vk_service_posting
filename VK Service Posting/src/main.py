@@ -1,4 +1,5 @@
 import asyncio
+import os
 
 from fastapi import FastAPI
 import uvicorn
@@ -29,6 +30,23 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+cors_origins = [
+    "http://localhost:5173",
+    "http://0.0.0.0:5173",
+    "http://79.141.67.73",
+    "http://87.228.102.22",
+    "http://raccster.vk.dmtr.ru",
+    "https://raccster.vk.dmtr.ru",
+]
+
+extra_cors_origins = os.getenv("APP_CORS_ORIGINS", "")
+if extra_cors_origins:
+    cors_origins.extend(
+        origin.strip()
+        for origin in extra_cors_origins.split(",")
+        if origin.strip()
+    )
+
 async def scheduler_loop():
     logger.info("✅ Scheduler loop started")
     minutes = 0
@@ -54,12 +72,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://0.0.0.0:5173",
-        "http://79.141.67.73",
-        "http://87.228.102.22",
-    ],  # фронтенд-URL
+    allow_origins=cors_origins,
     allow_credentials=True,                   # важно для cookie
     allow_methods=["*"],
     allow_headers=["*"],
