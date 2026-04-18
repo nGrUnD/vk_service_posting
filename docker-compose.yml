@@ -1,12 +1,10 @@
-version: "3.9"
-
 services:
 
   promtail:
     image: grafana/promtail:latest
     container_name: promtail
     ports:
-      - "9080:9080"
+      - "127.0.0.1:9080:9080"
     volumes:
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
       - /var/run/docker.sock:/var/run/docker.sock
@@ -18,7 +16,7 @@ services:
     image: grafana/loki:latest
     container_name: loki
     ports:
-      - "3100:3100"
+      - "127.0.0.1:3100:3100"
     volumes:
       - ./loki-config.yaml:/etc/loki/local-config.yaml
 
@@ -26,7 +24,7 @@ services:
     image: prom/prometheus:latest
     container_name: prometheus
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheusdata:/prometheus
@@ -35,7 +33,7 @@ services:
     image: grafana/grafana:latest
     container_name: grafana
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3001:3000"
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
@@ -58,7 +56,7 @@ services:
     volumes:
       - "./VK Service Posting:/app"
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     command: >
       sh -c "
         alembic upgrade head &&
@@ -115,24 +113,7 @@ services:
     environment:
       - DOMAIN_NAME=raccster.vk.dmtr.ru
     ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./certbot/conf:/etc/letsencrypt:ro
-      - ./certbot/www:/var/www/certbot:ro
-
-  certbot:
-    image: certbot/certbot:latest
-    container_name: certbot
-    volumes:
-      - ./certbot/conf:/etc/letsencrypt
-      - ./certbot/www:/var/www/certbot
-    command: >
-      sh -c "trap exit TERM; while :; do
-        certbot renew --webroot -w /var/www/certbot --quiet;
-        sleep 12h & wait $$!;
-      done"
-    restart: unless-stopped
+      - "127.0.0.1:8080:80"
 
   postgres:
     image: postgres:15
@@ -151,7 +132,7 @@ services:
     #  timeout: 5s
     #  retries: 10
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
 
   redis:
     image: redis:7
