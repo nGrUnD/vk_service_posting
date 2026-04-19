@@ -21,6 +21,11 @@ class WorkerPostAdd(BaseModel):
     category_id: int
 
     is_active: bool
+    banner_video_path: Optional[str] = None
+    banner_x: Optional[float] = None
+    banner_y: Optional[float] = None
+    banner_width: Optional[float] = None
+    banner_height: Optional[float] = None
     last_post_at: Optional[datetime] = None
 
     model_config = ConfigDict(strict=False, extra="forbid")
@@ -34,6 +39,11 @@ class WorkerPost(BaseModel):
     category_id: int
 
     is_active: bool
+    banner_video_path: Optional[str]
+    banner_x: Optional[float]
+    banner_y: Optional[float]
+    banner_width: Optional[float]
+    banner_height: Optional[float]
     last_post_at: Optional[datetime]
 
     #vk_group: VKGroup
@@ -49,6 +59,11 @@ class WorkerPostUpdate(BaseModel):
     vk_account_id: Optional[int] = None
     category_id: Optional[int] = None
     is_active: Optional[bool] = None
+    banner_video_path: Optional[str] = None
+    banner_x: Optional[float] = None
+    banner_y: Optional[float] = None
+    banner_width: Optional[float] = None
+    banner_height: Optional[float] = None
     last_post_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)

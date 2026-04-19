@@ -2,6 +2,7 @@ from datetime import datetime
 
 from sqlalchemy import (
     BigInteger,
+    Float,
     TIMESTAMP,
     ForeignKey,
     func,
@@ -27,6 +28,11 @@ class WorkerPostOrm(Base):
     category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"), nullable=False)
 
     is_active: Mapped[bool]
+    banner_video_path: Mapped[str | None] = mapped_column(nullable=True)
+    banner_x: Mapped[float | None] = mapped_column(Float, nullable=True)
+    banner_y: Mapped[float | None] = mapped_column(Float, nullable=True)
+    banner_width: Mapped[float | None] = mapped_column(Float, nullable=True)
+    banner_height: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
     last_post_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=True)

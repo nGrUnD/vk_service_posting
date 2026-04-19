@@ -1,12 +1,33 @@
-import React, {useState, useEffect} from 'react';
+import React, {useEffect, useState} from 'react';
 import {
-    Card, Typography, Table, Space, Button, Input, Modal, Popconfirm, Switch, Select, message,
+    Button,
+    Card,
+    Divider,
+    Input,
+    InputNumber,
+    Modal,
+    Popconfirm,
+    Select,
+    Space,
+    Switch,
+    Table,
+    Typography,
+    message,
 } from 'antd';
-import api from '../api/axios';
 import {ReloadOutlined, SettingOutlined} from '@ant-design/icons';
-import dayjs from "dayjs";
+import dayjs from 'dayjs';
 
-const {Title} = Typography;
+import api from '../api/axios';
+
+const {Title, Text} = Typography;
+const apiBaseUrl = (api.defaults.baseURL || '/api').replace(/\/$/, '');
+
+const DEFAULT_BANNER_FORM = {
+    banner_x: 0,
+    banner_y: 0,
+    banner_width: 100,
+    banner_height: 15,
+};
 
 export default function WorkflowStatusPage() {
     const [messageApi, contextHolder] = message.useMessage();
@@ -17,27 +38,62 @@ export default function WorkflowStatusPage() {
     const [pageSize, setPageSize] = useState(50);
 
     const [modalOpen, setModalOpen] = useState(false);
-    const [editingCategoryFull, setEditingCategoryFull] = useState(null);
+    const [editingRecord, setEditingRecord] = useState(null);
     const [clipLists, setClipLists] = useState([]);
     const [loadingClips, setLoadingClips] = useState(false);
     const [categories, setCategories] = useState([]);
-    const [selectedRowKeys, setSelectedRowKeys] = useState([]); // для выделенных пабликов
+    const [selectedRowKeys, setSelectedRowKeys] = useState([]);
     const [bulkDeleting, setBulkDeleting] = useState(false);
     const [updatingWorkerpostId, setUpdatingWorkerpostId] = useState(null);
+    const [savingSettings, setSavingSettings] = useState(false);
+    const [bannerFile, setBannerFile] = useState(null);
+    const [bannerPreviewUrl, setBannerPreviewUrl] = useState(null);
+    const [bannerMarkedForDeletion, setBannerMarkedForDeletion] = useState(false);
+
+    const [form, setForm] = useState({
+        name: '',
+        description: '',
+        repost_enabled: false,
+        daily_limit: 0,
+        hourly_limit: 0,
+        clip_list_id: null,
+        ...DEFAULT_BANNER_FORM,
+    });
 
     const rowSelection = {
         selectedRowKeys,
         onChange: (keys) => setSelectedRowKeys(keys),
     };
 
+    const updateForm = (patch) => {
+        setForm(prev => ({...prev, ...patch}));
+    };
+
+    const cleanupLocalBannerPreview = () => {
+        setBannerPreviewUrl(prev => {
+            if (prev?.startsWith('blob:')) {
+                URL.revokeObjectURL(prev);
+            }
+            return null;
+        });
+    };
+
+    const closeModal = () => {
+        cleanupLocalBannerPreview();
+        setModalOpen(false);
+        setEditingRecord(null);
+        setBannerFile(null);
+        setBannerMarkedForDeletion(false);
+    };
+
     const deleteSelectedWorkflows = async () => {
-        if (!selectedRowKeys.length) return;
+        if (!selectedRowKeys.length) {
+            return;
+        }
 
         setBulkDeleting(true);
         try {
-            await Promise.all(selectedRowKeys.map(id =>
-                api.delete(`/users/{user_id}/workerpost/${id}`)
-            ));
+            await Promise.all(selectedRowKeys.map(id => api.delete(`/users/{user_id}/workerpost/${id}`)));
             messageApi.success('Выделенные рабочие процессы удалены');
             setSelectedRowKeys([]);
             fetchData();
@@ -52,10 +108,11 @@ export default function WorkflowStatusPage() {
         setLoading(true);
         try {
             const response = await api.get(`/users/{user_id}/workerpost/all`);
-            const json = response.data;
-
-            const tableData = json.map(item => {
+            const tableData = response.data.map(item => {
                 const {workpost, vk_group, vk_account, category, clip_list, account_data} = item;
+                const bannerUrl = workpost.banner_video_path
+                    ? `${apiBaseUrl}/users/{user_id}/workerpost/${workpost.id}/banner`
+                    : null;
 
                 return {
                     key: workpost.id,
@@ -63,17 +120,20 @@ export default function WorkflowStatusPage() {
                     workerpost: {
                         id: workpost.id,
                         isActive: workpost.is_active,
+                        bannerVideoUrl: bannerUrl,
+                        hasBanner: Boolean(workpost.banner_video_path),
+                        banner_x: workpost.banner_x ?? DEFAULT_BANNER_FORM.banner_x,
+                        banner_y: workpost.banner_y ?? DEFAULT_BANNER_FORM.banner_y,
+                        banner_width: workpost.banner_width ?? DEFAULT_BANNER_FORM.banner_width,
+                        banner_height: workpost.banner_height ?? DEFAULT_BANNER_FORM.banner_height,
                     },
                     groupName: vk_group.name,
                     groupUrl: vk_group.vk_group_url,
-
                     accountName: `${vk_account.name} ${vk_account.second_name || ''}`.trim(),
                     accountUrl: vk_account.vk_account_url,
                     accountType: vk_account.account_type,
-                    accountData: account_data.login + ":" + account_data.password,
-
+                    accountData: `${account_data.login}:${account_data.password}`,
                     clipSources: clip_list ? [clip_list.name] : [],
-
                     category: {
                         id: category.id,
                         name: category.name,
@@ -81,10 +141,8 @@ export default function WorkflowStatusPage() {
                         description: category.description,
                         repost: category.repost_enabled,
                     },
-
                     floodControl: vk_account.flood_control,
                     floodControlTime: vk_account.flood_control_time,
-
                     lastPostExists: workpost.last_post_at,
                 };
             });
@@ -92,19 +150,11 @@ export default function WorkflowStatusPage() {
             setData(tableData);
         } catch (error) {
             console.error(error);
+            messageApi.error('Не удалось загрузить workerpost');
         } finally {
             setLoading(false);
         }
     };
-
-    const [form, setForm] = useState({
-        name: '',
-        description: '',
-        repost_enabled: false,
-        daily_limit: 0,
-        hourly_limit: 0,
-        clip_list_id: null,
-    });
 
     const loadClipLists = async () => {
         setLoadingClips(true);
@@ -127,37 +177,106 @@ export default function WorkflowStatusPage() {
         }
     };
 
-    const openModal = (categoryKey) => {
-        const fullCategory = categories.find(c => c.id === categoryKey.id);
-        setEditingCategoryFull(fullCategory);
+    const openModal = (record) => {
+        const fullCategory = categories.find(c => c.id === record.category.id);
+        setEditingRecord(record);
+        setBannerFile(null);
+        setBannerMarkedForDeletion(false);
+        cleanupLocalBannerPreview();
 
-        if (fullCategory) {
-            setForm({
-                name: fullCategory.name || '',
-                description: fullCategory.description || '',
-                repost_enabled: fullCategory.repost_enabled || false,
-                daily_limit: fullCategory.daily_limit || 0,
-                hourly_limit: fullCategory.hourly_limit || 0,
-                clip_list_id: fullCategory.clip_list_id ?? null,
-            });
-        }
+        setForm({
+            name: fullCategory?.name || '',
+            description: fullCategory?.description || '',
+            repost_enabled: fullCategory?.repost_enabled || false,
+            daily_limit: fullCategory?.daily_limit || 0,
+            hourly_limit: fullCategory?.hourly_limit || 0,
+            clip_list_id: fullCategory?.clip_list_id ?? null,
+            banner_x: record.workerpost.banner_x,
+            banner_y: record.workerpost.banner_y,
+            banner_width: record.workerpost.banner_width,
+            banner_height: record.workerpost.banner_height,
+        });
 
+        setBannerPreviewUrl(record.workerpost.bannerVideoUrl);
         setModalOpen(true);
     };
 
+    const handleBannerChange = (event) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+
+        if (!file) {
+            return;
+        }
+
+        if (file.type && !file.type.startsWith('video/')) {
+            messageApi.error('Нужно выбрать видеофайл');
+            return;
+        }
+
+        cleanupLocalBannerPreview();
+        setBannerFile(file);
+        setBannerMarkedForDeletion(false);
+        setBannerPreviewUrl(URL.createObjectURL(file));
+    };
+
+    const handleBannerDeleteClick = () => {
+        cleanupLocalBannerPreview();
+        setBannerFile(null);
+        setBannerMarkedForDeletion(true);
+    };
+
     const handleSave = async () => {
+        if (!editingRecord) {
+            return;
+        }
+
+        setSavingSettings(true);
         try {
-            await api.put(`/users/{user_id}/categories/edit/${editingCategoryFull.id}`, {
-                ...form,
-                is_active: true,
+            await api.put(`/users/{user_id}/categories/edit/${editingRecord.category.id}`, {
+                name: form.name,
+                description: form.description,
                 repost_enabled: form.repost_enabled ?? false,
+                daily_limit: form.daily_limit ?? 0,
+                hourly_limit: form.hourly_limit ?? 0,
+                clip_list_id: form.clip_list_id,
+                is_active: true,
             });
-            messageApi.success('Категория обновлена');
-            setModalOpen(false);
+
+            await api.put(`/users/{user_id}/workerpost/${editingRecord.workerpost.id}`, {
+                banner_x: form.banner_x,
+                banner_y: form.banner_y,
+                banner_width: form.banner_width,
+                banner_height: form.banner_height,
+            });
+
+            if (bannerMarkedForDeletion && editingRecord.workerpost.hasBanner) {
+                await api.delete(`/users/{user_id}/workerpost/${editingRecord.workerpost.id}/banner`);
+            }
+
+            if (bannerFile) {
+                const payload = new FormData();
+                payload.append('banner_file', bannerFile);
+                await api.post(
+                    `/users/{user_id}/workerpost/${editingRecord.workerpost.id}/banner`,
+                    payload,
+                    {
+                        headers: {
+                            'Content-Type': 'multipart/form-data',
+                        },
+                    },
+                );
+            }
+
+            messageApi.success('Настройки workerpost обновлены');
+            closeModal();
             loadCategories();
             fetchData();
-        } catch {
-            messageApi.error('Ошибка при сохранении категории');
+        } catch (error) {
+            console.error(error);
+            messageApi.error('Ошибка при сохранении настроек');
+        } finally {
+            setSavingSettings(false);
         }
     };
 
@@ -202,14 +321,11 @@ export default function WorkflowStatusPage() {
         loadCategories();
         loadClipLists();
         fetchData();
-    }, []);
 
-    const resetFilters = () => {
-        setSearchText('');
-        setCurrentPage(1);
-        setTableFilters({});
-        setTableSorter({});
-    };
+        return () => {
+            cleanupLocalBannerPreview();
+        };
+    }, []);
 
     const keywords = searchText
         .split(/[\n,]+/)
@@ -217,19 +333,15 @@ export default function WorkflowStatusPage() {
         .filter(Boolean);
 
     const filteredData = keywords.length
-        ? data.filter(item =>
-            keywords.some(kw => item.groupName.toLowerCase().includes(kw))
-        )
+        ? data.filter(item => keywords.some(kw => item.groupName.toLowerCase().includes(kw)))
         : data;
-
-    // ==========================================
-    //             📌 ФИЛЬТРЫ
-    // ==========================================
 
     const yesNoFilter = [
         {text: 'Да', value: true},
         {text: 'Нет', value: false},
     ];
+
+    const currentBannerPreview = bannerMarkedForDeletion ? null : bannerPreviewUrl;
 
     const columns = [
         {
@@ -243,132 +355,109 @@ export default function WorkflowStatusPage() {
             title: 'ВК группа',
             dataIndex: 'groupName',
             sorter: (a, b) => a.groupName.localeCompare(b.groupName),
-            render: (text, r) => <a href={r.groupUrl} target="_blank">{text}</a>
+            render: (text, record) => (
+                <a href={record.groupUrl} target="_blank" rel="noreferrer">{text}</a>
+            ),
         },
         {
             title: 'Аккаунт',
             dataIndex: 'accountName',
             sorter: (a, b) => a.accountName.localeCompare(b.accountName),
-            render: (t, r) => <a href={r.accountUrl} target="_blank">{t}</a>
+            render: (text, record) => (
+                <a href={record.accountUrl} target="_blank" rel="noreferrer">{text}</a>
+            ),
         },
         {
             title: 'log:pass',
             dataIndex: 'accountData',
             width: 160,
             render: (text) => (
-                <span style={{fontFamily: "monospace"}}>
+                <span style={{fontFamily: 'monospace'}}>
                     {text}
                 </span>
-            )
+            ),
         },
         {
             title: 'Категория',
             dataIndex: ['category', 'name'],
-            sorter: (a, b) => a.category.name.localeCompare(b.category.name)
+            sorter: (a, b) => a.category.name.localeCompare(b.category.name),
         },
         {
             title: 'Клипов/час',
             dataIndex: ['category', 'clipsPerHour'],
-            sorter: (a, b) => a.category.clipsPerHour - b.category.clipsPerHour
+            sorter: (a, b) => a.category.clipsPerHour - b.category.clipsPerHour,
         },
-
-        // ========================
-        //      📌 Репост
-        // ========================
         {
             title: 'Репост',
             dataIndex: ['category', 'repost'],
             filters: yesNoFilter,
             onFilter: (value, record) => record.category.repost === value,
-            sorter: (a, b) => Number(a.repost) - Number(b.repost),
-            render: v => (v ? 'Да' : 'Нет')
+            sorter: (a, b) => Number(a.category.repost) - Number(b.category.repost),
+            render: value => (value ? 'Да' : 'Нет'),
         },
-
-        // ========================
-        //      📌 Постинг клипы
-        // ========================
+        {
+            title: 'Видео-баннер',
+            dataIndex: ['workerpost', 'hasBanner'],
+            filters: yesNoFilter,
+            onFilter: (value, record) => record.workerpost.hasBanner === value,
+            sorter: (a, b) => Number(a.workerpost.hasBanner) - Number(b.workerpost.hasBanner),
+            render: value => (value ? 'Загружен' : 'Нет'),
+        },
         {
             title: 'Постинг клипы',
             key: 'postedClips',
-            onFilter: (value, record) => {
-                // Да = LastPostedDate вернёт дату
-                return value ? record.lastPostExists : !record.lastPostExists;
-            },
             sorter: (a, b) => new Date(a.lastPostExists) - new Date(b.lastPostExists),
-            render: (_, r) => {
-                if (!r.lastPostExists) {
-                    return <span style={{color: "red"}}>Нет данных</span>;
+            render: (_, record) => {
+                if (!record.lastPostExists) {
+                    return <span style={{color: 'red'}}>Нет данных</span>;
                 }
 
-                // форматирование
-                const d = new Date(r.lastPostExists);
-                const now = new Date();
-                const diffHours = (now - d) / 1000 / 60 / 60; // разница в часах
+                const postedAt = new Date(record.lastPostExists);
+                const diffHours = (new Date() - postedAt) / 1000 / 60 / 60;
+                const formatted = postedAt.toLocaleString('ru-RU', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                }).replace(',', ' -');
 
-                const formatted = d.toLocaleString("ru-RU", {
-                    day: "2-digit",
-                    month: "2-digit",
-                    year: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                }).replace(",", " -"); // "16.09.2025 - 12:45"
-
-                const style = diffHours > 4 ? {color: "red"} : {}; // красим, если старше 4 часов
-
-                return <span style={style}>{formatted}</span>;
+                return <span style={diffHours > 4 ? {color: 'red'} : undefined}>{formatted}</span>;
             },
         },
-
-        // ========================
-        //      📌 Статус аккаунта
-        // ========================
         {
-            title: "Статус аккаунта",
-            key: "accountStatus",
-            dataIndex: "workerpost", // чтобы внутри взять vk_account
-            sorter: (a, b) => {
-                const s1 = a.accountType || "";
-                const s2 = b.accountType || "";
-                return s1.localeCompare(s2);
-            },
+            title: 'Статус аккаунта',
+            key: 'accountStatus',
+            sorter: (a, b) => (a.accountType || '').localeCompare(b.accountType || ''),
             render: (_, record) => {
                 const status = record.accountType;
 
-                if (status === "blocked") {
-                    return <span style={{color: "red"}}>Заблокирован</span>;
-                } else if (status) {
-                    return <span style={{color: "green"}}>Активен</span>;
+                if (status === 'blocked') {
+                    return <span style={{color: 'red'}}>Заблокирован</span>;
                 }
-
-                return <span style={{color: "gray"}}>{status || "Неизвестно"}</span>;
+                if (status) {
+                    return <span style={{color: 'green'}}>Активен</span>;
+                }
+                return <span style={{color: 'gray'}}>{status || 'Неизвестно'}</span>;
             },
         },
-        // ========================
-        //          📌 Флуд
-        // ========================
         {
             title: 'Флудконтроль',
             key: 'floodControl',
             filters: yesNoFilter,
-            onFilter: (value, record) => {
-                const exists = Boolean(record.floodControl && record.floodControlTime);
-                return value ? exists : !exists;
-            },
+            onFilter: (value, record) => Boolean(record.floodControl && record.floodControlTime) === value,
             sorter: (a, b) => Number(a.floodControlTime) - Number(b.floodControlTime),
-            render: (_, record) =>
+            render: (_, record) => (
                 record.floodControl && record.floodControlTime
-                    ? dayjs(record.floodControlTime).format("YYYY-MM-DD HH:mm")
+                    ? dayjs(record.floodControlTime).format('YYYY-MM-DD HH:mm')
                     : 'Нет'
+            ),
         },
-
-        // ========================
-        //         📌 В работе
-        // ========================
         {
             title: 'В работе',
             dataIndex: ['workerpost', 'isActive'],
             filters: yesNoFilter,
-            onFilter: (v, r) => r.workerpost.isActive === v,
+            onFilter: (value, record) => record.workerpost.isActive === value,
             sorter: (a, b) => Number(a.workerpost.isActive) - Number(b.workerpost.isActive),
             render: (value, record) => (
                 <div className="flex items-center gap-2">
@@ -388,33 +477,29 @@ export default function WorkflowStatusPage() {
                         {value ? 'Активен' : 'Пауза'}
                     </span>
                 </div>
-            )
+            ),
         },
-
         {
             title: 'Настройки',
-            render: (_, r) => (
+            render: (_, record) => (
                 <Button
                     icon={<SettingOutlined/>}
-                    onClick={() => openModal(r.category)}
+                    onClick={() => openModal(record)}
                     type="primary"
                     size="small"
                 >
                     Настроить
                 </Button>
-            )
+            ),
         },
         {
             title: 'Удалить',
-            render: (_, r) => (
-                <Popconfirm
-                    title="Удалить?"
-                    onConfirm={() => deleteWorkflow(r.key)}
-                >
+            render: (_, record) => (
+                <Popconfirm title="Удалить?" onConfirm={() => deleteWorkflow(record.key)}>
                     <Button danger size="small">Удалить</Button>
                 </Popconfirm>
-            )
-        }
+            ),
+        },
     ];
 
     return (
@@ -452,10 +537,10 @@ export default function WorkflowStatusPage() {
                     rowSelection={rowSelection}
                     pagination={{
                         current: currentPage,
-                        pageSize: pageSize,
-                        onChange: (p, s) => {
-                            setCurrentPage(p);
-                            setPageSize(s);
+                        pageSize,
+                        onChange: (page, size) => {
+                            setCurrentPage(page);
+                            setPageSize(size);
                         },
                         showSizeChanger: true,
                         pageSizeOptions: ['10', '20', '50', '100'],
@@ -464,45 +549,203 @@ export default function WorkflowStatusPage() {
 
                 <Modal
                     open={modalOpen}
-                    onCancel={() => setModalOpen(false)}
-                    title="Редактирование категории"
+                    onCancel={closeModal}
+                    title={editingRecord ? `Настройки workerpost #${editingRecord.id}` : 'Настройки workerpost'}
+                    width={900}
                     footer={[
-                        <Button key="cancel" onClick={() => setModalOpen(false)}>Отмена</Button>,
-                        <Button key="save" type="primary" onClick={handleSave}>Сохранить</Button>,
+                        <Button key="cancel" onClick={closeModal}>Отмена</Button>,
+                        <Button key="save" type="primary" onClick={handleSave} loading={savingSettings}>
+                            Сохранить
+                        </Button>,
                     ]}
                 >
-                    <div className="flex flex-col gap-4">
-                        <Input
-                            placeholder="Название"
-                            value={form.name}
-                            onChange={e => setForm({...form, name: e.target.value})}
-                        />
-                        <Input.TextArea
-                            placeholder="Описание"
-                            value={form.description}
-                            onChange={e => setForm({...form, description: e.target.value})}
-                        />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="flex flex-col gap-4">
+                            <Title level={5} style={{margin: 0}}>Категория</Title>
 
-                        <div className="flex items-center justify-between">
-                            <span>Репост:</span>
-                            <Switch
-                                checked={form.repost_enabled}
-                                onChange={v => setForm({...form, repost_enabled: v})}
+                            <Input
+                                placeholder="Название"
+                                value={form.name}
+                                onChange={e => updateForm({name: e.target.value})}
                             />
+
+                            <Input.TextArea
+                                placeholder="Описание"
+                                value={form.description}
+                                onChange={e => updateForm({description: e.target.value})}
+                                rows={4}
+                            />
+
+                            <div className="flex items-center justify-between">
+                                <span>Репост:</span>
+                                <Switch
+                                    checked={form.repost_enabled}
+                                    onChange={value => updateForm({repost_enabled: value})}
+                                />
+                            </div>
+
+                            <Select
+                                placeholder="Список клипов"
+                                value={form.clip_list_id}
+                                onChange={value => updateForm({clip_list_id: value})}
+                                allowClear
+                                loading={loadingClips}
+                                options={clipLists.map(item => ({
+                                    label: item.name,
+                                    value: item.id,
+                                }))}
+                            />
+
+                            <Divider style={{margin: '8px 0'}} />
+
+                            <Title level={5} style={{margin: 0}}>Видео-баннер</Title>
+                            <Text type="secondary">
+                                Координаты и размер задаются в процентах от итогового видео.
+                            </Text>
+
+                            <input
+                                type="file"
+                                accept="video/*,.mp4,.mov,.webm,.m4v"
+                                onChange={handleBannerChange}
+                            />
+
+                            <Space wrap>
+                                <Button onClick={() => updateForm(DEFAULT_BANNER_FORM)}>
+                                    Сбросить положение
+                                </Button>
+                                <Button
+                                    danger
+                                    onClick={handleBannerDeleteClick}
+                                    disabled={!currentBannerPreview && !editingRecord?.workerpost.hasBanner}
+                                >
+                                    Удалить баннер
+                                </Button>
+                            </Space>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <Text>X (%)</Text>
+                                    <InputNumber
+                                        min={0}
+                                        max={100}
+                                        step={0.5}
+                                        value={form.banner_x}
+                                        onChange={value => updateForm({banner_x: value ?? 0})}
+                                        style={{width: '100%'}}
+                                    />
+                                </div>
+                                <div>
+                                    <Text>Y (%)</Text>
+                                    <InputNumber
+                                        min={0}
+                                        max={100}
+                                        step={0.5}
+                                        value={form.banner_y}
+                                        onChange={value => updateForm({banner_y: value ?? 0})}
+                                        style={{width: '100%'}}
+                                    />
+                                </div>
+                                <div>
+                                    <Text>Ширина (%)</Text>
+                                    <InputNumber
+                                        min={1}
+                                        max={100}
+                                        step={0.5}
+                                        value={form.banner_width}
+                                        onChange={value => updateForm({banner_width: value ?? 1})}
+                                        style={{width: '100%'}}
+                                    />
+                                </div>
+                                <div>
+                                    <Text>Высота (%)</Text>
+                                    <InputNumber
+                                        min={1}
+                                        max={100}
+                                        step={0.5}
+                                        value={form.banner_height}
+                                        onChange={value => updateForm({banner_height: value ?? 1})}
+                                        style={{width: '100%'}}
+                                    />
+                                </div>
+                            </div>
                         </div>
 
-                        <Select
-                            placeholder="Список клипов"
-                            value={form.clip_list_id}
-                            onChange={v => setForm({...form, clip_list_id: v})}
-                            allowClear
-                            loading={loadingClips}
-                            options={clipLists.map(li => ({
-                                label: li.name,
-                                value: li.id,
-                            }))}
-                        />
+                        <div className="flex flex-col gap-3">
+                            <Title level={5} style={{margin: 0}}>Превью</Title>
+                            <Text type="secondary">
+                                Макет показывает пример положения баннера на вертикальном клипе.
+                            </Text>
 
+                            <div
+                                style={{
+                                    position: 'relative',
+                                    width: 320,
+                                    height: 568,
+                                    margin: '0 auto',
+                                    borderRadius: 20,
+                                    overflow: 'hidden',
+                                    background: 'linear-gradient(180deg, #1f2937 0%, #111827 100%)',
+                                    border: '1px solid #d9d9d9',
+                                }}
+                            >
+                                <div
+                                    style={{
+                                        position: 'absolute',
+                                        inset: 0,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        color: 'rgba(255,255,255,0.65)',
+                                        fontSize: 18,
+                                        letterSpacing: 1,
+                                        textTransform: 'uppercase',
+                                    }}
+                                >
+                                    Preview clip
+                                </div>
+
+                                {currentBannerPreview ? (
+                                    <video
+                                        key={currentBannerPreview}
+                                        src={currentBannerPreview}
+                                        autoPlay
+                                        loop
+                                        muted
+                                        playsInline
+                                        style={{
+                                            position: 'absolute',
+                                            left: `${form.banner_x}%`,
+                                            top: `${form.banner_y}%`,
+                                            width: `${form.banner_width}%`,
+                                            height: `${form.banner_height}%`,
+                                            objectFit: 'fill',
+                                            borderRadius: 8,
+                                            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.25)',
+                                        }}
+                                    />
+                                ) : (
+                                    <div
+                                        style={{
+                                            position: 'absolute',
+                                            left: `${form.banner_x}%`,
+                                            top: `${form.banner_y}%`,
+                                            width: `${form.banner_width}%`,
+                                            height: `${form.banner_height}%`,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            border: '1px dashed rgba(255,255,255,0.5)',
+                                            color: 'rgba(255,255,255,0.8)',
+                                            fontSize: 12,
+                                            textAlign: 'center',
+                                            background: 'rgba(255,255,255,0.08)',
+                                        }}
+                                    >
+                                        Баннер не загружен
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 </Modal>
             </Card>

@@ -7,10 +7,10 @@ from src.models.category import CategoryOrm
 from src.models.schedule_posting import SchedulePostingOrm
 from src.models.vk_group import VKGroupOrm
 from src.models.workerpost import WorkerPostOrm
-from src.utils.cookiejar import list_to_cookiejar
+from src.services.workerpost_banner_service import compose_clip_with_banner
 
-from src.vk_api_methods.vk_auth import get_token, get_new_token, get_new_token_request
-from src.vk_api_methods.vk_posting import upload_short_video, download_clip_by_url
+from src.vk_api_methods.vk_auth import get_new_token_request
+from src.vk_api_methods.vk_posting import upload_short_video, download_clip_by_url, delete_file
 from src.celery_app.celery_db import SyncSessionLocal
 
 
@@ -70,11 +70,24 @@ def posting_clip(worker_id: int, token_db: str, schedule_database_id: int, clip,
         token = get_new_token_request(token_db, cookie_db, proxy)
 
         clip_filename = download_clip_by_url(clip_url, vk_clip_owner_id, clip_id)
+        upload_video_path = clip_filename
+        rendered_clip_path = None
         try:
+            if workerpost.banner_video_path:
+                rendered_clip_path = compose_clip_with_banner(
+                    clip_path=clip_filename,
+                    banner_video_path=workerpost.banner_video_path,
+                    banner_x=workerpost.banner_x,
+                    banner_y=workerpost.banner_y,
+                    banner_width=workerpost.banner_width,
+                    banner_height=workerpost.banner_height,
+                )
+                upload_video_path = rendered_clip_path
+
             upload_short_video(
                 token,
                 vk_group.vk_group_id,
-                clip_filename,
+                upload_video_path,
                 category.description,
                 category.repost_enabled,
                 proxy
@@ -101,15 +114,18 @@ def posting_clip(worker_id: int, token_db: str, schedule_database_id: int, clip,
 
             else:
                 raise e
-
-
-        if workerpost:
-            workerpost.last_post_at = datetime.now()
-        if schedule_update_data:
-            schedule_update_data.clip_id = clip_id
-            schedule_update_data.status = "success"
-
-        session.commit()
+        else:
+            if workerpost:
+                workerpost.last_post_at = datetime.now()
+            if schedule_update_data:
+                schedule_update_data.clip_id = clip_id
+                schedule_update_data.status = "success"
+            session.commit()
+        finally:
+            if rendered_clip_path:
+                delete_file(rendered_clip_path)
+            if clip_filename and clip_filename != rendered_clip_path:
+                delete_file(clip_filename)
 
 @app.task
 def create_post(worker_id: int, token_db: str, schedule_id: int, clip: dict, proxy: str):
