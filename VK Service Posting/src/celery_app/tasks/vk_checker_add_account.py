@@ -1,8 +1,10 @@
 import logging
 import re
+from typing import Optional
 
 from src.celery_app import app
 from src.celery_app.celery_db import SyncSessionLocal
+from src.services.vk_token_service import TokenService
 
 from sqlalchemy import select
 
@@ -17,9 +19,9 @@ def vk_checker_add_account(user_id, vk_account_id_db, login: str, password: str,
     # Start Database Update
     update_db_vk_account_start(database_manager, vk_account_id_db)
     try:
-        curl, vk_group_sub = vk_login(login, password, None, proxy_http)
+        curl, vk_group_sub, access_token = vk_login(login, password, None, proxy_http)
 
-        update_db_vk_account_end(database_manager, vk_account_id_db, curl, vk_group_sub)
+        update_db_vk_account_end(database_manager, vk_account_id_db, curl, vk_group_sub, access_token)
         parse_vk_profile_backup(vk_account_id_db, proxy_http, user_id, "checker")
     except Exception as e:
         update_db_vk_account_error(database_manager, vk_account_id_db, str(e))
@@ -50,7 +52,24 @@ def update_db_vk_account_error(database_manager, vk_account_id: int, error: str)
         vk_account_db.name = "Maybe Blocked?\n" + error
         session.commit()
 
-def update_db_vk_account_end(database_manager, vk_account_id: int, curl: str, vk_group_sub: bool):
+def extract_cookie_from_curl(curl: str) -> Optional[str]:
+    token_request = TokenService.parse_curl(curl)
+    if not token_request or not token_request.cookies:
+        return None
+
+    return "; ".join(f"{key}={value}" for key, value in token_request.cookies.items())
+
+
+def extract_access_token_from_curl(curl: str) -> Optional[str]:
+    match = re.search(r"access_token=([^&]+)", curl)
+    if not match:
+        return None
+
+    return match.group(1).split("'")[0]
+
+
+def update_db_vk_account_end(database_manager, vk_account_id: int, curl: str, vk_group_sub: bool,
+                             access_token: Optional[str] = None):
     print(f"curl: {curl}")
     print(f"vk_group_sub: {vk_group_sub}")
     with database_manager as session:
@@ -69,13 +88,16 @@ def update_db_vk_account_end(database_manager, vk_account_id: int, curl: str, vk
         if curl is None:
             vk_account_db.second_name = "No CURL"
         else:
-            # =============
-            access_token = re.search(r"access_token=([^&]+)", curl).group(1).split("'")[0]
-            cookie = re.search(
-                r"-b([^&]+)", curl).group(1).split("'")[1]
+            cookie = extract_cookie_from_curl(curl)
+            access_token = access_token or extract_access_token_from_curl(curl)
 
-            vk_account_db.cookies = cookie
-            vk_account_db.token = access_token
-            vk_account_db.account_type = "checker"
+            if not access_token:
+                vk_account_db.second_name = "No access_token"
+            elif not cookie:
+                vk_account_db.second_name = "No cookies"
+            else:
+                vk_account_db.cookies = cookie
+                vk_account_db.token = access_token
+                vk_account_db.account_type = "checker"
 
         session.commit()

@@ -106,13 +106,16 @@ def _request_to_curl(req) -> str:
 
     return " ".join(parts)
 
-def get_vk_curl_v2(driver, timeout: int = 300, reloadtime: int = 10) -> str | None:
+def get_vk_curl_v2(driver, timeout: int = 300, reloadtime: int = 10) -> tuple[str | None, str | None]:
     """
     Ждём запросы, в которых есть access_token.
     Приоритет:
       1) https://login.vk.(com|ru)/?act=web_token с access_token
       2) Любой запрос к https://api.vk.com/... с access_token
-    Возвращает curl в стиле "Copy as cURL (bash)".
+    Возвращает:
+      - curl в стиле "Copy as cURL (bash)"
+      - access_token, если его удалось достать из URL/body запроса
+        или из body ответа.
     """
     # Ограничим захват лишнего трафика
     try:
@@ -142,14 +145,20 @@ def get_vk_curl_v2(driver, timeout: int = 300, reloadtime: int = 10) -> str | No
             # 1) web_token с токеном — лучший кандидат
             if 'login.vk.' in url and 'act=web_token' in url:
                 if token:
-                    return _request_to_curl(req)
+                    return _request_to_curl(req), token
                 else:
                     # запомним, вдруг ничего лучше не найдём (для диагностики)
                     last_seen_without_token = req
 
             # 2) Любой метод API с токеном
             if 'api.vk.com/method/' in url and token:
-                return _request_to_curl(req)
+                return _request_to_curl(req), token
+
+            # 3) На новых логинах токен часто приходит именно в response.body
+            response = getattr(req, 'response', None)
+            response_token = _has_access_token_in_body(getattr(response, 'body', None))
+            if 'login.vk.' in url and 'act=web_token' in url and response_token:
+                return _request_to_curl(req), response_token
 
         time.sleep(0.3)
         timer_reload += 0.3
@@ -160,6 +169,6 @@ def get_vk_curl_v2(driver, timeout: int = 300, reloadtime: int = 10) -> str | No
     # Если ничего не нашли — вернём последний web_token без токена (для отладки),
     # чтобы вы могли посмотреть сформированный curl и понять, что ещё перехватить.
     if last_seen_without_token:
-        return _request_to_curl(last_seen_without_token)
+        return _request_to_curl(last_seen_without_token), None
 
-    return None
+    return None, None

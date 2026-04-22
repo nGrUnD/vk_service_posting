@@ -540,15 +540,15 @@ def find_save_curl(driver, login: str, password: str, log_signal = None):
     print("[*] Ищем curl (Bash) на странице...")
     if log_signal:
         log_signal.emit("[*] Ищем curl (Bash) на странице...")
-    curl_command = get_vk_curl_v2(driver)
+    curl_command, access_token = get_vk_curl_v2(driver)
     if curl_command is None:
         if log_signal:
             log_signal.emit("[-] cURL не найден")
         print("[-] cURL не найден")
-        return None
+        return None, None
 
     print("[*] cURL найден!")
-    return curl_command
+    return curl_command, access_token
 
 def _read_left_pct(thumb):
     style = thumb.get_attribute("style") or ""
@@ -1087,7 +1087,7 @@ def vk_login(login: str, password: str, vkpublic = None, proxy = None, log_signa
     solve_simple_captcha(driver, log_signal)
 
     time.sleep(3)
-    curl = find_save_curl(driver, login, password, log_signal)
+    curl, access_token = find_save_curl(driver, login, password, log_signal)
 
     time.sleep(3)
 
@@ -1100,7 +1100,7 @@ def vk_login(login: str, password: str, vkpublic = None, proxy = None, log_signa
     print("[*] Авторизация завершена.")
     driver.quit()
     shutil.rmtree(tmpdir, ignore_errors=True)
-    return curl, sub
+    return curl, sub, access_token
 
 #if __name__ == "__main__":
 #    accounts = read_all_credentials()
