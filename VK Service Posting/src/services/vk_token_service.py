@@ -1,4 +1,5 @@
 import json
+import shutil
 import shlex
 import subprocess
 import requests
@@ -119,6 +120,9 @@ class TokenService:
         args = shlex.split(curl_cmd)
         if not args:
             return None
+
+        if args[0] == "curl" and shutil.which("curl") is None:
+            raise RuntimeError("curl binary is not installed")
 
         if proxy and "--proxy" not in args and "-x" not in args:
             args.extend(["--proxy", proxy])

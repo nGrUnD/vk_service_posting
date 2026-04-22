@@ -21,6 +21,7 @@ RUN if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
     libpq-dev \
     netcat-openbsd \
     wget \
+    curl \
     ca-certificates \
     chromium \
     chromium-driver \
