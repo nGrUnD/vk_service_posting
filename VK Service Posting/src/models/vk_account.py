@@ -21,7 +21,7 @@ class VKAccountOrm(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
 
-    vk_account_id: Mapped[int]
+    vk_account_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
     account_type: Mapped[str] # backup main poster
 
