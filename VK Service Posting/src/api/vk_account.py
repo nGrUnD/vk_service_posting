@@ -1,6 +1,8 @@
 from fastapi import APIRouter, HTTPException, status, Body
+from sqlalchemy import update
 
 from src.api.dependencies import DataBaseDep, UserIdDep
+from src.models.vk_group import VKGroupOrm
 from src.schemas.vk_account import VKAccountAddCURL, DeleteVKAccountsLoginsRequest
 from src.schemas.vk_account_cred import VKCredsRequestAdd, VKAccountCredRequestAutoCurlAdd
 from src.services.auth import AuthService
@@ -287,6 +289,17 @@ async def delete_vk_account(
         database: DataBaseDep,
 ):
     """Удаляет привязанный VK аккаунт и связанные данные"""
+    await database.session.execute(
+        update(VKGroupOrm)
+        .where(VKGroupOrm.vk_admin_main_id == vk_account_id)
+        .values(vk_admin_main_id=None)
+    )
+    await database.session.execute(
+        update(VKGroupOrm)
+        .where(VKGroupOrm.vk_admin_poster_id == vk_account_id)
+        .values(vk_admin_poster_id=None)
+    )
+
     celery_tasks_db = await database.celery_task.get_all_filtered(vk_account_id=vk_account_id)
     for task in celery_tasks_db:
         await database.celery_task.delete(id=task.id)

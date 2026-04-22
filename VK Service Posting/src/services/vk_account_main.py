@@ -3,7 +3,7 @@ import re
 from celery.result import AsyncResult
 from celery import chain
 from fastapi import HTTPException
-from sqlalchemy import update
+from sqlalchemy import update, or_
 
 from src.celery_app import app as celery_app
 from src.celery_app.tasks import parse_vk_group_sync, vk_account_main_update_groups
@@ -75,14 +75,22 @@ class VKAccountMainService:
         vk_account = await self.database.vk_account.add(new_data)
         await self.database.commit()
 
-        if old_main_account:
-            await self.database.session.execute(
-                update(VKGroupOrm)
-                .where(VKGroupOrm.vk_admin_main_id == old_main_account.id)
-                .values(vk_admin_main_id=vk_account.id)
+        # Main account is shared for all user's publics:
+        # always point user's groups to the newly added main account.
+        await self.database.session.execute(
+            update(VKGroupOrm)
+            .where(
+                VKGroupOrm.user_id == user_id,
+                or_(
+                    VKGroupOrm.vk_admin_main_id == old_main_account.id if old_main_account else False,
+                    VKGroupOrm.vk_admin_main_id.is_(None),
+                ),
             )
-            await self.database.commit()
+            .values(vk_admin_main_id=vk_account.id)
+        )
+        await self.database.commit()
 
+        if old_main_account:
             await self.delete_account(old_main_account)
 
         #vk_session = get_vk_session_by_token(vk_token, proxy.http)
