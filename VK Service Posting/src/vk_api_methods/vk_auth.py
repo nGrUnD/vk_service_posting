@@ -44,7 +44,7 @@ def get_token(login, password, proxy_http: str = None):
     logging.info(f'Cookie remixsid: {session.cookies}')
 
     # 3. Делаем запрос на обновление токена
-    url = 'https://login.vk.com/'
+    url = 'https://login.vk.ru/'
     params = {
         'act': 'web_token',
         'version': 1,
@@ -54,8 +54,8 @@ def get_token(login, password, proxy_http: str = None):
 
     headers = {
         'User-Agent': user_agent,
-        'Referer': 'https://vk.com/',
-        'Origin': 'https://vk.com',
+        'Referer': 'https://vk.ru/',
+        'Origin': 'https://vk.ru',
     }
 
     resp = session.get(url, params=params, headers=headers, allow_redirects=False)
@@ -96,7 +96,7 @@ def get_new_token(old_token: str, cookie, proxy_http: str = None):
     logging.info(f'Текущий cookies: {session.cookies}')
 
     # 3. Делаем запрос на обновление токена
-    url = 'https://login.vk.com/'
+    url = 'https://login.vk.ru/'
     params = {
         'act': 'web_token',
         'version': 1,
@@ -106,8 +106,8 @@ def get_new_token(old_token: str, cookie, proxy_http: str = None):
 
     headers = {
         'User-Agent': user_agent,
-        'Referer': 'https://vk.com/',
-        'Origin': 'https://vk.com',
+        'Referer': 'https://vk.ru/',
+        'Origin': 'https://vk.ru',
     }
 
     resp = session.get(url, params=params, headers=headers, allow_redirects=False)
@@ -172,8 +172,8 @@ def get_new_token_request(access_token: str, cookie: str, proxy: str = None):
         "Connection": "keep-alive",
         "Content-Type": "application/x-www-form-urlencoded",
         "Cookie": cookie,
-        'Referer': 'https://vk.com/',
-        'Origin': 'https://vk.com',
+        'Referer': 'https://vk.ru/',
+        'Origin': 'https://vk.ru',
         "Pragma": "no-cache",
         "Sec-Fetch-Dest": "empty",
         "Sec-Fetch-Mode": "cors",
@@ -184,7 +184,7 @@ def get_new_token_request(access_token: str, cookie: str, proxy: str = None):
         "sec-ch-ua-mobile": "?0",
         "sec-ch-ua-platform": '"Windows"',
     }
-    url = "https://login.vk.com/?act=web_token"
+    url = "https://login.vk.ru/?act=web_token"
     data = {
         'version': 1,
         'app_id': 6287487,

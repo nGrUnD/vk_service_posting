@@ -101,6 +101,7 @@ def create_workpost(
         main_account_token = _resolve_main_account_token(vk_main_account_database, main_account_curl)
         session.commit()
 
+        print(f"main_account_token: {main_account_token}")
         if not main_account_token:
             raise RuntimeError("Could not resolve main account token without proxy")
 

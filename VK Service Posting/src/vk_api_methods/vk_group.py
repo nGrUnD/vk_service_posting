@@ -3,7 +3,7 @@ from src.utils.rand_user_agent import get_random_user_agent
 
 
 def join_group(group_id: int, access_token: str, proxy: str):
-    url = "https://api.vk.com/method/groups.join"
+    url = "https://api.vk.ru/method/groups.join"
     params = {
         "group_id": group_id,
         "access_token": access_token,
@@ -29,7 +29,7 @@ def join_group(group_id: int, access_token: str, proxy: str):
     return True
 
 def assign_editor_role(group_id: int, user_id: int, access_token: str, proxy: str = None):
-    url = "https://api.vk.com/method/groups.editManager"
+    url = "https://api.vk.ru/method/groups.editManager"
     params = {
         "group_id": group_id,
         "user_id": user_id,
