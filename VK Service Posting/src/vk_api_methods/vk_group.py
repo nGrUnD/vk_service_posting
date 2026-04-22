@@ -2,6 +2,18 @@ import requests
 from src.utils.rand_user_agent import get_random_user_agent
 
 
+def _build_session(proxy: str | None) -> requests.Session:
+    session = requests.Session()
+    if proxy is None:
+        session.trust_env = False
+    else:
+        session.proxies.update({
+            "http": proxy,
+            "https": proxy,
+        })
+    return session
+
+
 def join_group(group_id: int, access_token: str, proxy: str):
     url = "https://api.vk.ru/method/groups.join"
     params = {
@@ -9,17 +21,10 @@ def join_group(group_id: int, access_token: str, proxy: str):
         "access_token": access_token,
         "v": "5.131"
     }
-    proxy_response = None
-    if proxy is not None:
-        proxy_response = {
-            "http": proxy,
-            "https": proxy,
-        }
-
     print(f'proxy: {proxy}')
     headers = {"User-Agent": get_random_user_agent()}
-
-    response = requests.post(url, data=params, headers=headers, proxies=proxy_response)
+    session = _build_session(proxy)
+    response = session.post(url, data=params, headers=headers)
     result = response.json()
     if "error" in result:
         print(f"Ошибка: {result['error']['error_msg']}")
@@ -35,16 +40,10 @@ def assign_editor_role(group_id: int, user_id: int, access_token: str, proxy: st
         "user_id": user_id,
         "role": "editor",
         "access_token": access_token,
-        "v": "5.131"
+        "v": "5.275"
     }
-    proxy_response = None
-    if proxy is not None:
-        proxy_response = {
-            "http": proxy,
-            "https": proxy,
-        }
-
-    response = requests.post(url, data=params, proxies=proxy_response)
+    session = _build_session(proxy)
+    response = session.post(url, data=params)
     result = response.json()
     if "error" in result:
         print(f"Ошибка: {result['error']['error_msg']}")

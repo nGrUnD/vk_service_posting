@@ -159,10 +159,13 @@ def get_new_token_request(access_token: str, cookie: str, proxy: str = None):
     user_agent = get_random_user_agent()
     session = requests.Session()
     print(f'Proxy: {proxy}')
-    session.proxies.update({
-        "http": proxy,
-        "https": proxy
-    })
+    if proxy is None:
+        session.trust_env = False
+    else:
+        session.proxies.update({
+            "http": proxy,
+            "https": proxy
+        })
 
     headers = {
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",

@@ -1,4 +1,5 @@
 import json
+import os
 import shutil
 import shlex
 import subprocess
@@ -15,6 +16,18 @@ class TokenRequest:
 
 
 class TokenService:
+    @staticmethod
+    def _build_session(proxy: str | None) -> requests.Session:
+        session = requests.Session()
+        if proxy is None:
+            session.trust_env = False
+        else:
+            session.proxies.update({
+                "http": proxy,
+                "https": proxy,
+            })
+        return session
+
     @staticmethod
     def _extract_token_from_json_response(json_resp: dict) -> str:
         if 'error_info' in json_resp:
@@ -96,20 +109,14 @@ class TokenService:
         # print("DATA:", req.data)
         # print("COOKIES:", req.cookies)
 
-        proxy_response = None
-        if proxy is not None:
-            proxy_response = {
-                "http": proxy,
-                "https": proxy,
-            }
+        session = TokenService._build_session(proxy)
 
         # Выполняем запрос, передавая cookies отдельно
-        resp = requests.post(
+        resp = session.post(
             req.url,
             headers=req.headers,
             data=req.data,
             cookies=req.cookies,
-            proxies=proxy_response,
         )
         resp.raise_for_status()
         json_resp = resp.json()
@@ -129,6 +136,20 @@ class TokenService:
         command = curl_cmd.strip()
         if proxy and "--proxy" not in command and " -x " not in command:
             command = f"{command} --proxy {shlex.quote(proxy)}"
+        elif proxy is None and "--noproxy" not in command:
+            command = f"{command} --noproxy '*'"
+
+        clean_env = os.environ.copy()
+        if proxy is None:
+            for key in [
+                "HTTP_PROXY",
+                "HTTPS_PROXY",
+                "ALL_PROXY",
+                "http_proxy",
+                "https_proxy",
+                "all_proxy",
+            ]:
+                clean_env.pop(key, None)
 
         completed = subprocess.run(
             ["bash", "-lc", command],
@@ -136,6 +157,7 @@ class TokenService:
             text=True,
             timeout=timeout,
             check=False,
+            env=clean_env,
         )
 
         if completed.returncode != 0:
