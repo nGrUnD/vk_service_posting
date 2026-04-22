@@ -12,7 +12,7 @@ import shutil
 import zstandard as zstd
 
 import requests
-from selenium.common import NoSuchElementException, TimeoutException
+from selenium.common import NoSuchElementException, TimeoutException, WebDriverException
 from selenium.webdriver.support.wait import WebDriverWait
 from seleniumwire import webdriver
 from selenium.webdriver.common.by import By
@@ -99,6 +99,20 @@ def read_all_credentials(file_path="account.txt"):
 
 def vk_com_to_ru(url: str) -> str:
     return url.replace('vk.com', 'vk.ru')
+
+
+def normalize_proxy_url(proxy: str | None) -> str | None:
+    if not proxy:
+        return None
+
+    proxy = proxy.strip()
+    if not proxy:
+        return None
+
+    if "://" not in proxy:
+        proxy = f"http://{proxy}"
+
+    return proxy
 
 def press_f5(driver):
     """Нажимает F5 для обновления страницы"""
@@ -1088,17 +1102,28 @@ def vk_login(login: str, password: str, vkpublic = None, proxy = None, log_signa
     # обязательно изолируйте и кэш:
     options.add_argument(f"--disk-cache-dir={tmpdir}/cache")
 
+    normalized_proxy = normalize_proxy_url(proxy)
     seleniumwire_options = {
-        'proxy': {
-            'http': proxy,
-            'https': proxy,
-        }
+        'disable_encoding': True,
     }
+    if normalized_proxy:
+        seleniumwire_options['proxy'] = {
+            'http': normalized_proxy,
+            'https': normalized_proxy,
+            'no_proxy': 'localhost,127.0.0.1',
+        }
 
     driver = webdriver.Chrome(options=options, seleniumwire_options=seleniumwire_options)
     #driver = webdriver.Chrome(options=options)
 
-    driver.get("https://vk.ru/")
+    try:
+        driver.get("https://vk.ru/")
+    except WebDriverException as e:
+        driver.quit()
+        shutil.rmtree(tmpdir, ignore_errors=True)
+        if "ERR_TUNNEL_CONNECTION_FAILED" in str(e):
+            raise WebDriverException(f"Proxy tunnel failed for {normalized_proxy or 'direct connection'}") from e
+        raise
 
     wait = WebDriverWait(driver, 20)  # ждём до 10 секунд
     if not open_login_form(driver, timeout=20):

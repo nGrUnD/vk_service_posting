@@ -1,4 +1,6 @@
+import random
 import re
+import time
 from typing import Optional
 
 from src.celery_app import app
@@ -9,6 +11,7 @@ from sqlalchemy import select
 
 from src.celery_app.tasks import create_workpost
 from src.models import VKGroupOrm
+from src.models.proxy import ProxyOrm
 from src.models.vk_account import VKAccountOrm
 
 from src.vk_api_methods.selenium.vk_selenium_captcha import vk_login
@@ -27,7 +30,14 @@ def connect_vk_account_autocurl(user_id: int, vk_account_id: int, login: str, pa
     update_db_vk_account_start(database_manager, vk_account_id)
 
     try:
-        curl, vk_group_sub, access_token = vk_login(login, password, vk_group_url, proxy_http)
+        curl, vk_group_sub, access_token, proxy_http = get_autocurl_with_proxy_retry(
+            database_manager,
+            vk_account_id,
+            login,
+            password,
+            vk_group_url,
+            proxy_http,
+        )
         update_db_vk_account_end(database_manager, vk_account_id, curl, vk_group_sub, access_token)
     except Exception as e:
         update_db_vk_account_error(database_manager, vk_account_id, str(e))
@@ -39,6 +49,54 @@ def connect_vk_account_autocurl(user_id: int, vk_account_id: int, login: str, pa
     try_add_workerpost(database_manager, vk_account_id, vk_group_url, proxy_http, user_id, category_id_db)
     print(f"Account {vk_account_id}: Workerpost добавлен!")
     # update_db_vk_account_parse_task(database_manager, vk_account_id, task_parse.id)
+
+
+def is_proxy_connection_error(error: Exception) -> bool:
+    error_text = str(error)
+    return any(
+        marker in error_text
+        for marker in [
+            "ERR_TUNNEL_CONNECTION_FAILED",
+            "Proxy tunnel failed",
+            "ERR_PROXY_CONNECTION_FAILED",
+            "ERR_NO_SUPPORTED_PROXIES",
+        ]
+    )
+
+
+def get_autocurl_with_proxy_retry(database_manager, vk_account_id: int, login: str, password: str,
+                                  vk_group_url: str, proxy_http: Optional[str], retries: int = 5):
+    current_proxy = proxy_http
+
+    with database_manager as session:
+        stmt = select(VKAccountOrm).where(VKAccountOrm.id == vk_account_id)
+        result = session.execute(stmt)
+        vk_account_db = result.scalars().one_or_none()
+        if vk_account_db is None:
+            raise ValueError(f"VK Account {vk_account_id} not found in database")
+
+        for attempt in range(1, retries + 1):
+            try:
+                curl, vk_group_sub, access_token = vk_login(login, password, vk_group_url, current_proxy)
+                return curl, vk_group_sub, access_token, current_proxy
+            except Exception as error:
+                if not is_proxy_connection_error(error):
+                    raise
+
+                print(f"Попытка {attempt}: проблема с прокси {current_proxy}: {error}")
+                stmt_proxies = select(ProxyOrm).where(ProxyOrm.http != current_proxy)
+                proxies = session.execute(stmt_proxies).scalars().all()
+
+                if not proxies:
+                    raise RuntimeError(f"Proxy failed and no other proxies available: {current_proxy}") from error
+
+                new_proxy = random.choice(proxies)
+                current_proxy = new_proxy.http
+                vk_account_db.proxy_id = new_proxy.id
+                session.commit()
+                time.sleep(2)
+
+    raise RuntimeError(f"Failed to get autocurl after {retries} proxy attempts")
 
 
 def update_db_vk_account_start(database_manager, vk_account_id: int):
