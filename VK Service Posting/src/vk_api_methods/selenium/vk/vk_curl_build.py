@@ -15,6 +15,25 @@ def _has_access_token_in_url(url: str) -> str | None:
     m = ACCESS_TOKEN_RE.search(url)
     return m.group(1) if m else None
 
+
+def _extract_access_token_from_json(data) -> str | None:
+    if isinstance(data, dict):
+        for key, value in data.items():
+            if key.lower() == 'access_token' and isinstance(value, str):
+                return value
+
+            nested_token = _extract_access_token_from_json(value)
+            if nested_token:
+                return nested_token
+
+    if isinstance(data, list):
+        for item in data:
+            nested_token = _extract_access_token_from_json(item)
+            if nested_token:
+                return nested_token
+
+    return None
+
 def _has_access_token_in_body(body_bytes: bytes | None) -> str | None:
     if not body_bytes:
         return None
@@ -29,11 +48,7 @@ def _has_access_token_in_body(body_bytes: bytes | None) -> str | None:
     # Иногда токен может быть в JSON
     try:
         data = json.loads(body_str)
-        # Поищем по значению
-        if isinstance(data, dict):
-            for k, v in data.items():
-                if k.lower() == 'access_token' and isinstance(v, str):
-                    return v
+        return _extract_access_token_from_json(data)
     except Exception:
         pass
     return None

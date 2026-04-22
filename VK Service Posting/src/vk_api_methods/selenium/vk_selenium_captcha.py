@@ -966,6 +966,109 @@ def fill_login_and_continue(driver, login_value, timeout=3):
     print("[+] Логин введён и нажата кнопка Continue")
     return True
 
+
+def open_login_form(driver, timeout=20):
+    wait = WebDriverWait(driver, timeout)
+
+    login_locators = [
+        (By.NAME, "login"),
+        (By.CSS_SELECTOR, "input[name='login']"),
+    ]
+
+    for by, sel in login_locators:
+        try:
+            wait.until(EC.presence_of_element_located((by, sel)))
+            print("[*] Форма логина уже открыта")
+            return True
+        except Exception:
+            continue
+
+    button_locators = [
+        (By.XPATH, "//button[contains(normalize-space(.), 'Войти другим способом')]"),
+        (By.XPATH, "//button[.//span[contains(normalize-space(.), 'Войти другим способом')]]"),
+        (By.XPATH, "//button[contains(normalize-space(.), 'Другим способом')]"),
+        (By.XPATH, "//button[.//span[contains(normalize-space(.), 'Другим способом')]]"),
+        (By.XPATH, "/html/body/div[15]/div/div/div/div[3]/div/div/div[2]/div[1]/div/div/section/div/div/div/div/div/div[2]/div/button[1]"),
+    ]
+
+    for by, sel in button_locators:
+        try:
+            button = wait.until(EC.element_to_be_clickable((by, sel)))
+            try:
+                button.click()
+            except Exception:
+                driver.execute_script("arguments[0].click();", button)
+            print("[+] Нажали 'Войти другим способом'")
+            return True
+        except Exception:
+            continue
+
+    print("[!] Кнопка 'Войти другим способом' не найдена")
+    return False
+
+
+def fill_password_and_continue(driver, password_value, timeout=10):
+    wait = WebDriverWait(driver, timeout)
+
+    password_locators = [
+        (By.NAME, "password"),
+        (By.CSS_SELECTOR, "input[type='password']"),
+        (By.XPATH, "//input[@type='password']"),
+        (By.XPATH, "/html/body/div/div/div/div/div/div[1]/div/div/div/div/div/form/div[1]/div[3]/div/div/input"),
+    ]
+
+    password_input = None
+    for by, sel in password_locators:
+        try:
+            password_input = wait.until(EC.presence_of_element_located((by, sel)))
+            wait.until(EC.element_to_be_clickable((by, sel)))
+            break
+        except Exception:
+            continue
+
+    if not password_input:
+        print("[!] Поле пароля не найдено")
+        return False
+
+    driver.execute_script("arguments[0].scrollIntoView({block:'center'});", password_input)
+    try:
+        password_input.clear()
+    except Exception:
+        password_input.click()
+        password_input.send_keys(u"\ue009" + "a")
+        password_input.send_keys(u"\ue003")
+
+    password_input.click()
+    password_input.send_keys(password_value)
+
+    continue_locators = [
+        (By.XPATH, "//button[@type='submit' and (.//span[normalize-space()='Продолжить'] or .//span[normalize-space()='Continue'] or .//span[normalize-space()='Sign in'] or .//span[normalize-space()='Войти'])]"),
+        (By.XPATH, "//button[@type='submit']"),
+        (By.XPATH, "//button[.//span[normalize-space()='Продолжить'] or .//span[normalize-space()='Continue'] or .//span[normalize-space()='Sign in'] or .//span[normalize-space()='Войти']]"),
+        (By.XPATH, "/html/body/div/div/div/div/div/div[1]/div/div/div/div/div/form/div[2]/button"),
+    ]
+
+    continue_button = None
+    for by, sel in continue_locators:
+        try:
+            continue_button = wait.until(EC.element_to_be_clickable((by, sel)))
+            break
+        except Exception:
+            continue
+
+    if not continue_button:
+        print("[!] Кнопка подтверждения пароля не найдена")
+        return False
+
+    driver.execute_script("arguments[0].scrollIntoView({block:'center'});", continue_button)
+    try:
+        continue_button.click()
+    except Exception:
+        driver.execute_script("arguments[0].click();", continue_button)
+
+    print("[+] Пароль введён и отправлен")
+    return True
+
 def vk_login(login: str, password: str, vkpublic = None, proxy = None, log_signal = None):
     options = webdriver.ChromeOptions()
     options.add_argument("--start-maximized")
@@ -998,47 +1101,24 @@ def vk_login(login: str, password: str, vkpublic = None, proxy = None, log_signa
     driver.get("https://vk.ru/")
 
     wait = WebDriverWait(driver, 20)  # ждём до 10 секунд
-    # Ждём появления кнопки "Войти другим способом"
-    button = wait.until(EC.element_to_be_clickable(
-        (By.XPATH,
-         "/html/body/div[15]/div/div/div/div[3]/div/div/div[2]/div[1]/div/div/section/div/div/div/div/div/div[2]/div/button[1]")
-    ))
+    if not open_login_form(driver, timeout=20):
+        driver.quit()
+        shutil.rmtree(tmpdir, ignore_errors=True)
+        raise TimeoutException("VK login form did not open")
 
-    # Нажимаем кнопку
-    button.click()
+    time.sleep(2)
 
-    #driver.find_element(By.ID, "index_email").send_keys(VK_LOGIN)
-    #driver.find_element(By.ID, "index_pass").send_keys(VK_PASSWORD + Keys.RETURN)
-
-    # --- Поле ввода Login ---
-    login_input = wait.until(EC.presence_of_element_located(
-        (By.XPATH,
-         "/html/body/div[15]/div/div/div/div[3]/div/div/div[2]/div[1]/div/div/section/div/div/div/div/div/form/div[1]/div[3]/span/div/div[2]/input")
-    ))
-    login_input.clear()
-    time.sleep(1)
-
-    login_input.send_keys(login)
-
-    time.sleep(3)
-
-    # --- Кнопка Sign in ---
-    sign_in_button = wait.until(EC.element_to_be_clickable(
-        (By.XPATH,
-         "/html/body/div[15]/div/div/div/div[3]/div/div/div[2]/div[1]/div/div/section/div/div/div/div/div/form/button[1]")
-    ))
-    sign_in_button.click()
-
-    time.sleep(5)
-
-    fill_login_and_continue(driver, login)
+    if not fill_login_and_continue(driver, login, timeout=10):
+        driver.quit()
+        shutil.rmtree(tmpdir, ignore_errors=True)
+        raise TimeoutException("VK login input did not become available")
 
     time.sleep(5)
 
     if has_too_many_attempts_alert(driver):
         driver.quit()
         shutil.rmtree(tmpdir, ignore_errors=True)
-        return None, False
+        return None, False, None
 
     solve_vk_slider_captcha(driver, log_signal)
     solve_simple_captcha(driver, log_signal)
@@ -1057,31 +1137,17 @@ def vk_login(login: str, password: str, vkpublic = None, proxy = None, log_signa
 
     #click_password_method(driver)
 
-    # --- Поле ввода пароля ---
-    password_input = wait.until(EC.presence_of_element_located(
-        (By.XPATH, "/html/body/div/div/div/div/div/div[1]/div/div/div/div/div/form/div[1]/div[3]/div/div/input")
-    ))
-
-    # Очистка поля (на случай, если уже есть текст)
-    password_input.clear()
-    # Альтернатива: password_input.send_keys(Keys.CONTROL + "a", Keys.DELETE)
-
-    # Ввод пароля
-    password_input.send_keys(password)
-
-    time.sleep(3)
-    # --- Кнопка Continue ---
-    continue_button = wait.until(EC.element_to_be_clickable(
-        (By.XPATH, "/html/body/div/div/div/div/div/div[1]/div/div/div/div/div/form/div[2]/button")
-    ))
-    continue_button.click()
+    if not fill_password_and_continue(driver, password, timeout=10):
+        driver.quit()
+        shutil.rmtree(tmpdir, ignore_errors=True)
+        raise TimeoutException("VK password form did not become available")
 
     time.sleep(10)
 
     if has_too_many_attempts_alert(driver):
         driver.quit()
         shutil.rmtree(tmpdir, ignore_errors=True)
-        return None, False
+        return None, False, None
 
     solve_vk_slider_captcha(driver, log_signal)
     solve_simple_captcha(driver, log_signal)
