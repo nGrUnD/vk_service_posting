@@ -1,4 +1,3 @@
-import random
 import re
 
 from celery.result import AsyncResult
@@ -74,22 +73,13 @@ class VKAccountMainService:
 
             await self.delete_account(old_main_account)
 
-        proxies = await self.database.proxy.get_all()
-
-        if proxies:
-            index_proxy = random.randint(0, len(proxies)-1)
-            proxy = proxies[index_proxy % len(proxies)]
-            proxy_http = proxy.http
-        else:
-            proxy_http = None
+        proxy_http = None
 
         vk_token = None
         token_errors = []
 
         token_getters = [
-            ("curl shell with proxy", lambda: TokenService.get_token_from_curl_shell(curl, proxy_http)),
             ("curl shell direct", lambda: TokenService.get_token_from_curl_shell(curl, None)),
-            ("requests replay with proxy", lambda: TokenService.get_token_from_curl(curl, proxy_http)),
             ("requests replay direct", lambda: TokenService.get_token_from_curl(curl, None)),
         ]
 

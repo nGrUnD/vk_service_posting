@@ -6,7 +6,6 @@ from sqlalchemy import select
 from src.celery_app import app
 from src.models.category import CategoryOrm
 from src.models.celery_task import CeleryTaskOrm
-from src.models.proxy import ProxyOrm
 from src.models.vk_account import VKAccountOrm
 from src.models.vk_group import VKGroupOrm
 from src.models.workerpost import WorkerPostOrm
@@ -89,12 +88,6 @@ def create_workpost(
         vk_main_account_database = result.scalars().one_or_none()
 
         main_proxy = None
-        if vk_main_account_database and vk_main_account_database.proxy_id:
-            stmt = select(ProxyOrm).where(ProxyOrm.id == vk_main_account_database.proxy_id)
-            result = session.execute(stmt)
-            main_proxy_db = result.scalars().one_or_none()
-            if main_proxy_db:
-                main_proxy = main_proxy_db.http
 
         stmt = select(VKGroupOrm).where(VKGroupOrm.id == vk_group_id_database)
         result = session.execute(stmt)
