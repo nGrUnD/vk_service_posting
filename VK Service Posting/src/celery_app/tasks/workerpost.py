@@ -19,6 +19,19 @@ from src.vk_api_methods.vk_auth import get_token, get_new_token, get_new_token_r
 from src.vk_api_methods.vk_group import join_group, assign_editor_role
 from src.celery_app.celery_db import SyncSessionLocal
 
+def _extract_token_and_cookies_from_curl(curl: str) -> tuple[str | None, str | None]:
+    parsed_request = TokenService.parse_curl(curl)
+    if not parsed_request:
+        return None, None
+
+    raw_token = parsed_request.data.get("access_token")
+    cookie_string = None
+    if parsed_request.cookies:
+        cookie_string = "; ".join(f"{key}={value}" for key, value in parsed_request.cookies.items())
+
+    return raw_token, cookie_string
+
+
 def _update_vk_account_db(account_id_database: int, account_update_data: dict, vk_token: str, database_manager,):
     # assume get_one_or_none is async
     with database_manager as session:
@@ -79,7 +92,15 @@ def create_workpost(
             )
         else:
             main_account_curl = AuthService().decrypt_data(vk_main_account_database.encrypted_curl)
-            main_account_token = TokenService.get_token_from_curl(main_account_curl, proxy)
+            raw_token, cookie_string = _extract_token_and_cookies_from_curl(main_account_curl)
+
+            if raw_token and cookie_string:
+                vk_main_account_database.token = raw_token
+                vk_main_account_database.cookies = cookie_string
+                session.commit()
+                main_account_token = get_new_token_request(raw_token, cookie_string, proxy)
+            else:
+                main_account_token = TokenService.get_token_from_curl(main_account_curl, proxy)
 
         is_editor_role = assign_editor_role(
             vk_group_database.vk_group_id,

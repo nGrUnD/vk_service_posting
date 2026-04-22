@@ -23,17 +23,31 @@ class VKAccountMainService:
     def __init__(self, database: DataBaseManager):
         self.database = database
 
+    @staticmethod
+    def _extract_token_and_cookies_from_curl(curl: str) -> tuple[str | None, str | None]:
+        parsed_request = TokenService.parse_curl(curl)
+        if not parsed_request:
+            return None, None
+
+        raw_token = parsed_request.data.get("access_token")
+        cookie_string = None
+        if parsed_request.cookies:
+            cookie_string = "; ".join(f"{key}={value}" for key, value in parsed_request.cookies.items())
+
+        return raw_token, cookie_string
+
     async def create_account_curl(self, user_id: int, curl: str, account_type: str):
         vk_account = await self.database.vk_account.get_one_or_none(account_type="main")
         if vk_account:
             await self.delete_account(vk_account)
 
         encrypted_curl = AuthService().encrypt_data(curl)
+        raw_token, cookie_string = self._extract_token_and_cookies_from_curl(curl)
 
         new_data = VKAccountAdd(
             user_id=user_id,
             vk_account_id=0,
-            token="curl",
+            token=raw_token or "curl",
             encrypted_curl=encrypted_curl,
             login="",
             encrypted_password="",
@@ -46,7 +60,7 @@ class VKAccountMainService:
             flood_control=False,
             parse_status="pending",
             task_id="pending",
-            cookies = None,
+            cookies = cookie_string,
         )
         vk_account = await self.database.vk_account.add(new_data)
         await self.database.commit()
