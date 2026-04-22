@@ -115,6 +115,19 @@ def normalize_proxy_url(proxy: str | None) -> str | None:
     return proxy
 
 
+def safe_driver_get(driver, url: str, timeout: int = 30):
+    try:
+        driver.set_page_load_timeout(timeout)
+    except Exception:
+        pass
+
+    try:
+        driver.get(url)
+    except TimeoutException:
+        print(f"[!] Page load timeout for {url}, продолжаем с уже загруженным DOM")
+    return True
+
+
 def has_request_with_response(driver, url_part: str) -> bool:
     for request in driver.requests:
         if url_part in (request.url or "") and getattr(request, "response", None):
@@ -471,7 +484,7 @@ def subscribe_to_public(driver, public_url: str, log_signal = None, timeout: int
         print(f"[*] Переходим к паблику: {public_url}")
         if log_signal:
             log_signal.emit(f"[*] Переходим к паблику: {public_url}")
-        driver.get(public_url)
+        safe_driver_get(driver, public_url, timeout=20)
         wait_for_any_condition(
             driver,
             timeout=5,
@@ -1134,6 +1147,7 @@ def fill_password_and_continue(driver, password_value, timeout=10):
 
 def vk_login(login: str, password: str, vkpublic = None, proxy = None, log_signal = None):
     options = webdriver.ChromeOptions()
+    options.page_load_strategy = "eager"
     options.add_argument("--start-maximized")
     options.add_argument("--headless=new")
 
@@ -1166,7 +1180,7 @@ def vk_login(login: str, password: str, vkpublic = None, proxy = None, log_signa
     #driver = webdriver.Chrome(options=options)
 
     try:
-        driver.get("https://vk.ru/")
+        safe_driver_get(driver, "https://vk.ru/", timeout=25)
     except WebDriverException as e:
         driver.quit()
         shutil.rmtree(tmpdir, ignore_errors=True)

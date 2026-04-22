@@ -1,4 +1,6 @@
+import json
 import shlex
+import subprocess
 import requests
 from typing import Dict, Optional
 
@@ -12,6 +14,17 @@ class TokenRequest:
 
 
 class TokenService:
+    @staticmethod
+    def _extract_token_from_json_response(json_resp: dict) -> str:
+        if 'error_info' in json_resp:
+            raise RuntimeError(f"VK error: {json_resp['error_info']}")
+
+        token = json_resp.get("data", {}).get("access_token")
+        if not token:
+            raise KeyError(f"Не найден access_token в ответе: {json_resp}")
+
+        return token
+
     @staticmethod
     def parse_curl(curl_cmd: str) -> TokenRequest:
         """
@@ -99,14 +112,37 @@ class TokenService:
         )
         resp.raise_for_status()
         json_resp = resp.json()
+        return TokenService._extract_token_from_json_response(json_resp)
 
-        # Если VK вернул ошибку — выдаём её
-        if 'error_info' in json_resp:
-            raise RuntimeError(f"VK error: {json_resp['error_info']}")
+    @staticmethod
+    def get_token_from_curl_shell(curl_cmd: str, proxy: str = None, timeout: int = 30) -> str:
+        args = shlex.split(curl_cmd)
+        if not args:
+            return None
 
-        # Пробуем достать токен
-        token = json_resp.get("data", {}).get("access_token")
-        if not token:
-            raise KeyError(f"Не найден access_token в ответе: {json_resp}")
+        if proxy and "--proxy" not in args and "-x" not in args:
+            args.extend(["--proxy", proxy])
 
-        return token
+        completed = subprocess.run(
+            args,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+
+        if completed.returncode != 0:
+            raise RuntimeError(
+                f"curl command failed with exit code {completed.returncode}: {completed.stderr.strip()}"
+            )
+
+        response_text = completed.stdout.strip()
+        if not response_text:
+            raise RuntimeError("curl command returned empty response")
+
+        try:
+            json_resp = json.loads(response_text)
+        except json.JSONDecodeError as error:
+            raise RuntimeError(f"curl command returned non-JSON response: {response_text[:300]}") from error
+
+        return TokenService._extract_token_from_json_response(json_resp)

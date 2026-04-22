@@ -74,7 +74,9 @@ class VKAccountMainService:
         else:
             proxy_http = None
 
-        vk_token = TokenService.get_token_from_curl(curl, proxy_http)
+        vk_token = TokenService.get_token_from_curl_shell(curl, proxy_http)
+        if not vk_token:
+            vk_token = TokenService.get_token_from_curl(curl, proxy_http)
         if vk_token:
             raw_token = vk_token
 

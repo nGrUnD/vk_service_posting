@@ -107,14 +107,24 @@ def create_workpost(
         if not vk_account_database.encrypted_curl:
             join_group(vk_group_database.vk_group_id, account_token, proxy)
 
-        if vk_main_account_database.token and vk_main_account_database.cookies:
+        main_account_curl = None
+        if vk_main_account_database.encrypted_curl:
+            main_account_curl = AuthService().decrypt_data(vk_main_account_database.encrypted_curl)
+
+        main_account_token = None
+        if main_account_curl:
+            try:
+                main_account_token = TokenService.get_token_from_curl_shell(main_account_curl, main_proxy)
+            except Exception as error:
+                print(f"[!] Не удалось получить main token через curl shell: {error}")
+
+        if not main_account_token and vk_main_account_database.token and vk_main_account_database.cookies:
             main_account_token = _refresh_or_reuse_token(
                 vk_main_account_database.token,
                 vk_main_account_database.cookies,
                 main_proxy,
             )
-        else:
-            main_account_curl = AuthService().decrypt_data(vk_main_account_database.encrypted_curl)
+        elif not main_account_token:
             raw_token, cookie_string = _extract_token_and_cookies_from_curl(main_account_curl)
 
             if raw_token and cookie_string:

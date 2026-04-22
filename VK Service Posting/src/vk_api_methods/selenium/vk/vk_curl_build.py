@@ -57,6 +57,20 @@ def _quote_single(s: str) -> str:
     # Оборачиваем в одинарные кавычки, экранируя внутренние одинарные через '\'' (как делает Chrome)
     return "'" + s.replace("'", "'\"'\"'") + "'"
 
+
+def safe_driver_get(driver, url: str, timeout: int = 20) -> None:
+    try:
+        driver.set_page_load_timeout(timeout)
+    except Exception:
+        pass
+
+    try:
+        driver.get(url)
+    except Exception:
+        # VK может держать pending-соединения/вебсокеты, из-за чего get() не возвращается вовремя.
+        # Для сбора network-трафика нам достаточно уже начавшейся навигации.
+        pass
+
 def _normalize_headers_for_curl(headers: dict[str, str]) -> tuple[list[str], str | None]:
     """
     Возвращает:
@@ -138,7 +152,7 @@ def get_vk_curl_v2(driver, timeout: int = 60, reloadtime: int = 0) -> tuple[str 
     except Exception:
         pass
 
-    driver.get("https://vk.ru/id0")
+    safe_driver_get(driver, "https://vk.ru/id0", timeout=20)
 
     end = time.time() + timeout
     last_seen_without_token = None
