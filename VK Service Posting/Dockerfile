@@ -1,9 +1,6 @@
 FROM python:3.11-slim
 
 WORKDIR /app
-COPY . /app
-
-COPY requirements.txt .
 
 RUN apt-get update && apt-get install -y \
     build-essential \
@@ -16,10 +13,14 @@ RUN apt-get update && apt-get install -y \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements.txt ./
+COPY vk_api ./vk_api
 
-RUN pip install -e "./vk_api"
-RUN pip install gunicorn
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir -e "./vk_api" \
+    && pip install --no-cache-dir gunicorn
+
+COPY . /app
 
 ENV PYTHONPATH=/app/src \
     CHROME_BIN=/usr/bin/chromium \
