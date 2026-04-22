@@ -32,6 +32,21 @@ def _extract_token_and_cookies_from_curl(curl: str) -> tuple[str | None, str | N
     return raw_token, cookie_string
 
 
+def _refresh_or_reuse_token(access_token: str | None, cookie_string: str | None, proxy: str) -> str | None:
+    if not access_token:
+        return None
+
+    if not cookie_string:
+        return access_token
+
+    refreshed_token = get_new_token_request(access_token, cookie_string, proxy)
+    if refreshed_token:
+        return refreshed_token
+
+    print("[!] Не удалось обновить токен, используем исходный access_token из curl/БД")
+    return access_token
+
+
 def _update_vk_account_db(account_id_database: int, account_update_data: dict, vk_token: str, database_manager,):
     # assume get_one_or_none is async
     with database_manager as session:
@@ -85,7 +100,7 @@ def create_workpost(
             join_group(vk_group_database.vk_group_id, account_token, proxy)
 
         if vk_main_account_database.token and vk_main_account_database.cookies:
-            main_account_token = get_new_token_request(
+            main_account_token = _refresh_or_reuse_token(
                 vk_main_account_database.token,
                 vk_main_account_database.cookies,
                 proxy,
@@ -98,9 +113,12 @@ def create_workpost(
                 vk_main_account_database.token = raw_token
                 vk_main_account_database.cookies = cookie_string
                 session.commit()
-                main_account_token = get_new_token_request(raw_token, cookie_string, proxy)
+                main_account_token = _refresh_or_reuse_token(raw_token, cookie_string, proxy)
             else:
                 main_account_token = TokenService.get_token_from_curl(main_account_curl, proxy)
+
+        if not main_account_token:
+            raise RuntimeError("Could not resolve main account token")
 
         is_editor_role = assign_editor_role(
             vk_group_database.vk_group_id,
