@@ -2,7 +2,18 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y \
+ARG DEBIAN_MIRROR=https://mirror.yandex.ru/debian
+ARG DEBIAN_SECURITY_MIRROR=https://mirror.yandex.ru/debian-security
+
+RUN if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
+        sed -i "s|http://deb.debian.org/debian|${DEBIAN_MIRROR}|g" /etc/apt/sources.list.d/debian.sources; \
+        sed -i "s|http://security.debian.org/debian-security|${DEBIAN_SECURITY_MIRROR}|g" /etc/apt/sources.list.d/debian.sources; \
+    fi \
+    && if [ -f /etc/apt/sources.list ]; then \
+        sed -i "s|http://deb.debian.org/debian|${DEBIAN_MIRROR}|g" /etc/apt/sources.list; \
+        sed -i "s|http://security.debian.org/debian-security|${DEBIAN_SECURITY_MIRROR}|g" /etc/apt/sources.list; \
+    fi \
+    && apt-get update && apt-get install -y \
     build-essential \
     libpq-dev \
     netcat-openbsd \
