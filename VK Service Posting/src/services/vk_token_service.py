@@ -117,18 +117,21 @@ class TokenService:
 
     @staticmethod
     def get_token_from_curl_shell(curl_cmd: str, proxy: str = None, timeout: int = 30) -> str:
-        args = shlex.split(curl_cmd)
-        if not args:
+        if not curl_cmd or not curl_cmd.strip():
             return None
 
-        if args[0] == "curl" and shutil.which("curl") is None:
+        if shutil.which("curl") is None:
             raise RuntimeError("curl binary is not installed")
 
-        if proxy and "--proxy" not in args and "-x" not in args:
-            args.extend(["--proxy", proxy])
+        if shutil.which("bash") is None:
+            raise RuntimeError("bash binary is not installed")
+
+        command = curl_cmd.strip()
+        if proxy and "--proxy" not in command and " -x " not in command:
+            command = f"{command} --proxy {shlex.quote(proxy)}"
 
         completed = subprocess.run(
-            args,
+            ["bash", "-lc", command],
             capture_output=True,
             text=True,
             timeout=timeout,
