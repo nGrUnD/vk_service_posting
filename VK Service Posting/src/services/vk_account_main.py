@@ -4,6 +4,7 @@ import re
 from celery.result import AsyncResult
 from celery import chain
 from fastapi import HTTPException
+from sqlalchemy import update
 
 from src.celery_app import app as celery_app
 from src.celery_app.tasks import parse_vk_group_sync, vk_account_main_update_groups
@@ -37,9 +38,7 @@ class VKAccountMainService:
         return raw_token, cookie_string
 
     async def create_account_curl(self, user_id: int, curl: str, account_type: str):
-        vk_account = await self.database.vk_account.get_one_or_none(account_type="main")
-        if vk_account:
-            await self.delete_account(vk_account)
+        old_main_account = await self.database.vk_account.get_one_or_none(account_type="main")
 
         encrypted_curl = AuthService().encrypt_data(curl)
         raw_token, cookie_string = self._extract_token_and_cookies_from_curl(curl)
@@ -64,6 +63,16 @@ class VKAccountMainService:
         )
         vk_account = await self.database.vk_account.add(new_data)
         await self.database.commit()
+
+        if old_main_account:
+            await self.database.session.execute(
+                update(VKGroupOrm)
+                .where(VKGroupOrm.vk_admin_main_id == old_main_account.id)
+                .values(vk_admin_main_id=vk_account.id)
+            )
+            await self.database.commit()
+
+            await self.delete_account(old_main_account)
 
         proxies = await self.database.proxy.get_all()
 
@@ -147,8 +156,11 @@ class VKAccountMainService:
         return {"status": "retry_started", "task_id": new_task_id}
 
     async def delete_account(self, db_vk_account: VKAccount):
-
-        await self.database.vk_group.delete_where(VKGroupOrm.vk_admin_main_id == db_vk_account.id)
+        await self.database.session.execute(
+            update(VKGroupOrm)
+            .where(VKGroupOrm.vk_admin_main_id == db_vk_account.id)
+            .values(vk_admin_main_id=None)
+        )
         await self.database.celery_task.delete_where(CeleryTaskOrm.vk_account_id == db_vk_account.id)
 
         # Удаляем связанные аккаунты
