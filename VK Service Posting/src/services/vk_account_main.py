@@ -83,9 +83,27 @@ class VKAccountMainService:
         else:
             proxy_http = None
 
-        vk_token = TokenService.get_token_from_curl_shell(curl, proxy_http)
+        vk_token = None
+        token_errors = []
+
+        token_getters = [
+            ("curl shell with proxy", lambda: TokenService.get_token_from_curl_shell(curl, proxy_http)),
+            ("curl shell direct", lambda: TokenService.get_token_from_curl_shell(curl, None)),
+            ("requests replay with proxy", lambda: TokenService.get_token_from_curl(curl, proxy_http)),
+            ("requests replay direct", lambda: TokenService.get_token_from_curl(curl, None)),
+        ]
+
+        for label, getter in token_getters:
+            try:
+                vk_token = getter()
+                if vk_token:
+                    break
+            except Exception as error:
+                token_errors.append(f"{label}: {error}")
+
         if not vk_token:
-            vk_token = TokenService.get_token_from_curl(curl, proxy_http)
+            raise RuntimeError("Could not get main account token. " + " | ".join(token_errors))
+
         if vk_token:
             raw_token = vk_token
 
