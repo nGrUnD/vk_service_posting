@@ -74,25 +74,17 @@ export default function DashboardAccount() {
 
     useEffect(() => {
         if (!user) return;
-        const savedId = localStorage.getItem('vkAccountId');
-        if (savedId) {
-            api.get(`/users/{user_id}/vk_accounts/${savedId}`)
-                .then(res => setNewAccount(res.data))
-                .catch(async () => {
-                    messageApi.warning('Не удалось загрузить сохранённый VK аккаунт');
-                    if (newAccount?.id) {
-                        try {
-                            await api.delete(`/users/{user_id}/vk_accounts/${newAccount.id}`);
-                        } catch (err) {
-                            console.error('Ошибка при удалении аккаунта:', err);
-                        }
-                    }
-                    localStorage.removeItem('vkAccountId');
-                })
-                .finally(() => setLoadingAccount(false));
-        } else {
-            setLoadingAccount(false);
-        }
+        api.get(`/users/${user.id}/vk_accounts/all`)
+            .then(res => {
+                const accounts = Array.isArray(res.data) ? res.data : [];
+                const mainAccount = accounts.find(account => account.account_type === 'main') || null;
+                setNewAccount(mainAccount);
+            })
+            .catch(() => {
+                messageApi.warning('Не удалось загрузить Main VK аккаунт');
+                setNewAccount(null);
+            })
+            .finally(() => setLoadingAccount(false));
     }, [user, messageApi]);
 
     const taskStatus = useVKTaskStatus(user?.id, newAccount?.id, messageApi, taskUpdated);
@@ -105,10 +97,9 @@ export default function DashboardAccount() {
         }
 
         if (taskStatus === 'success' && prevTaskStatusRef.current !== 'success') {
-            api.get(`/users/{user_id}/vk_accounts/${newAccount.id}`)
+            api.get(`/users/${user.id}/vk_accounts/${newAccount.id}`)
                 .then(res => {
                     setNewAccount(res.data);
-                    localStorage.setItem('vkAccountId', res.data.id);
                     messageApi.success('VK аккаунт успешно обработан!');
                 })
                 .catch(() => messageApi.error('Не удалось получить данные VK аккаунта'));
@@ -117,7 +108,7 @@ export default function DashboardAccount() {
         }
 
         prevTaskStatusRef.current = taskStatus;
-    }, [taskStatus, newAccount, messageApi]);
+    }, [taskStatus, newAccount, messageApi, user]);
 
     const handleConnect = async () => {
         if (!curlCommand.trim()) {
@@ -125,9 +116,8 @@ export default function DashboardAccount() {
         }
         setLoadingConnect(true);
         try {
-            const { data } = await api.post(`/users/{user_id}/vk_accounts/curl_main`, { curl: curlCommand });
+            const { data } = await api.post(`/users/${user.id}/vk_accounts/curl_main`, { curl: curlCommand });
             setNewAccount(data);
-            localStorage.setItem('vkAccountId', data.id);
             setCurlCommand('');
             messageApi.info('Запущен процесс обработки VK аккаунта...');
             setTaskUpdated(prev => prev + 1);
