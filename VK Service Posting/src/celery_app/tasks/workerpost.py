@@ -18,6 +18,28 @@ from src.vk_api_methods.vk_auth import get_token, get_new_token, get_new_token_r
 from src.vk_api_methods.vk_group import join_group, assign_editor_role
 from src.celery_app.celery_db import SyncSessionLocal
 
+
+def _resolve_main_account_token(vk_main_account_database, main_account_curl: str | None) -> str | None:
+    stored_token = vk_main_account_database.token
+    stored_cookies = vk_main_account_database.cookies
+
+    if stored_token and stored_cookies:
+        refreshed_token = get_new_token_request(stored_token, stored_cookies, None)
+        if refreshed_token:
+            vk_main_account_database.token = refreshed_token
+            return refreshed_token
+
+        print("[!] Не удалось обновить main token из БД без прокси, пробуем сохранённый token как есть")
+
+    if stored_token:
+        return stored_token
+
+    if main_account_curl:
+        return TokenService.get_token_from_curl_direct(main_account_curl)
+
+    return None
+
+
 def _update_vk_account_db(account_id_database: int, account_update_data: dict, vk_token: str, database_manager,):
     # assume get_one_or_none is async
     with database_manager as session:
@@ -76,9 +98,8 @@ def create_workpost(
         if vk_main_account_database.encrypted_curl:
             main_account_curl = AuthService().decrypt_data(vk_main_account_database.encrypted_curl)
 
-        main_account_token = None
-        if main_account_curl:
-            main_account_token = TokenService.get_token_from_curl_direct(main_account_curl)
+        main_account_token = _resolve_main_account_token(vk_main_account_database, main_account_curl)
+        session.commit()
 
         if not main_account_token:
             raise RuntimeError("Could not resolve main account token without proxy")
