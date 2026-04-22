@@ -7,6 +7,7 @@ from src.celery_app import app
 from src.models.category import CategoryOrm
 from src.models.celery_task import CeleryTaskOrm
 from src.models.vk_account import VKAccountOrm
+from src.models.vk_account_group import VKAccountGroupOrm
 from src.models.vk_group import VKGroupOrm
 from src.models.workerpost import WorkerPostOrm
 from src.schemas.vk_account import VKAccountUpdate
@@ -29,13 +30,13 @@ def _resolve_main_account_token(vk_main_account_database, main_account_curl: str
             vk_main_account_database.token = refreshed_token
             return refreshed_token
 
-        print("[!] Не удалось обновить main token из БД без прокси, пробуем сохранённый token как есть")
-
-    if stored_token:
-        return stored_token
+        print("[!] Не удалось обновить main token из БД без прокси, пробуем получить новый token из main curl")
 
     if main_account_curl:
-        return TokenService.get_token_from_curl_direct(main_account_curl)
+        fresh_token = TokenService.get_token_from_curl_direct(main_account_curl)
+        if fresh_token:
+            vk_main_account_database.token = fresh_token
+            return fresh_token
 
     return None
 
@@ -61,6 +62,22 @@ def _update_vk_account_db(account_id_database: int, account_update_data: dict, v
             setattr(account, field, value)
 
         session.commit()
+
+
+def _mark_account_as_posting(session, account_id_database: int):
+    stmt = select(VKAccountOrm).where(VKAccountOrm.id == account_id_database)
+    result = session.execute(stmt)
+    vk_account = result.scalars().one_or_none()
+    if not vk_account:
+        raise ValueError(f"Account {account_id_database} not found")
+
+    vk_account.account_type = "posting"
+
+    stmt = select(VKAccountGroupOrm).where(VKAccountGroupOrm.vk_account_id == account_id_database)
+    result = session.execute(stmt)
+    vk_account_groups = result.scalars().all()
+    for vk_account_group in vk_account_groups:
+        vk_account_group.role = "posting"
 
 def create_workpost(
         user_id: int,
@@ -101,7 +118,6 @@ def create_workpost(
         main_account_token = _resolve_main_account_token(vk_main_account_database, main_account_curl)
         session.commit()
 
-        print(f"main_account_token: {main_account_token}")
         if not main_account_token:
             raise RuntimeError("Could not resolve main account token without proxy")
 
@@ -124,6 +140,7 @@ def create_workpost(
         )
 
         session.add(workerpost_add)
+        _mark_account_as_posting(session, account_id_database)
         session.commit()
 
 def update_celery_task_status(

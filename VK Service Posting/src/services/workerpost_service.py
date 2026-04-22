@@ -76,23 +76,6 @@ class WorkerPostService:
             used_account_ids.add(target_vk_account_group_db.vk_account_id)
             vk_account = await self.database.vk_account.get_one_or_none(id=target_vk_account_group_db.vk_account_id)
 
-            await self.database.vk_account.edit(
-                VKAccountUpdate(account_type="posting"),
-                exclude_unset=True,
-                id=vk_account.id
-            )
-
-            vk_account_groups_fromAcc_db = await self.database.vk_account_group.get_all_filtered(vk_account_id=vk_account.id)
-            for vk_account_group_from_acc in vk_account_groups_fromAcc_db:
-                await self.database.vk_account_group.edit(
-                    VKAccountGroupUpdate(role="posting"),
-                    exclude_unset=True,
-                    id=vk_account_group_from_acc.id,
-                )
-
-            await self.database.commit()
-
-
             #password = AuthService().decrypt_data(vk_account.encrypted_password)
             token_db = vk_account.token
 
