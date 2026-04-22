@@ -114,6 +114,35 @@ def normalize_proxy_url(proxy: str | None) -> str | None:
 
     return proxy
 
+
+def has_request_with_response(driver, url_part: str) -> bool:
+    for request in driver.requests:
+        if url_part in (request.url or "") and getattr(request, "response", None):
+            return True
+    return False
+
+
+def wait_for_any_condition(driver, timeout: int, request_parts=None, locators=None) -> bool:
+    request_parts = request_parts or []
+    locators = locators or []
+    end = time.time() + timeout
+
+    while time.time() < end:
+        for request_part in request_parts:
+            if has_request_with_response(driver, request_part):
+                return True
+
+        for by, selector in locators:
+            try:
+                if driver.find_elements(by, selector):
+                    return True
+            except Exception:
+                continue
+
+        time.sleep(0.2)
+
+    return False
+
 def press_f5(driver):
     """Нажимает F5 для обновления страницы"""
     print("[*] Нажимаем F5 для обновления страницы...")
@@ -259,11 +288,10 @@ def get_vk_curl(driver, timeout: int = 300) -> str:
     return None
 
 
-def solve_simple_captcha(driver, log_signal=None, timeout=1):
+def solve_simple_captcha(driver, log_signal=None, timeout=4):
     """
     Нажимает на чекбокс капчи "Я не робот" (ищет в iframe).
     """
-    time.sleep(3)
     try:
         wait = WebDriverWait(driver, timeout)
 
@@ -405,7 +433,16 @@ def skip_phone_validation_if_exists(driver, log_signal = None, timeout=3):
         print("[*] Нажали 'Пропустить ввод номера'")
         if log_signal:
             log_signal.emit("[*] Нажали 'Пропустить ввод номера'")
-        time.sleep(2)  # Ждём закрытия попапа
+        wait_for_any_condition(
+            driver,
+            timeout=3,
+            request_parts=["captchaNotRobot.getContent"],
+            locators=[
+                (By.ID, "not-robot-captcha-checkbox"),
+                (By.CSS_SELECTOR, "label.vkc__Checkbox-module__Checkbox"),
+                (By.CSS_SELECTOR, "div.vkuiAlert__content"),
+            ],
+        )
         solve_simple_captcha(driver, log_signal)
         return True
     except TimeoutException:
@@ -435,7 +472,15 @@ def subscribe_to_public(driver, public_url: str, log_signal = None, timeout: int
         if log_signal:
             log_signal.emit(f"[*] Переходим к паблику: {public_url}")
         driver.get(public_url)
-        time.sleep(3)  # Ждём загрузки страницы
+        wait_for_any_condition(
+            driver,
+            timeout=5,
+            locators=[
+                (By.CLASS_NAME, "redesigned-group-subscribed"),
+                (By.XPATH, "//button[contains(@class,'FlatButton--primary')]"),
+                (By.XPATH, "//button[contains(normalize-space(.), 'Подписаться') or contains(normalize-space(.), 'Follow') or contains(normalize-space(.), 'Join')]"),
+            ],
+        )
 
         wait = WebDriverWait(driver, timeout)
 
@@ -526,7 +571,11 @@ def subscribe_to_public(driver, public_url: str, log_signal = None, timeout: int
             if log_signal:
                 log_signal.emit(f"[!] Не удалось скипнуть валидацию по номеру телефона")
 
-        time.sleep(2)  # Ждём обработки подписки
+        wait_for_any_condition(
+            driver,
+            timeout=4,
+            locators=[(By.CLASS_NAME, "redesigned-group-subscribed")],
+        )
 
         # Проверяем, что подписка прошла успешно
         try:
@@ -1131,14 +1180,21 @@ def vk_login(login: str, password: str, vkpublic = None, proxy = None, log_signa
         shutil.rmtree(tmpdir, ignore_errors=True)
         raise TimeoutException("VK login form did not open")
 
-    time.sleep(2)
-
     if not fill_login_and_continue(driver, login, timeout=10):
         driver.quit()
         shutil.rmtree(tmpdir, ignore_errors=True)
         raise TimeoutException("VK login input did not become available")
 
-    time.sleep(5)
+    wait_for_any_condition(
+        driver,
+        timeout=8,
+        request_parts=["captchaNotRobot.getContent"],
+        locators=[
+            (By.NAME, "password"),
+            (By.CSS_SELECTOR, "input[type='password']"),
+            (By.CSS_SELECTOR, "div.vkuiAlert__content"),
+        ],
+    )
 
     if has_too_many_attempts_alert(driver):
         driver.quit()
@@ -1148,14 +1204,8 @@ def vk_login(login: str, password: str, vkpublic = None, proxy = None, log_signa
     solve_vk_slider_captcha(driver, log_signal)
     solve_simple_captcha(driver, log_signal)
 
-    time.sleep(3)
-
     check_for_max_window(driver,log_signal)
     check_for_sms_window(driver,log_signal)
-
-    #close_popup_if_exists(driver)
-
-    time.sleep(3)
 
     #click_confirm_another_way_if_present(driver)
 
@@ -1167,7 +1217,16 @@ def vk_login(login: str, password: str, vkpublic = None, proxy = None, log_signa
         shutil.rmtree(tmpdir, ignore_errors=True)
         raise TimeoutException("VK password form did not become available")
 
-    time.sleep(10)
+    wait_for_any_condition(
+        driver,
+        timeout=12,
+        request_parts=["act=web_token", "act=get_accounts", "captchaNotRobot.getContent"],
+        locators=[
+            (By.CSS_SELECTOR, "div.vkuiAlert__content"),
+            (By.NAME, "password"),
+            (By.CSS_SELECTOR, "input[type='password']"),
+        ],
+    )
 
     if has_too_many_attempts_alert(driver):
         driver.quit()
@@ -1177,16 +1236,11 @@ def vk_login(login: str, password: str, vkpublic = None, proxy = None, log_signa
     solve_vk_slider_captcha(driver, log_signal)
     solve_simple_captcha(driver, log_signal)
 
-    time.sleep(3)
     curl, access_token = find_save_curl(driver, login, password, log_signal)
-
-    time.sleep(3)
-
-    sub = "None"
+    sub = False
     if vkpublic:
-        sub = subscribe_to_public(driver, vkpublic, log_signal)
-
-    time.sleep(3)
+        sub_status = subscribe_to_public(driver, vkpublic, log_signal)
+        sub = sub_status in ("already_subscribed", "subscribed")
 
     print("[*] Авторизация завершена.")
     driver.quit()

@@ -71,12 +71,24 @@ def create_workpost(
         if not vk_account_database.encrypted_curl:
             join_group(vk_group_database.vk_group_id, account_token, proxy)
 
-        main_account_curl = AuthService().decrypt_data(vk_main_account_database.encrypted_curl)
-        main_account_token = TokenService.get_token_from_curl(main_account_curl)
+        if vk_main_account_database.token and vk_main_account_database.cookies:
+            main_account_token = get_new_token_request(
+                vk_main_account_database.token,
+                vk_main_account_database.cookies,
+                proxy,
+            )
+        else:
+            main_account_curl = AuthService().decrypt_data(vk_main_account_database.encrypted_curl)
+            main_account_token = TokenService.get_token_from_curl(main_account_curl, proxy)
 
-        is_editor_role = assign_editor_role(vk_group_database.vk_group_id, vk_account_database.vk_account_id, main_account_token)
+        is_editor_role = assign_editor_role(
+            vk_group_database.vk_group_id,
+            vk_account_database.vk_account_id,
+            main_account_token,
+            proxy,
+        )
         if not is_editor_role:
-            raise "not take editor role"
+            raise RuntimeError("Could not assign editor role")
 
         workerpost_add = WorkerPostOrm(
             user_id=user_id,

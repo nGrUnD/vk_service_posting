@@ -28,7 +28,7 @@ def join_group(group_id: int, access_token: str, proxy: str):
     print("Успешно вступили в группу.")
     return True
 
-def assign_editor_role(group_id: int, user_id: int, access_token: str):
+def assign_editor_role(group_id: int, user_id: int, access_token: str, proxy: str = None):
     url = "https://api.vk.com/method/groups.editManager"
     params = {
         "group_id": group_id,
@@ -37,7 +37,14 @@ def assign_editor_role(group_id: int, user_id: int, access_token: str):
         "access_token": access_token,
         "v": "5.131"
     }
-    response = requests.post(url, data=params)
+    proxy_response = None
+    if proxy is not None:
+        proxy_response = {
+            "http": proxy,
+            "https": proxy,
+        }
+
+    response = requests.post(url, data=params, proxies=proxy_response)
     result = response.json()
     if "error" in result:
         print(f"Ошибка: {result['error']['error_msg']}")

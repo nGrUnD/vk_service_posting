@@ -35,7 +35,7 @@ def connect_vk_account_autocurl(user_id: int, vk_account_id: int, login: str, pa
             vk_account_id,
             login,
             password,
-            vk_group_url,
+            None,
             proxy_http,
         )
         update_db_vk_account_end(database_manager, vk_account_id, curl, vk_group_sub, access_token)
@@ -43,12 +43,17 @@ def connect_vk_account_autocurl(user_id: int, vk_account_id: int, login: str, pa
         update_db_vk_account_error(database_manager, vk_account_id, str(e))
         raise e
 
-    # End Database Update (Curl, token + cookie)
+    finish_vk_account_autocurl_followup.delay(user_id, vk_account_id, vk_group_url, category_id_db, proxy_http)
+
+
+@app.task(name="vk_account_autocurl_followup")
+def finish_vk_account_autocurl_followup(user_id: int, vk_account_id: int, vk_group_url: str,
+                                        category_id_db: int, proxy_http: str):
+    database_manager = SyncSessionLocal()
     parse_vk_profile_backup(vk_account_id, proxy_http, user_id)
     try_add_vk_group_main(database_manager, vk_account_id, vk_group_url, proxy_http, user_id)
     try_add_workerpost(database_manager, vk_account_id, vk_group_url, proxy_http, user_id, category_id_db)
     print(f"Account {vk_account_id}: Workerpost добавлен!")
-    # update_db_vk_account_parse_task(database_manager, vk_account_id, task_parse.id)
 
 
 def is_proxy_connection_error(error: Exception) -> bool:

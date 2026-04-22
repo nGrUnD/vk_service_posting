@@ -121,7 +121,7 @@ def _request_to_curl(req) -> str:
 
     return " ".join(parts)
 
-def get_vk_curl_v2(driver, timeout: int = 300, reloadtime: int = 10) -> tuple[str | None, str | None]:
+def get_vk_curl_v2(driver, timeout: int = 60, reloadtime: int = 0) -> tuple[str | None, str | None]:
     """
     Ждём запросы, в которых есть access_token.
     Приоритет:
@@ -142,11 +142,13 @@ def get_vk_curl_v2(driver, timeout: int = 300, reloadtime: int = 10) -> tuple[st
 
     end = time.time() + timeout
     last_seen_without_token = None
+    processed_requests = 0
 
     timer_reload = 0
     while time.time() < end:
         # Обновляем список запросов на каждом шаге
-        for req in driver.requests:
+        requests = driver.requests
+        for req in requests[processed_requests:]:
             if not getattr(req, 'response', None):
                 # Ждём хотя бы ответа (часто бесполезно брать незавершённые)
                 continue
@@ -175,9 +177,11 @@ def get_vk_curl_v2(driver, timeout: int = 300, reloadtime: int = 10) -> tuple[st
             if 'login.vk.' in url and 'act=web_token' in url and response_token:
                 return _request_to_curl(req), response_token
 
+        processed_requests = len(requests)
+
         time.sleep(0.3)
         timer_reload += 0.3
-        if timer_reload > reloadtime:
+        if reloadtime and timer_reload > reloadtime:
             timer_reload = 0
             driver.refresh()
 
