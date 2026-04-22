@@ -153,3 +153,21 @@ class TokenService:
             raise RuntimeError(f"curl command returned non-JSON response: {response_text[:300]}") from error
 
         return TokenService._extract_token_from_json_response(json_resp)
+
+    @staticmethod
+    def get_token_from_curl_direct(curl_cmd: str) -> str:
+        token_errors = []
+        token_getters = [
+            ("curl shell direct", lambda: TokenService.get_token_from_curl_shell(curl_cmd, None)),
+            ("requests replay direct", lambda: TokenService.get_token_from_curl(curl_cmd, None)),
+        ]
+
+        for label, getter in token_getters:
+            try:
+                token = getter()
+                if token:
+                    return token
+            except Exception as error:
+                token_errors.append(f"{label}: {error}")
+
+        raise RuntimeError("Could not get token from curl direct. " + " | ".join(token_errors))
