@@ -214,7 +214,7 @@ async def create_vk_account_curl_main(
             curl=curl_command.curl,
             account_type="main"
         )
-    except ValueError as e:
+    except (ValueError, RuntimeError) as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)

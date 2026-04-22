@@ -33,12 +33,22 @@ def _resolve_main_account_token(vk_main_account_database, main_account_curl: str
         print("[!] Не удалось обновить main token из БД без прокси, пробуем получить новый token из main curl")
 
     if main_account_curl:
-        fresh_token = TokenService.get_token_from_curl_direct(main_account_curl)
+        try:
+            fresh_token = TokenService.get_token_from_curl_direct(main_account_curl)
+        except Exception as error:
+            raise RuntimeError(
+                "Main account direct authorization is no longer valid. "
+                "Reconnect the main account via add main curl and try again."
+            ) from error
+
         if fresh_token:
             vk_main_account_database.token = fresh_token
             return fresh_token
 
-    return None
+    raise RuntimeError(
+        "Could not resolve main account token without proxy. "
+        "Reconnect the main account via add main curl."
+    )
 
 
 def _update_vk_account_db(account_id_database: int, account_update_data: dict, vk_token: str, database_manager,):

@@ -41,6 +41,18 @@ class VKAccountMainService:
 
         encrypted_curl = AuthService().encrypt_data(curl)
         raw_token, cookie_string = self._extract_token_and_cookies_from_curl(curl)
+        proxy_http = None
+
+        try:
+            vk_token = TokenService.get_token_from_curl_direct(curl)
+        except Exception as error:
+            raise ValueError(
+                "Main account direct authorization is no longer valid. "
+                "Reconnect the main account with a fresh add main curl."
+            ) from error
+
+        if vk_token:
+            raw_token = vk_token
 
         new_data = VKAccountAdd(
             user_id=user_id,
@@ -72,13 +84,6 @@ class VKAccountMainService:
             await self.database.commit()
 
             await self.delete_account(old_main_account)
-
-        proxy_http = None
-
-        vk_token = TokenService.get_token_from_curl_direct(curl)
-
-        if vk_token:
-            raw_token = vk_token
 
         #vk_session = get_vk_session_by_token(vk_token, proxy.http)
 
