@@ -74,15 +74,23 @@ class VKAccountMainService:
         else:
             proxy_http = None
 
-        proxy_http = None
         vk_token = TokenService.get_token_from_curl(curl, proxy_http)
+        if vk_token:
+            raw_token = vk_token
 
         #vk_session = get_vk_session_by_token(vk_token, proxy.http)
 
         task = parse_vk_profile_main_sync.delay(vk_token, vk_account.id, proxy_http, user_id)
 
-        await self.database.vk_account.edit(VKAccountUpdate(task_id=task.id), exclude_unset=True,
-                                            id=vk_account.id)
+        await self.database.vk_account.edit(
+            VKAccountUpdate(
+                task_id=task.id,
+                token=raw_token,
+                cookies=cookie_string,
+            ),
+            exclude_unset=True,
+            id=vk_account.id
+        )
         await self.database.commit()
 
         return vk_account

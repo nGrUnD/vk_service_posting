@@ -88,6 +88,14 @@ def create_workpost(
         result = session.execute(stmt)
         vk_main_account_database = result.scalars().one_or_none()
 
+        main_proxy = None
+        if vk_main_account_database and vk_main_account_database.proxy_id:
+            stmt = select(ProxyOrm).where(ProxyOrm.id == vk_main_account_database.proxy_id)
+            result = session.execute(stmt)
+            main_proxy_db = result.scalars().one_or_none()
+            if main_proxy_db:
+                main_proxy = main_proxy_db.http
+
         stmt = select(VKGroupOrm).where(VKGroupOrm.id == vk_group_id_database)
         result = session.execute(stmt)
         vk_group_database = result.scalars().one_or_none()
@@ -103,7 +111,7 @@ def create_workpost(
             main_account_token = _refresh_or_reuse_token(
                 vk_main_account_database.token,
                 vk_main_account_database.cookies,
-                proxy,
+                main_proxy,
             )
         else:
             main_account_curl = AuthService().decrypt_data(vk_main_account_database.encrypted_curl)
@@ -113,9 +121,9 @@ def create_workpost(
                 vk_main_account_database.token = raw_token
                 vk_main_account_database.cookies = cookie_string
                 session.commit()
-                main_account_token = _refresh_or_reuse_token(raw_token, cookie_string, proxy)
+                main_account_token = _refresh_or_reuse_token(raw_token, cookie_string, main_proxy)
             else:
-                main_account_token = TokenService.get_token_from_curl(main_account_curl, proxy)
+                main_account_token = TokenService.get_token_from_curl(main_account_curl, main_proxy)
 
         if not main_account_token:
             raise RuntimeError("Could not resolve main account token")
@@ -124,7 +132,7 @@ def create_workpost(
             vk_group_database.vk_group_id,
             vk_account_database.vk_account_id,
             main_account_token,
-            proxy,
+            main_proxy,
         )
         if not is_editor_role:
             raise RuntimeError("Could not assign editor role")
