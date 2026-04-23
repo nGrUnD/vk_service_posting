@@ -13,9 +13,10 @@ app.conf.task_queues = (
     Queue("heavy"),
 )
 
-# Маршрутизация: задача с именем 'vk_account_autocurl' → очередь 'heavy'
+# Маршрутизация: Selenium / тяжёлые задачи → очередь 'heavy' (см. worker celery-heavy)
 app.conf.task_routes = {
     'vk_account_autocurl': {'queue': 'heavy'},
+    'vk_checker_add_account': {'queue': 'heavy'},
 }
 
 app.conf.task_default_queue = 'default'

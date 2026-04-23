@@ -9,8 +9,8 @@ from src.services.vk_token_service import TokenService
 from sqlalchemy import select
 
 from src.models.vk_account import VKAccountOrm
-from src.vk_api_methods.selenium.vk_selenium_captcha import vk_login
 from src.celery_app.tasks.vk_account_backup_parse import parse_vk_profile_backup
+from src.celery_app.tasks.vk_selenium_login_retry import vk_login_with_proxy_retry
 
 @app.task(name="vk_checker_add_account")
 def vk_checker_add_account(user_id, vk_account_id_db, login: str, password: str, proxy_http: str):
@@ -19,10 +19,19 @@ def vk_checker_add_account(user_id, vk_account_id_db, login: str, password: str,
     # Start Database Update
     update_db_vk_account_start(database_manager, vk_account_id_db)
     try:
-        curl, vk_group_sub, access_token = vk_login(login, password, None, proxy_http)
+        curl, vk_group_sub, access_token, _used_proxy = vk_login_with_proxy_retry(
+            database_manager,
+            vk_account_id_db,
+            login,
+            password,
+            None,
+            proxy_http,
+        )
 
         update_db_vk_account_end(database_manager, vk_account_id_db, curl, vk_group_sub, access_token)
-        parse_vk_profile_backup(vk_account_id_db, proxy_http, user_id, "checker")
+        parse_vk_profile_backup(
+            vk_account_id_db, _used_proxy or proxy_http, user_id, "checker"
+        )
     except Exception as e:
         update_db_vk_account_error(database_manager, vk_account_id_db, str(e))
         raise e
@@ -40,6 +49,17 @@ def update_db_vk_account_start(database_manager, vk_account_id: int):
         vk_account_db.name = "started"
         session.commit()
 
+def _display_error_prefix(message: str) -> str:
+    m = (message or "").lower()
+    if "proxy tunnel" in m or "err_tunnel" in m or "err_proxy" in m:
+        return "Proxy / сеть\n"
+    if "login form did not open" in m or "password form" in m or "timeout" in m:
+        return "VK / Selenium (таймаут UI)\n"
+    if "captcha" in m or "заблок" in m or "block" in m:
+        return "Капча / блокировка?\n"
+    return "Ошибка входа\n"
+
+
 def update_db_vk_account_error(database_manager, vk_account_id: int, error: str):
     with database_manager as session:
         stmt = select(VKAccountOrm).where(VKAccountOrm.id == vk_account_id)
@@ -49,7 +69,7 @@ def update_db_vk_account_error(database_manager, vk_account_id: int, error: str)
         if not vk_account_db:
             raise ValueError(f"VK Account {vk_account_id} not found in database")
 
-        vk_account_db.name = "Maybe Blocked?\n" + error
+        vk_account_db.name = _display_error_prefix(error) + error
         session.commit()
 
 def extract_cookie_from_curl(curl: str) -> Optional[str]:

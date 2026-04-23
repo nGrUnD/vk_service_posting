@@ -1,6 +1,4 @@
-import random
 import re
-import time
 from typing import Optional
 
 from src.celery_app import app
@@ -11,11 +9,10 @@ from sqlalchemy import select
 
 from src.celery_app.tasks import create_workpost
 from src.models import VKGroupOrm
-from src.models.proxy import ProxyOrm
 from src.models.vk_account import VKAccountOrm
 
-from src.vk_api_methods.selenium.vk_selenium_captcha import vk_login
 from src.celery_app.tasks.vk_account_backup_parse import parse_vk_profile_backup
+from src.celery_app.tasks.vk_selenium_login_retry import vk_login_with_proxy_retry
 from src.vk_api_methods.vk_account import get_vk_group_info
 from src.vk_api_methods.vk_auth import get_new_token_request
 
@@ -56,74 +53,24 @@ def finish_vk_account_autocurl_followup(user_id: int, vk_account_id: int, vk_gro
     print(f"Account {vk_account_id}: Workerpost добавлен!")
 
 
-def is_proxy_connection_error(error: Exception) -> bool:
-    error_text = str(error)
-    return any(
-        marker in error_text
-        for marker in [
-            "ERR_TUNNEL_CONNECTION_FAILED",
-            "Proxy tunnel failed",
-            "ERR_PROXY_CONNECTION_FAILED",
-            "ERR_NO_SUPPORTED_PROXIES",
-        ]
+def get_autocurl_with_proxy_retry(
+    database_manager,
+    vk_account_id: int,
+    login: str,
+    password: str,
+    vk_group_url: str,
+    proxy_http: Optional[str],
+    retries: int = 5,
+):
+    return vk_login_with_proxy_retry(
+        database_manager,
+        vk_account_id,
+        login,
+        password,
+        vk_group_url,
+        proxy_http,
+        retries,
     )
-
-
-def is_retryable_autocurl_error(error: Exception) -> bool:
-    error_text = str(error)
-    return any(
-        marker in error_text
-        for marker in [
-            "VK password form did not become available",
-            "VK login form did not open",
-            "VK login input did not become available",
-            "timeout",
-            "TimeoutException",
-        ]
-    )
-
-
-def get_autocurl_with_proxy_retry(database_manager, vk_account_id: int, login: str, password: str,
-                                  vk_group_url: str, proxy_http: Optional[str], retries: int = 5):
-    current_proxy = proxy_http
-
-    with database_manager as session:
-        stmt = select(VKAccountOrm).where(VKAccountOrm.id == vk_account_id)
-        result = session.execute(stmt)
-        vk_account_db = result.scalars().one_or_none()
-        if vk_account_db is None:
-            raise ValueError(f"VK Account {vk_account_id} not found in database")
-
-        for attempt in range(1, retries + 1):
-            try:
-                curl, vk_group_sub, access_token = vk_login(login, password, vk_group_url, current_proxy)
-                return curl, vk_group_sub, access_token, current_proxy
-            except Exception as error:
-                if is_retryable_autocurl_error(error) and attempt < retries:
-                    print(
-                        f"Попытка {attempt}: временная ошибка autocurl ({error}), "
-                        f"перезапускаем процесс"
-                    )
-                    time.sleep(2)
-                    continue
-
-                if not is_proxy_connection_error(error):
-                    raise
-
-                print(f"Попытка {attempt}: проблема с прокси {current_proxy}: {error}")
-                stmt_proxies = select(ProxyOrm).where(ProxyOrm.http != current_proxy)
-                proxies = session.execute(stmt_proxies).scalars().all()
-
-                if not proxies:
-                    raise RuntimeError(f"Proxy failed and no other proxies available: {current_proxy}") from error
-
-                new_proxy = random.choice(proxies)
-                current_proxy = new_proxy.http
-                vk_account_db.proxy_id = new_proxy.id
-                session.commit()
-                time.sleep(2)
-
-    raise RuntimeError(f"Failed to get autocurl after {retries} proxy attempts")
 
 
 def update_db_vk_account_start(database_manager, vk_account_id: int):
