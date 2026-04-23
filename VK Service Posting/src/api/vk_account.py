@@ -311,8 +311,8 @@ async def check_vk_account_curl(
 
     try:
         get_vk_account_data(token, proxy_http)
-    except Exception:
-        return {"ok": False, "detail": "Не удалось получить токен"}
+    except Exception as e:
+        return {"ok": False, "detail": f"Не удалось получить токен: {e}"}
 
     # Если web_token вернул новый — сохраняем его
     if token != account.token:

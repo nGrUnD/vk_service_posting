@@ -73,14 +73,14 @@ export default function AccountTableChecker() {
         try {
             const { data } = await api.post(`/users/{user_id}/vk_accounts/${id}/check_curl`);
             if (data?.ok) {
-                messageApi.success("curl живой");
+                messageApi.success(data?.detail || "curl живой");
             } else {
-                messageApi.error("Не удалось получить токен");
+                messageApi.error(data?.detail || "Не удалось получить токен");
             }
             fetchAccounts(true);
         } catch (err) {
             console.error(err);
-            messageApi.error("Не удалось получить токен");
+            messageApi.error(err?.response?.data?.detail || "Не удалось получить токен");
         } finally {
             setCheckingCurlId(null);
         }
