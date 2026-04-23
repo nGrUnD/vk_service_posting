@@ -69,6 +69,20 @@ def is_proxy_connection_error(error: Exception) -> bool:
     )
 
 
+def is_retryable_autocurl_error(error: Exception) -> bool:
+    error_text = str(error)
+    return any(
+        marker in error_text
+        for marker in [
+            "VK password form did not become available",
+            "VK login form did not open",
+            "VK login input did not become available",
+            "timeout",
+            "TimeoutException",
+        ]
+    )
+
+
 def get_autocurl_with_proxy_retry(database_manager, vk_account_id: int, login: str, password: str,
                                   vk_group_url: str, proxy_http: Optional[str], retries: int = 5):
     current_proxy = proxy_http
@@ -85,6 +99,14 @@ def get_autocurl_with_proxy_retry(database_manager, vk_account_id: int, login: s
                 curl, vk_group_sub, access_token = vk_login(login, password, vk_group_url, current_proxy)
                 return curl, vk_group_sub, access_token, current_proxy
             except Exception as error:
+                if is_retryable_autocurl_error(error) and attempt < retries:
+                    print(
+                        f"Попытка {attempt}: временная ошибка autocurl ({error}), "
+                        f"перезапускаем процесс"
+                    )
+                    time.sleep(2)
+                    continue
+
                 if not is_proxy_connection_error(error):
                     raise
 
