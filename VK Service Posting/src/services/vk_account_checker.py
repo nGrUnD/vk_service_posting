@@ -121,20 +121,27 @@ class AccountChecker:
         new_cookie_header = _session_cookies_to_header(http_sess) or _session_cookies_to_header(session)
         return new_password, new_token, new_cookie_header
 
-    async def _change_password_one(self, login: str, old_password: str, user_id: int, semaphore: asyncio.Semaphore):
+    async def _change_password_one(
+        self,
+        login: str,
+        old_password: str,
+        user_id: int,
+        semaphore: asyncio.Semaphore,
+    ):
         """
         Одна асинхронная задача смены пароля для одного аккаунта.
         Возвращает AccountChangeResult.
         """
         try:
-            # 1) получить запись аккаунта
-            vk_account_db = await self.database.vk_account.get_one_or_none(login=login)
-            if not vk_account_db:
-                return AccountChangeResult(login=login, password=old_password + "\tNot found account")
+            # 1) получить запись аккаунта + прокси в отдельной сессии,
+            # чтобы параллельные задачи не делили один AsyncSession.
+            async with DataBaseManager(self.database.session_factory) as db:
+                vk_account_db = await db.vk_account.get_one_or_none(login=login)
+                if not vk_account_db:
+                    return AccountChangeResult(login=login, password=old_password + "\tNot found account")
 
-            # 2) прокси
-            proxy_db = await self.database.proxy.get_one_or_none(id=vk_account_db.proxy_id)
-            proxy_http = proxy_db.http if proxy_db else None
+                proxy_db = await db.proxy.get_one_or_none(id=vk_account_db.proxy_id)
+                proxy_http = proxy_db.http if proxy_db else None
 
             # 3) выполнить блокирующую часть в пуле потоков
             async with semaphore:
@@ -151,25 +158,26 @@ class AccountChecker:
                     )
                 )
 
-            # 4) сохранить изменения в БД (асинхронно)
+            # 4) сохранить изменения в БД (асинхронно, отдельная сессия)
             encrypted_password = AuthService().encrypt_data(new_password)
-            if new_cookies:
-                await self.database.vk_account.edit(
-                    VKAccountUpdate(
-                        encrypted_password=encrypted_password,
-                        token=new_token,
-                        cookies=new_cookies,
-                    ),
-                    exclude_unset=True,
-                    id=vk_account_db.id
-                )
-            else:
-                await self.database.vk_account.edit(
-                    VKAccountUpdate(encrypted_password=encrypted_password, token=new_token),
-                    exclude_unset=True,
-                    id=vk_account_db.id
-                )
-            await self.database.commit()
+            async with DataBaseManager(self.database.session_factory) as db:
+                if new_cookies:
+                    await db.vk_account.edit(
+                        VKAccountUpdate(
+                            encrypted_password=encrypted_password,
+                            token=new_token,
+                            cookies=new_cookies,
+                        ),
+                        exclude_unset=True,
+                        id=vk_account_db.id
+                    )
+                else:
+                    await db.vk_account.edit(
+                        VKAccountUpdate(encrypted_password=encrypted_password, token=new_token),
+                        exclude_unset=True,
+                        id=vk_account_db.id
+                    )
+                await db.commit()
 
             logging.info(f"Login: {login} NewPassword: {new_password}")
             return AccountChangeResult(login=login, password=new_password)
