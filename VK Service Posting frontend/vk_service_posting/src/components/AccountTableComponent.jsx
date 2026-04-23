@@ -14,8 +14,10 @@ export default function AccountTable() {
         in_progress: "orange",
     };
 
-    const fetchAccounts = async () => {
-        setLoading(true);
+    const fetchAccounts = async (silent = false) => {
+        if (!silent) {
+            setLoading(true);
+        }
         try {
             const { data } = await api.get("/users/{user_id}/vk_accounts/all");
             // 👇 сортируем по id DESC перед рендером
@@ -26,12 +28,30 @@ export default function AccountTable() {
             console.error("Ошибка при загрузке аккаунтов", err);
             message.error("Не удалось загрузить аккаунты");
         } finally {
-            setLoading(false);
+            if (!silent) {
+                setLoading(false);
+            }
         }
     };
 
     useEffect(() => {
         fetchAccounts();
+
+        const intervalId = setInterval(() => {
+            fetchAccounts(true);
+        }, 10000);
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === "visible") {
+                fetchAccounts(true);
+            }
+        };
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+
+        return () => {
+            clearInterval(intervalId);
+            document.removeEventListener("visibilitychange", handleVisibilityChange);
+        };
     }, []);
 
     // Удаление аккаунта
