@@ -115,7 +115,7 @@ def normalize_proxy_url(proxy: str | None) -> str | None:
     return proxy
 
 
-def safe_driver_get(driver, url: str, timeout: int = 30):
+def safe_driver_get(driver, url: str, timeout: int = 30, fail_on_timeout: bool = False):
     try:
         driver.set_page_load_timeout(timeout)
     except Exception:
@@ -123,7 +123,9 @@ def safe_driver_get(driver, url: str, timeout: int = 30):
 
     try:
         driver.get(url)
-    except TimeoutException:
+    except TimeoutException as exc:
+        if fail_on_timeout:
+            raise TimeoutException(f"Page load timeout for {url}") from exc
         print(f"[!] Page load timeout for {url}, продолжаем с уже загруженным DOM")
     return True
 
@@ -1180,7 +1182,7 @@ def vk_login(login: str, password: str, vkpublic = None, proxy = None, log_signa
     #driver = webdriver.Chrome(options=options)
 
     try:
-        safe_driver_get(driver, "https://vk.ru/", timeout=25)
+        safe_driver_get(driver, "https://vk.ru/", timeout=25, fail_on_timeout=True)
     except WebDriverException as e:
         driver.quit()
         shutil.rmtree(tmpdir, ignore_errors=True)

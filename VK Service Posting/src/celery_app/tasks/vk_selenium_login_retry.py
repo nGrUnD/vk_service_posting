@@ -21,6 +21,7 @@ def is_proxy_connection_error(error: Exception) -> bool:
             "Proxy tunnel failed",
             "ERR_PROXY_CONNECTION_FAILED",
             "ERR_NO_SUPPORTED_PROXIES",
+            "Page load timeout for https://vk.ru/",
         ]
     )
 
@@ -68,6 +69,25 @@ def vk_login_with_proxy_retry(
                 )
                 return curl, vk_group_sub, access_token, current_proxy
             except Exception as error:
+                if is_proxy_connection_error(error):
+                    print(
+                        f"Попытка {attempt}/{retries}: сбой прокси {current_proxy}: {error!s}"
+                    )
+                    stmt_proxies = select(ProxyOrm).where(ProxyOrm.http != current_proxy)
+                    proxies = session.execute(stmt_proxies).scalars().all()
+
+                    if not proxies:
+                        raise RuntimeError(
+                            f"Proxy failed and no other proxies available: {current_proxy!s}"
+                        ) from error
+
+                    new_proxy = random.choice(proxies)
+                    current_proxy = new_proxy.http
+                    vk_account_db.proxy_id = new_proxy.id
+                    session.commit()
+                    time.sleep(2)
+                    continue
+
                 if is_retryable_selenium_login_error(error) and attempt < retries:
                     print(
                         f"Попытка {attempt}/{retries}: временная ошибка Selenium ({error!s}), "
@@ -76,25 +96,7 @@ def vk_login_with_proxy_retry(
                     time.sleep(2)
                     continue
 
-                if not is_proxy_connection_error(error):
-                    raise
-
-                print(
-                    f"Попытка {attempt}/{retries}: сбой прокси {current_proxy}: {error!s}"
-                )
-                stmt_proxies = select(ProxyOrm).where(ProxyOrm.http != current_proxy)
-                proxies = session.execute(stmt_proxies).scalars().all()
-
-                if not proxies:
-                    raise RuntimeError(
-                        f"Proxy failed and no other proxies available: {current_proxy!s}"
-                    ) from error
-
-                new_proxy = random.choice(proxies)
-                current_proxy = new_proxy.http
-                vk_account_db.proxy_id = new_proxy.id
-                session.commit()
-                time.sleep(2)
+                raise
 
     raise RuntimeError(
         f"Failed vk_login after {retries} попыток (прокси / таймауты)"
