@@ -3,13 +3,16 @@ from sqlalchemy import update
 
 from src.api.dependencies import DataBaseDep, UserIdDep
 from src.models.vk_group import VKGroupOrm
-from src.schemas.vk_account import VKAccount, VKAccountAddCURL, DeleteVKAccountsLoginsRequest
+from src.schemas.vk_account import VKAccount, VKAccountAddCURL, VKAccountUpdate, DeleteVKAccountsLoginsRequest
 from src.schemas.vk_account_cred import VKCredsRequestAdd, VKAccountCredRequestAutoCurlAdd
 from src.services.auth import AuthService
 from src.services.vk_account_backup import VKAccountBackupService
 from src.services.vk_account_main import VKAccountMainService
 from typing import List
 from src.schemas.vk_account import VKAccountOut
+from src.celery_app.tasks import vk_checker_add_account
+from src.vk_api_methods.vk_account import get_vk_account_data
+from src.vk_api_methods.vk_auth import get_new_token_request
 
 router = APIRouter(prefix="/users/{user_id}/vk_accounts", tags=["VK Аккаунты"])
 
@@ -285,6 +288,73 @@ async def retry_vk_account(
         raise HTTPException(status_code=403, detail="Нет доступа")
 
     return await VKAccountMainService(database).retry_account(user_id=user_id)
+
+
+@router.post("/{vk_account_id}/check_curl", summary="Проверить, что cURL/токен аккаунта живой")
+async def check_vk_account_curl(
+    user_id: UserIdDep,
+    vk_account_id: int,
+    database: DataBaseDep,
+):
+    account = await database.vk_account.get_one_or_none(id=vk_account_id, user_id=user_id)
+    if not account:
+        raise HTTPException(status_code=404, detail="VK аккаунт не найден")
+
+    proxy_http = None
+    if account.proxy_id:
+        proxy_db = await database.proxy.get_one_or_none(id=account.proxy_id)
+        proxy_http = proxy_db.http if proxy_db else None
+
+    token = get_new_token_request(account.token, account.cookies, proxy_http) or account.token
+    if not token:
+        return {"ok": False, "detail": "Не удалось получить токен"}
+
+    try:
+        get_vk_account_data(token, proxy_http)
+    except Exception:
+        return {"ok": False, "detail": "Не удалось получить токен"}
+
+    # Если web_token вернул новый — сохраняем его
+    if token != account.token:
+        await database.vk_account.edit(VKAccountUpdate(token=token), exclude_unset=True, id=account.id)
+        await database.commit()
+
+    return {"ok": True, "detail": "curl живой"}
+
+
+@router.post("/{vk_account_id}/reconnect_curl", summary="Переподключить cURL через vk_login (log:pass)")
+async def reconnect_vk_account_curl(
+    user_id: UserIdDep,
+    vk_account_id: int,
+    database: DataBaseDep,
+):
+    account = await database.vk_account.get_one_or_none(id=vk_account_id, user_id=user_id)
+    if not account:
+        raise HTTPException(status_code=404, detail="VK аккаунт не найден")
+    if not account.login or not account.encrypted_password:
+        raise HTTPException(status_code=400, detail="Для переподключения нужен login:password аккаунта")
+
+    password = AuthService().decrypt_data(account.encrypted_password)
+    proxy_http = None
+    if account.proxy_id:
+        proxy_db = await database.proxy.get_one_or_none(id=account.proxy_id)
+        proxy_http = proxy_db.http if proxy_db else None
+
+    task = vk_checker_add_account.delay(
+        user_id,
+        account.id,
+        account.login,
+        password,
+        proxy_http,
+        "backup",
+    )
+    await database.vk_account.edit(
+        VKAccountUpdate(task_id=task.id, parse_status="pending", account_type="backup"),
+        exclude_unset=True,
+        id=account.id,
+    )
+    await database.commit()
+    return {"status": "OK", "task_id": task.id}
 
 @router.delete("/delete_list_logins", status_code=status.HTTP_204_NO_CONTENT, summary="Удалить VK аккаунт по list логинам")
 async def delete_vk_accounts_list_logins(

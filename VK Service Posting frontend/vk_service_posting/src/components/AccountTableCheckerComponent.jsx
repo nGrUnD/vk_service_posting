@@ -6,6 +6,8 @@ import api from "../api/axios";
 export default function AccountTableChecker() {
     const [accounts, setAccounts] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [checkingCurlId, setCheckingCurlId] = useState(null);
+    const [reconnectingCurlId, setReconnectingCurlId] = useState(null);
 
     const statusColors = {
         success: "green",
@@ -62,6 +64,38 @@ export default function AccountTableChecker() {
         } catch (err) {
             console.error(err);
             message.error("Ошибка при удалении аккаунта");
+        }
+    };
+
+    const handleCheckCurl = async (id) => {
+        setCheckingCurlId(id);
+        try {
+            const { data } = await api.post(`/users/{user_id}/vk_accounts/${id}/check_curl`);
+            if (data?.ok) {
+                message.success("curl живой");
+            } else {
+                message.error("Не удалось получить токен");
+            }
+            fetchAccounts(true);
+        } catch (err) {
+            console.error(err);
+            message.error("Не удалось получить токен");
+        } finally {
+            setCheckingCurlId(null);
+        }
+    };
+
+    const handleReconnectCurl = async (id) => {
+        setReconnectingCurlId(id);
+        try {
+            await api.post(`/users/{user_id}/vk_accounts/${id}/reconnect_curl`);
+            message.success("Переподключение curl запущено");
+            fetchAccounts(true);
+        } catch (err) {
+            console.error(err);
+            message.error(err?.response?.data?.detail || "Не удалось запустить переподключение curl");
+        } finally {
+            setReconnectingCurlId(null);
         }
     };
 
@@ -155,16 +189,32 @@ export default function AccountTableChecker() {
             title: "Действия",
             key: "actions",
             render: (_, record) => (
-                <Popconfirm
-                    title="Удалить аккаунт?"
-                    okText="Да"
-                    cancelText="Нет"
-                    onConfirm={() => handleDelete(record.id)}
-                >
-                    <Button danger size="small">
-                        Удалить
+                <div className="flex flex-wrap gap-2">
+                    <Button
+                        size="small"
+                        loading={checkingCurlId === record.id}
+                        onClick={() => handleCheckCurl(record.id)}
+                    >
+                        Проверить curl
                     </Button>
-                </Popconfirm>
+                    <Button
+                        size="small"
+                        loading={reconnectingCurlId === record.id}
+                        onClick={() => handleReconnectCurl(record.id)}
+                    >
+                        Переподключить curl
+                    </Button>
+                    <Popconfirm
+                        title="Удалить аккаунт?"
+                        okText="Да"
+                        cancelText="Нет"
+                        onConfirm={() => handleDelete(record.id)}
+                    >
+                        <Button danger size="small">
+                            Удалить
+                        </Button>
+                    </Popconfirm>
+                </div>
             ),
         },
     ];

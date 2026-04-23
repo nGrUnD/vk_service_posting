@@ -13,7 +13,14 @@ from src.celery_app.tasks.vk_account_backup_parse import parse_vk_profile_backup
 from src.celery_app.tasks.vk_selenium_login_retry import vk_login_with_proxy_retry
 
 @app.task(name="vk_checker_add_account")
-def vk_checker_add_account(user_id, vk_account_id_db, login: str, password: str, proxy_http: str):
+def vk_checker_add_account(
+    user_id,
+    vk_account_id_db,
+    login: str,
+    password: str,
+    proxy_http: str,
+    target_account_type: str = "checker",
+):
     database_manager = SyncSessionLocal()
 
     # Start Database Update
@@ -28,9 +35,16 @@ def vk_checker_add_account(user_id, vk_account_id_db, login: str, password: str,
             proxy_http,
         )
 
-        update_db_vk_account_end(database_manager, vk_account_id_db, curl, vk_group_sub, access_token)
+        update_db_vk_account_end(
+            database_manager,
+            vk_account_id_db,
+            curl,
+            vk_group_sub,
+            access_token,
+            target_account_type,
+        )
         parse_vk_profile_backup(
-            vk_account_id_db, _used_proxy or proxy_http, user_id, "checker"
+            vk_account_id_db, _used_proxy or proxy_http, user_id, target_account_type
         )
     except Exception as e:
         update_db_vk_account_error(database_manager, vk_account_id_db, str(e))
@@ -88,8 +102,14 @@ def extract_access_token_from_curl(curl: str) -> Optional[str]:
     return match.group(1).split("'")[0]
 
 
-def update_db_vk_account_end(database_manager, vk_account_id: int, curl: str, vk_group_sub: bool,
-                             access_token: Optional[str] = None):
+def update_db_vk_account_end(
+    database_manager,
+    vk_account_id: int,
+    curl: str,
+    vk_group_sub: bool,
+    access_token: Optional[str] = None,
+    account_type: str = "checker",
+):
     print(f"curl: {curl}")
     print(f"vk_group_sub: {vk_group_sub}")
     with database_manager as session:
@@ -118,6 +138,6 @@ def update_db_vk_account_end(database_manager, vk_account_id: int, curl: str, vk
             else:
                 vk_account_db.cookies = cookie
                 vk_account_db.token = access_token
-                vk_account_db.account_type = "checker"
+                vk_account_db.account_type = account_type
 
         session.commit()
