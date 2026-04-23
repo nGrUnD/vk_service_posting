@@ -32,8 +32,45 @@ def _is_already_in_group_error(error: dict) -> bool:
     return False
 
 
+def is_user_in_vk_group(
+    group_id: int,
+    vk_user_id: int,
+    access_token: str,
+    proxy: str | None,
+) -> bool:
+    """
+    Проверяет, что пользователь vk_user_id состоит в сообществе.
+    access_token — лучше от main/админа: у web_token backup «token required» на isMember
+    и groups.join, а admin видит состав.
+    """
+    if not access_token:
+        return False
+    url = "https://api.vk.ru/method/groups.isMember"
+    params = {
+        "group_id": group_id,
+        "user_id": vk_user_id,
+        "access_token": access_token,
+        "v": "5.131",
+    }
+    headers = {"User-Agent": get_random_user_agent()}
+    session = _build_session(proxy)
+    response = session.get(url, params=params, headers=headers)
+    result = response.json()
+    if "error" in result:
+        print(f"Ошибка isMember (user_id={vk_user_id}): {result['error']}")
+        return False
+    resp = result.get("response")
+    if isinstance(resp, int):
+        return resp == 1
+    if isinstance(resp, dict):
+        return int(resp.get("member", 0)) == 1
+    return False
+
+
 def is_group_member(group_id: int, access_token: str, proxy: str | None) -> bool:
-    """Проверка, что владелец access_token состоит в группе (0/1)."""
+    """Проверка, что владелец access_token сам состоит в группе (0/1)."""
+    if not access_token:
+        return False
     url = "https://api.vk.ru/method/groups.isMember"
     params = {
         "group_id": group_id,
@@ -56,6 +93,9 @@ def is_group_member(group_id: int, access_token: str, proxy: str | None) -> bool
 
 
 def join_group(group_id: int, access_token: str, proxy: str | None = None) -> bool:
+    if not access_token:
+        print("join_group: пустой access_token")
+        return False
     url = "https://api.vk.ru/method/groups.join"
     params = {
         "group_id": group_id,
@@ -80,22 +120,33 @@ def join_group(group_id: int, access_token: str, proxy: str | None = None) -> bo
 
 
 def ensure_user_in_club_for_editor(
-    group_id: int, backup_account_token: str, proxy: str | None
+    group_id: int,
+    backup_vk_user_id: int,
+    backup_token: str,
+    main_token: str,
+    proxy: str | None,
 ) -> bool:
     """
-    Перед groups.editManager пользователь (backup) должен состоять в сообществе.
-    Ранее join вызывали только при отсутствии encrypted_curl, из‑за чего
-    follow-up autocurl с curl пропускал вступление и ловил «User should be in club».
+    Перед groups.editManager backup должен быть участником сообщества.
+
+    1) isMember(group, user_id=backup) через токен main — валидный API‑токен, не web_token backup.
+    2) иначе groups.join от имени backup (нужен рабочий токен; при провале web_token — в БД ещё лежит старый).
+    3) повторная проверка через main после join.
     """
-    if is_group_member(group_id, backup_account_token, proxy):
-        print("Пользователь уже в группе (isMember).")
+    if main_token and is_user_in_vk_group(
+        group_id, backup_vk_user_id, main_token, proxy
+    ):
+        print("Backup уже в группе (isMember user_id, токен main).")
         return True
-    if join_group(group_id, backup_account_token, proxy):
+
+    if join_group(group_id, backup_token, proxy):
         return True
-    # join мог вернуть false при гонке — перепроверяем
-    if is_group_member(group_id, backup_account_token, proxy):
+
+    if main_token and is_user_in_vk_group(
+        group_id, backup_vk_user_id, main_token, proxy
+    ):
         return True
-    return False
+    return is_group_member(group_id, backup_token, proxy)
 
 def assign_editor_role(group_id: int, user_id: int, access_token: str, proxy: str = None):
     url = "https://api.vk.ru/method/groups.editManager"

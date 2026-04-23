@@ -118,13 +118,6 @@ def create_workpost(
         result = session.execute(stmt)
         category_database = result.scalars().one_or_none()
 
-        if not ensure_user_in_club_for_editor(
-            vk_group_database.vk_group_id, account_token, proxy
-        ):
-            raise RuntimeError(
-                "Could not join backup account to the VK group (required before editor role)"
-            )
-
         main_account_curl = None
         if vk_main_account_database.encrypted_curl:
             main_account_curl = AuthService().decrypt_data(vk_main_account_database.encrypted_curl)
@@ -132,8 +125,22 @@ def create_workpost(
         main_account_token = _resolve_main_account_token(vk_main_account_database, main_account_curl)
         session.commit()
 
-        if not main_account_token:
-            raise RuntimeError("Could not resolve main account token without proxy")
+        effective_backup_token = account_token or vk_account_database.token
+        if not effective_backup_token:
+            raise RuntimeError(
+                "Backup account has no access token (web_token failed and DB token empty)"
+            )
+
+        if not ensure_user_in_club_for_editor(
+            vk_group_database.vk_group_id,
+            vk_account_database.vk_account_id,
+            effective_backup_token,
+            main_account_token,
+            proxy,
+        ):
+            raise RuntimeError(
+                "Could not join backup account to the VK group (required before editor role)"
+            )
 
         is_editor_role = assign_editor_role(
             vk_group_database.vk_group_id,
@@ -193,7 +200,7 @@ def create_workpost_account(
     try:
         cookie_db = load_cookies_db(account_id_database)
         #cookie = list_to_cookiejar(cookie_db)
-        vk_token = get_new_token_request(token_db, cookie_db, proxy)
+        vk_token = get_new_token_request(token_db, cookie_db, proxy) or token_db
         #vk_token = get_token(login=login, password=password, proxy_http=proxy)
         #curl = get_vk_account_curl_from_browser(login, password, proxy)
         #encrypted_curl = AuthService().encrypt_data(curl)

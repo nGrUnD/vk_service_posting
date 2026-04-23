@@ -276,7 +276,7 @@ def try_add_workerpost(database_manager, vk_account_id: int, vk_group_url: str, 
         cookies = vk_account_db.cookies
 
         try:
-            vk_token = get_new_token_request(access_token, cookies, proxy_http)
+            vk_token = get_new_token_request(access_token, cookies, proxy_http) or access_token
             create_workpost(
                 user_id,
                 vk_account_id,

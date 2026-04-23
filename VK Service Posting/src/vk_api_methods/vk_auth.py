@@ -198,8 +198,12 @@ def get_new_token_request(access_token: str, cookie: str, proxy: str = None):
     print(resp.text)
     try:
         resp_json = resp.json()
+        if resp_json.get("type") == "error" or "data" not in resp_json:
+            print(f"act=web_token вернул ошибку или нет data: {resp_json}")
+            return None
         new_token = resp_json['data']['access_token']
         print(f'Новый токен: {new_token}')
         return new_token
     except Exception as e:
         print(f'Не удалось распарсить JSON: {e}')
+    return None
