@@ -16,7 +16,7 @@ from src.services.vk_token_service import TokenService
 from src.utils.cookiejar import list_to_cookiejar
 from src.vk_api_methods.vk_account import get_vk_account_data
 from src.vk_api_methods.vk_auth import get_token, get_new_token, get_new_token_request
-from src.vk_api_methods.vk_group import join_group, assign_editor_role
+from src.vk_api_methods.vk_group import assign_editor_role, ensure_user_in_club_for_editor
 from src.celery_app.celery_db import SyncSessionLocal
 
 
@@ -118,8 +118,12 @@ def create_workpost(
         result = session.execute(stmt)
         category_database = result.scalars().one_or_none()
 
-        if not vk_account_database.encrypted_curl:
-            join_group(vk_group_database.vk_group_id, account_token, proxy)
+        if not ensure_user_in_club_for_editor(
+            vk_group_database.vk_group_id, account_token, proxy
+        ):
+            raise RuntimeError(
+                "Could not join backup account to the VK group (required before editor role)"
+            )
 
         main_account_curl = None
         if vk_main_account_database.encrypted_curl:
