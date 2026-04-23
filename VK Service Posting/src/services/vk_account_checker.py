@@ -21,6 +21,19 @@ def generate_password(length=12):
     chars = string.ascii_letters + string.digits
     return ''.join(random.choice(chars) for _ in range(length))
 
+
+def _session_cookies_to_header(session: requests.Session) -> str:
+    if not session or not getattr(session, "cookies", None) or not session.cookies:
+        return ""
+    try:
+        d = session.cookies.get_dict()
+    except Exception:
+        return ""
+    if not d:
+        return ""
+    return "; ".join(f"{k}={v}" for k, v in d.items())
+
+
 class AccountChecker:
     def __init__(self, database: DataBaseManager, concurrency_limit: int = 20):
         self.database = database
@@ -81,7 +94,9 @@ class AccountChecker:
         """
         Блокирующая часть: requests.Session + vk_api.
         Выполняется в пуле потоков через run_in_executor.
-        Возвращает (new_password, new_token). Может кидать исключение.
+        Возвращает (new_password, new_token, cookies_header).
+        new_token — новый access_token от VK; cookies — строка из сессии после changePassword
+        (для последующих get_new_token_request в воркерах).
         """
         session = requests.Session()
         session.proxies.update({
@@ -102,7 +117,9 @@ class AccountChecker:
         vk = vk_session.get_api()
         resp = vk.account.changePassword(old_password=old_password, new_password=new_password)
         new_token = resp.get("token")
-        return new_password, new_token
+        http_sess = getattr(vk_session, "http", None) or session
+        new_cookie_header = _session_cookies_to_header(http_sess) or _session_cookies_to_header(session)
+        return new_password, new_token, new_cookie_header
 
     async def _change_password_one(self, login: str, old_password: str, user_id: int, semaphore: asyncio.Semaphore):
         """
@@ -122,7 +139,7 @@ class AccountChecker:
             # 3) выполнить блокирующую часть в пуле потоков
             async with semaphore:
                 loop = asyncio.get_running_loop()
-                new_password, new_token = await loop.run_in_executor(
+                new_password, new_token, new_cookies = await loop.run_in_executor(
                     None,
                     partial(
                         self._change_password_sync,
@@ -136,11 +153,22 @@ class AccountChecker:
 
             # 4) сохранить изменения в БД (асинхронно)
             encrypted_password = AuthService().encrypt_data(new_password)
-            await self.database.vk_account.edit(
-                VKAccountUpdate(encrypted_password=encrypted_password, token=new_token),
-                exclude_unset=True,
-                id=vk_account_db.id
-            )
+            if new_cookies:
+                await self.database.vk_account.edit(
+                    VKAccountUpdate(
+                        encrypted_password=encrypted_password,
+                        token=new_token,
+                        cookies=new_cookies,
+                    ),
+                    exclude_unset=True,
+                    id=vk_account_db.id
+                )
+            else:
+                await self.database.vk_account.edit(
+                    VKAccountUpdate(encrypted_password=encrypted_password, token=new_token),
+                    exclude_unset=True,
+                    id=vk_account_db.id
+                )
             await self.database.commit()
 
             logging.info(f"Login: {login} NewPassword: {new_password}")

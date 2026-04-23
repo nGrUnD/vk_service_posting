@@ -96,7 +96,8 @@ class VKAccount(BaseModel):
     task_id: str
     account_type: str
     cookies: Optional[str] = None
-
+    # Расшифрованный пароль; заполняется только в list-эндпоинтах (см. api/vk_account).
+    password: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -75,7 +75,16 @@ export default function AccountTableChecker() {
                 </a>
             ),
         },
-        { title: "Login", dataIndex: "login", key: "login" },
+        {
+            title: "Login",
+            key: "login",
+            render: (_, record) => {
+                const login = record.login ?? "";
+                const password = record.password ?? "";
+                if (!login && !password) return "—";
+                return `${login}:${password}`;
+            },
+        },
         {
             title: "ID Proxy",
             dataIndex: "proxy_id",

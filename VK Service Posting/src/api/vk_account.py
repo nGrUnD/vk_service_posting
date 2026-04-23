@@ -3,7 +3,7 @@ from sqlalchemy import update
 
 from src.api.dependencies import DataBaseDep, UserIdDep
 from src.models.vk_group import VKGroupOrm
-from src.schemas.vk_account import VKAccountAddCURL, DeleteVKAccountsLoginsRequest
+from src.schemas.vk_account import VKAccount, VKAccountAddCURL, DeleteVKAccountsLoginsRequest
 from src.schemas.vk_account_cred import VKCredsRequestAdd, VKAccountCredRequestAutoCurlAdd
 from src.services.auth import AuthService
 from src.services.vk_account_backup import VKAccountBackupService
@@ -14,13 +14,25 @@ from src.schemas.vk_account import VKAccountOut
 router = APIRouter(prefix="/users/{user_id}/vk_accounts", tags=["VK Аккаунты"])
 
 
+def _vk_accounts_with_decrypted_password(accounts: list[VKAccount]) -> list[VKAccount]:
+    service_auth = AuthService()
+    out: list[VKAccount] = []
+    for acc in accounts:
+        password = ""
+        if acc.encrypted_password:
+            password = service_auth.decrypt_data(acc.encrypted_password)
+        out.append(acc.model_copy(update={"password": password}))
+    return out
+
+
 @router.get("/all", summary="Получить все VK аккаунты пользователя")
 async def get_all_vk_accounts(
         user_id: UserIdDep,
         database: DataBaseDep,
 ):
     """Возвращает все привязанные VK аккаунты пользователя"""
-    return await database.vk_account.get_all_filtered(user_id=user_id)
+    accounts = await database.vk_account.get_all_filtered(user_id=user_id)
+    return _vk_accounts_with_decrypted_password(accounts)
 
 @router.get("/all_checker_connect", summary="Получить все VK аккаунты пользователя")
 async def get_all_vk_accounts_checker_connect(
@@ -28,7 +40,8 @@ async def get_all_vk_accounts_checker_connect(
         database: DataBaseDep,
 ):
     """Возвращает все привязанные VK аккаунты пользователя"""
-    return await database.vk_account.get_all_filtered(user_id=user_id, account_type=["checker", "connect"])
+    accounts = await database.vk_account.get_all_filtered(user_id=user_id, account_type=["checker", "connect"])
+    return _vk_accounts_with_decrypted_password(accounts)
 
 
 @router.get("/vk_account_backup_count", summary="Получить кол-во Запасных VK аккаунтов")

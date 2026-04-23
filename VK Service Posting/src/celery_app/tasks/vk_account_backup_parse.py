@@ -18,23 +18,43 @@ from src.vk_api_methods.vk_clip import is_token_expired
 from vk_api import vk_api
 
 
+def _is_usable_vk_api_token(token: str | None) -> bool:
+    if not token or not str(token).strip():
+        return False
+    t = str(token).strip()
+    if t in ("curl", "0", "pending", ""):
+        return False
+    return True
+
+
 def get_vk_account_data_retry(vk_account_id_db: int, proxy: str, retries: int = 10):
-    last_proxy = proxy
     with SyncSessionLocal() as session:
         stmt = select(VKAccountOrm).where(VKAccountOrm.id == vk_account_id_db)
         result = session.execute(stmt)
         vk_account_database = result.scalars().one_or_none()
 
         if vk_account_database is None:
-            raise ValueError(f"VkAccount с id {vk_account_database} не найден в базе")
+            raise ValueError(f"VkAccount с id {vk_account_id_db} не найден в базе")
 
         token = vk_account_database.token
         cookie = vk_account_database.cookies
+
+        # Сначала — прямой access_token из БД (актуален сразу после changePassword и др.).
+        # get_new_token_request (web_token) падает, если cookies устарели относительно токена.
+        if _is_usable_vk_api_token(token):
+            try:
+                vk_account_data = get_vk_account_data(token, proxy)
+                return vk_account_data, token
+            except Exception as e:
+                print(f"Direct access_token from DB: {e}")
 
         for attempt in range(1, retries + 1):
             try:
                 access_token = get_new_token_request(token, cookie, proxy)
                 vk_account_data = get_vk_account_data(access_token, proxy)
+                if access_token and access_token != token:
+                    vk_account_database.token = access_token
+                    session.commit()
                 return vk_account_data, access_token
 
             except Exception as e:
@@ -201,14 +221,24 @@ def get_vk_token_retry(database_manager, vk_account_id: int, proxy: str = None, 
         if not account:
             return "not found account"
 
+        token = account.token
+        cookie = account.cookies
+
+        if _is_usable_vk_api_token(token):
+            try:
+                get_vk_account_data(token, proxy)
+                return token
+            except Exception as e:
+                print(f"get_vk_token_retry direct token: {e}")
+
         for attempt in range(1, retries + 1):
             try:
-                token = account.token
-                cookie = account.cookies
                 access_token = get_new_token_request(token, cookie, proxy)
                 if is_token_expired(access_token, proxy):
                     raise "Token expired"
-
+                if access_token and access_token != token:
+                    account.token = access_token
+                    session.commit()
                 return access_token
             except Exception as e:
                 print(e)
