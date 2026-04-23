@@ -9,7 +9,7 @@ import requests
 from src.celery_app.tasks import vk_checker_add_account
 from src.schemas.vk_account import VKAccountAdd, VKAccountUpdate
 from src.services.auth import AuthService
-from src.vk_api_methods.vk_auth import get_new_token_request
+from src.vk_api_methods.vk_auth import get_new_token_request, get_token
 from vk_api.vk_api import vk_api
 import logging
 
@@ -99,15 +99,29 @@ class AccountChecker:
         (для последующих get_new_token_request в воркерах).
         """
         session = requests.Session()
-        session.proxies.update({
-            'http': proxy_http,
-            'https': proxy_http
-        })
+        if proxy_http:
+            session.proxies.update({
+                'http': proxy_http,
+                'https': proxy_http
+            })
+        else:
+            session.trust_env = False
         session.headers.update({
             "User-Agent": get_random_user_agent()
         })
 
+        # 1) Пытаемся обновить токен через web_token
         access_token = get_new_token_request(token, cookie, proxy_http)
+        # 2) Если web_token не сработал, используем токен из БД как fallback
+        if not access_token:
+            access_token = token
+        # 3) Если и он не подходит, получаем свежий токен по login/password
+        if not access_token:
+            fresh = get_token(login, old_password, proxy_http)
+            if fresh:
+                access_token, _cookies_obj = fresh
+        if not access_token:
+            raise RuntimeError("Не удалось получить access_token для changePassword")
 
         vk_session = vk_api.VkApi(token=access_token, session=session)
         vk_session.api_version = "5.251"
@@ -116,7 +130,8 @@ class AccountChecker:
         new_password = generate_password()
         vk = vk_session.get_api()
         resp = vk.account.changePassword(old_password=old_password, new_password=new_password)
-        new_token = resp.get("token")
+        # API может не вернуть token, тогда сохраняем текущий рабочий.
+        new_token = resp.get("token") or access_token
         http_sess = getattr(vk_session, "http", None) or session
         new_cookie_header = _session_cookies_to_header(http_sess) or _session_cookies_to_header(session)
         return new_password, new_token, new_cookie_header
