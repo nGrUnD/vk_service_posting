@@ -4,6 +4,7 @@ import dayjs from "dayjs";
 import api from "../api/axios";
 
 export default function AccountTable() {
+    const [messageApi, contextHolder] = message.useMessage();
     const [accounts, setAccounts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [checkingCurlId, setCheckingCurlId] = useState(null);
@@ -28,7 +29,7 @@ export default function AccountTable() {
             setAccounts(data);
         } catch (err) {
             console.error("Ошибка при загрузке аккаунтов", err);
-            message.error("Не удалось загрузить аккаунты");
+            messageApi.error("Не удалось загрузить аккаунты");
         } finally {
             if (!silent) {
                 setLoading(false);
@@ -60,11 +61,11 @@ export default function AccountTable() {
     const handleDelete = async (id) => {
         try {
             await api.delete(`/users/{user_id}/vk_accounts/${id}`);
-            message.success("Аккаунт удален");
+            messageApi.success("Аккаунт удален");
             fetchAccounts(); // обновить таблицу
         } catch (err) {
             console.error(err);
-            message.error("Ошибка при удалении аккаунта");
+            messageApi.error("Ошибка при удалении аккаунта");
         }
     };
 
@@ -73,14 +74,14 @@ export default function AccountTable() {
         try {
             const { data } = await api.post(`/users/{user_id}/vk_accounts/${id}/check_curl`);
             if (data?.ok) {
-                message.success("curl живой");
+                messageApi.success("curl живой");
             } else {
-                message.error("Не удалось получить токен");
+                messageApi.error("Не удалось получить токен");
             }
             fetchAccounts(true);
         } catch (err) {
             console.error(err);
-            message.error("Не удалось получить токен");
+            messageApi.error("Не удалось получить токен");
         } finally {
             setCheckingCurlId(null);
         }
@@ -90,11 +91,11 @@ export default function AccountTable() {
         setReconnectingCurlId(id);
         try {
             await api.post(`/users/{user_id}/vk_accounts/${id}/reconnect_curl`);
-            message.success("Переподключение curl запущено");
+            messageApi.success("Переподключение curl запущено");
             fetchAccounts(true);
         } catch (err) {
             console.error(err);
-            message.error(err?.response?.data?.detail || "Не удалось запустить переподключение curl");
+            messageApi.error(err?.response?.data?.detail || "Не удалось запустить переподключение curl");
         } finally {
             setReconnectingCurlId(null);
         }
@@ -201,13 +202,19 @@ export default function AccountTable() {
                     >
                         Проверить curl
                     </Button>
-                    <Button
-                        size="small"
-                        loading={reconnectingCurlId === record.id}
-                        onClick={() => handleReconnectCurl(record.id)}
+                    <Popconfirm
+                        title="Переподключить curl для этого аккаунта?"
+                        okText="Да"
+                        cancelText="Нет"
+                        onConfirm={() => handleReconnectCurl(record.id)}
                     >
-                        Переподключить curl
-                    </Button>
+                        <Button
+                            size="small"
+                            loading={reconnectingCurlId === record.id}
+                        >
+                            Переподключить curl
+                        </Button>
+                    </Popconfirm>
                     <Popconfirm
                         title="Удалить аккаунт?"
                         okText="Да"
@@ -225,6 +232,7 @@ export default function AccountTable() {
 
     return (
         <div className="mt-8">
+            {contextHolder}
             <h2 className="text-lg font-semibold mb-4">Подключённые аккаунты</h2>
             <Spin spinning={loading}>
                 <Table
