@@ -12,7 +12,7 @@ from src.services.auth import AuthService
 from src.schemas.vk_account import VKAccountAdd, VKAccountUpdate
 from src.celery_app.tasks.vk_account_backup import get_vk_account_cred
 from src.utils.database_manager import DataBaseManager
-from src.celery_app.tasks.vk_account_autocurl import connect_vk_account_autocurl
+from src.celery_app.tasks.vk_account_autocurl import connect_vk_account_autocurl, finish_vk_account_autocurl_followup
 
 class VKAccountLogPass:
     def __init__(self, login: str, password: str):
@@ -38,6 +38,21 @@ class VKAccountLogPass:
 class VKAccountBackupService:
     def __init__(self, database: DataBaseManager):
         self.database = database
+
+    @staticmethod
+    def _can_skip_autocurl_for_existing(vk_account_db) -> bool:
+        """
+        Аккаунт уже в БД с готовой сессией (token + cookies) — Selenium не нужен.
+        Разрешены типы, с которыми обычно приходят log:pass-флоу и checker.
+        """
+        if not vk_account_db:
+            return False
+        if getattr(vk_account_db, "parse_status", None) != "success":
+            return False
+        if not (vk_account_db.token or "").strip() or not (vk_account_db.cookies or "").strip():
+            return False
+        t = (vk_account_db.account_type or "").lower()
+        return t in ("backup", "checker", "posting")
 
     @staticmethod
     def parse_vk_groups(vk_groups_str: str) -> List[str]:
@@ -191,7 +206,47 @@ class VKAccountBackupService:
 
             vk_account_db = await self.database.vk_account.get_one_or_none(login=login)
             if vk_account_db:
-                logging.info(f"{login} уже есть в базе данных")
+                if getattr(vk_account_db, "user_id", None) is not None and vk_account_db.user_id != user_id:
+                    logging.info(
+                        f"{login}: логин уже в базе, но привязан к другому пользователю, пропуск"
+                    )
+                    continue
+
+                if self._can_skip_autocurl_for_existing(vk_account_db):
+                    proxy = None
+                    proxy_http = None
+                    if proxies:
+                        if getattr(vk_account_db, "proxy_id", None):
+                            proxy = await self.database.proxy.get_one_or_none(
+                                id=vk_account_db.proxy_id
+                            )
+                        if not proxy:
+                            index_proxy = random.randint(0, len(proxies) - 1)
+                            proxy = proxies[index_proxy % len(proxies)]
+                        if proxy:
+                            proxy_http = proxy.http
+                    logging.info(
+                        f"{login}: аккаунт уже в БД (success), пропуск Selenium, followup+workerpost"
+                    )
+                    task = finish_vk_account_autocurl_followup.delay(
+                        user_id, vk_account_db.id, vk_group_url, category_id_db, proxy_http
+                    )
+                    if proxy and not getattr(vk_account_db, "proxy_id", None):
+                        await self.database.vk_account.edit(
+                            VKAccountUpdate(task_id=task.id, proxy_id=proxy.id),
+                            exclude_unset=True,
+                            id=vk_account_db.id,
+                        )
+                    else:
+                        await self.database.vk_account.edit(
+                            VKAccountUpdate(task_id=task.id),
+                            exclude_unset=True,
+                            id=vk_account_db.id,
+                        )
+                    await self.database.commit()
+                    continue
+
+                logging.info(f"{login} уже есть в базе, но сессия не готова для skip — ждите отдельного сценария")
                 continue
 
             logging.info(f"{login, password, vk_group_url}")
