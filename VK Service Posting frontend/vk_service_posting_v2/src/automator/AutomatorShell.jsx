@@ -33,12 +33,13 @@ function getV1Url() {
 }
 
 function routeTitle(pathname) {
+  if (pathname.includes('/dashboard')) return { title: 'Обзор системы', sub: 'Статистика и мониторинг в реальном времени' };
   if (pathname.includes('/workflow')) return { title: 'Управление воркерами', sub: 'Создавайте и мониторьте задачи постинга' };
   if (pathname.includes('/accounts')) return { title: 'База аккаунтов', sub: 'cURL для главного аккаунта и полный список, как в V1' };
   if (pathname.includes('/sources')) return { title: 'Библиотека контента', sub: 'Списки клипов и привязка источников' };
   if (pathname.includes('/proxy')) return { title: 'Управление прокси', sub: 'Добавление и удаление прокси' };
   if (pathname.includes('/settings')) return { title: 'Системные настройки', sub: 'Категории и лимиты (API V1)' };
-  return { title: 'Обзор системы', sub: 'Сводка по аккаунтам и воркерам' };
+  return { title: 'Обзор системы', sub: 'Статистика и мониторинг в реальном времени' };
 }
 
 export default function AutomatorShell() {
