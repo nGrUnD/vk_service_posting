@@ -133,7 +133,7 @@ export default function AutomatorShell() {
             <Zap className="text-white" size={24} />
           </div>
           <div>
-            <h1 className="text-xl font-black leading-tight tracking-tight">VK Automator</h1>
+            <h1 className="text-xl font-black leading-tight tracking-tight">VK Service</h1>
             <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Dashboard 2.0</p>
           </div>
         </div>
@@ -145,14 +145,14 @@ export default function AutomatorShell() {
               to={item.to}
               className={({ isActive }) =>
                 [
-                  'flex w-full items-center space-x-3 rounded-xl px-4 py-3 font-semibold transition-all',
+                  'flex w-full items-center gap-3 rounded-xl px-4 py-3 font-semibold transition-all no-underline',
                   isActive
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
-                    : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900',
+                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-200 [&_svg]:shrink-0 [&_svg]:text-white'
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 [&_svg]:shrink-0 [&_svg]:text-current',
                 ].join(' ')
               }
             >
-              <item.icon size={20} />
+              <item.icon size={20} strokeWidth={2} aria-hidden />
               <span>{item.label}</span>
             </NavLink>
           ))}

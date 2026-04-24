@@ -27,7 +27,7 @@ body {
   color: #e2e8f0;
 }
 
-/* Светлая тема для макета VK Automator (V2) */
+/* Светлая тема для V2 (макет) */
 .vk-automator {
   min-height: 100vh;
   background: #f9fafb;
@@ -35,11 +35,12 @@ body {
   font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
-.vk-automator a {
+/* Только ссылки в основной колонке: не трогаем <NavLink> в сайдбаре (иначе бьёт active text-white) */
+.vk-automator main a {
   color: #2563eb;
 }
 
-.vk-automator a:hover {
+.vk-automator main a:hover {
   text-decoration: underline;
 }
 

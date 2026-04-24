@@ -66,8 +66,8 @@ export default function LoginPage() {
         <div className="mb-4 rounded-2xl bg-blue-600 p-4 shadow-lg shadow-blue-200">
           <Zap className="text-white" size={32} />
         </div>
-        <h1 className="text-3xl font-black tracking-tight text-gray-800">VK Automator</h1>
-        <p className="mt-2 font-medium text-gray-500">Система управления (V2 UI)</p>
+        <h1 className="text-3xl font-black tracking-tight text-gray-800">VK Service</h1>
+        <p className="mt-2 font-medium text-gray-500">Новый интерфейс (V2)</p>
       </div>
 
       <div className="w-full max-w-[420px] rounded-3xl border border-gray-100 bg-white p-10 shadow-xl shadow-gray-200/50">
