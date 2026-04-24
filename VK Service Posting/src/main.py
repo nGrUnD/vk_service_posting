@@ -21,6 +21,7 @@ from src.api.workerpost import router as router_workerpost
 from src.api.proxy import router as router_proxy
 from src.api.tools import router as router_tools
 from src.api.vk_account_group import router as router_vk_account_group
+from src.api.dashboard_v2 import router as router_dashboard_v2
 
 import src.models  # 👈 это активирует импорты из models/__init__.py
 
@@ -91,6 +92,7 @@ app.include_router(router_workerpost)
 app.include_router(router_proxy)
 app.include_router(router_tools)
 app.include_router(router_vk_account_group)
+app.include_router(router_dashboard_v2)
 
 @app.on_event("startup")
 async def start_scheduler():

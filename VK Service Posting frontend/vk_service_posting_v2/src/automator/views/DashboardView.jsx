@@ -45,17 +45,42 @@ export default function DashboardView() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [sumRes, clipsRes, actRes, logRes] = await Promise.all([
+      const [sumRes, clipsRes, actRes, logRes] = await Promise.allSettled([
         api.get(`/users/${user.id}/vk_accounts/v2_summary`),
         api.get(`/users/${user.id}/clip_list/get_all`),
         api.get(`/users/${user.id}/dashboard/v2/posting_activity`, { params: { hours: 24 } }),
         api.get(`/users/${user.id}/dashboard/v2/activity_log`, { params: { limit: 25 } }),
       ]);
-      setSummary(sumRes.data);
-      const lists = Array.isArray(clipsRes.data) ? clipsRes.data : [];
-      setClipsTotal(lists.reduce((acc, row) => acc + (Number(row.count) || 0), 0));
-      setBuckets(Array.isArray(actRes.data?.buckets) ? actRes.data.buckets : []);
-      setLogItems(Array.isArray(logRes.data?.items) ? logRes.data.items : []);
+
+      if (sumRes.status === 'fulfilled') {
+        setSummary(sumRes.value.data);
+      } else {
+        setSummary(null);
+      }
+
+      if (clipsRes.status === 'fulfilled') {
+        const lists = Array.isArray(clipsRes.value.data) ? clipsRes.value.data : [];
+        setClipsTotal(lists.reduce((acc, row) => acc + (Number(row.count) || 0), 0));
+      } else {
+        setClipsTotal(0);
+      }
+
+      if (actRes.status === 'fulfilled') {
+        setBuckets(Array.isArray(actRes.value.data?.buckets) ? actRes.value.data.buckets : []);
+      } else {
+        setBuckets([]);
+      }
+
+      if (logRes.status === 'fulfilled') {
+        setLogItems(Array.isArray(logRes.value.data?.items) ? logRes.value.data.items : []);
+      } else {
+        setLogItems([]);
+      }
+
+      const failedCount = [sumRes, clipsRes, actRes, logRes].filter((res) => res.status === 'rejected').length;
+      if (failedCount > 0) {
+        messageApi.warning(`Часть данных не загрузилась (${failedCount}/4)`);
+      }
     } catch {
       messageApi.error('Не удалось загрузить сводку');
     } finally {
@@ -143,7 +168,9 @@ export default function DashboardView() {
             </div>
           </div>
           <div className="flex h-52 items-end justify-between gap-1 px-1">
-            {buckets.map((b, i) => {
+            {buckets.length === 0 ? (
+              <p className="m-auto text-sm text-gray-500">Нет данных активности за выбранный период</p>
+            ) : buckets.map((b, i) => {
               const n = Number(b.posted) || 0;
               const pct = Math.max(4, (n / maxPosted) * 100);
               const hour = formatHourLabel(b.hour_start);
