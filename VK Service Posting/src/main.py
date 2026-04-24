@@ -32,7 +32,9 @@ logger = logging.getLogger(__name__)
 
 cors_origins = [
     "http://localhost:5173",
+    "http://localhost:5174",
     "http://0.0.0.0:5173",
+    "http://0.0.0.0:5174",
     "http://79.141.67.73",
     "http://87.228.102.22",
     "http://raccster.vk.dmtr.ru",

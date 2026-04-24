@@ -1,3 +1,5 @@
+from collections import Counter
+
 from fastapi import APIRouter, HTTPException, status, Body
 from sqlalchemy import update
 
@@ -28,6 +30,44 @@ def _vk_accounts_with_decrypted_password(accounts: list[VKAccount]) -> list[VKAc
     return out
 
 
+def _build_v2_summary(
+        accounts: list[VKAccount],
+        proxy_count: int,
+        workflow_count: int,
+) -> dict:
+    by_type = Counter(account.account_type or "unknown" for account in accounts)
+    by_status = Counter(account.parse_status or "unknown" for account in accounts)
+    recent_accounts = sorted(accounts, key=lambda account: account.id, reverse=True)[:6]
+
+    return {
+        "total_accounts": len(accounts),
+        "with_proxy": sum(1 for account in accounts if account.proxy_id is not None),
+        "with_cookies": sum(1 for account in accounts if account.cookies),
+        "flooded": sum(1 for account in accounts if account.flood_control),
+        "proxy_count": proxy_count,
+        "workflow_count": workflow_count,
+        "by_type": dict(by_type),
+        "by_status": dict(by_status),
+        "recent_accounts": [
+            {
+                "id": account.id,
+                "vk_account_id": account.vk_account_id,
+                "avatar_url": account.avatar_url,
+                "name": account.name,
+                "second_name": account.second_name,
+                "login": account.login,
+                "account_type": account.account_type,
+                "parse_status": account.parse_status,
+                "proxy_id": account.proxy_id,
+                "cookies": account.cookies,
+                "flood_control": account.flood_control,
+                "vk_account_url": account.vk_account_url,
+            }
+            for account in recent_accounts
+        ],
+    }
+
+
 @router.get("/all", summary="Получить все VK аккаунты пользователя")
 async def get_all_vk_accounts(
         user_id: UserIdDep,
@@ -36,6 +76,22 @@ async def get_all_vk_accounts(
     """Возвращает все привязанные VK аккаунты пользователя"""
     accounts = await database.vk_account.get_all_filtered(user_id=user_id)
     return _vk_accounts_with_decrypted_password(accounts)
+
+
+@router.get("/v2_summary", summary="Получить summary для V2 frontend")
+async def get_vk_accounts_v2_summary(
+        user_id: UserIdDep,
+        database: DataBaseDep,
+):
+    accounts = await database.vk_account.get_all_filtered(user_id=user_id)
+    proxies = await database.proxy.get_all_filtered(user_id=user_id)
+    workerposts = await database.workerpost.get_all_filtered(user_id=user_id)
+
+    return _build_v2_summary(
+        accounts=accounts,
+        proxy_count=len(proxies),
+        workflow_count=len(workerposts),
+    )
 
 @router.get("/all_checker_connect", summary="Получить все VK аккаунты пользователя")
 async def get_all_vk_accounts_checker_connect(

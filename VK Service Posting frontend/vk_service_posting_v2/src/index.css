@@ -1,0 +1,196 @@
+@import "tailwindcss";
+@tailwind utilities;
+
+:root {
+  color: #e5e7eb;
+  background: #0f172a;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  background:
+    radial-gradient(circle at top, rgba(99, 102, 241, 0.22), transparent 35%),
+    linear-gradient(180deg, #020617 0%, #0f172a 100%);
+  color: #e2e8f0;
+}
+
+/* Светлая тема для макета VK Automator (V2) */
+.vk-automator {
+  min-height: 100vh;
+  background: #f9fafb;
+  color: #111827;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.vk-automator a {
+  color: #2563eb;
+}
+
+.vk-automator a:hover {
+  text-decoration: underline;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+.v2-shell {
+  min-height: 100vh;
+}
+
+.v2-card {
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background: rgba(15, 23, 42, 0.78);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 20px 45px rgba(2, 6, 23, 0.28);
+}
+
+.v2-muted {
+  color: #94a3b8;
+}
+
+.v2-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  border-radius: 999px;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.v2-chip[data-tone="success"] {
+  background: rgba(34, 197, 94, 0.15);
+  color: #86efac;
+}
+
+.v2-chip[data-tone="danger"] {
+  background: rgba(248, 113, 113, 0.14);
+  color: #fca5a5;
+}
+
+.v2-chip[data-tone="warning"] {
+  background: rgba(251, 191, 36, 0.14);
+  color: #fde68a;
+}
+
+.v2-chip[data-tone="info"] {
+  background: rgba(96, 165, 250, 0.15);
+  color: #bfdbfe;
+}
+
+.v2-chip[data-tone="neutral"] {
+  background: rgba(148, 163, 184, 0.16);
+  color: #cbd5e1;
+}
+
+.v2-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.v2-table th,
+.v2-table td {
+  padding: 0.95rem 1rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  text-align: left;
+  vertical-align: top;
+}
+
+.v2-table th {
+  color: #94a3b8;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.v2-input,
+.v2-textarea,
+.v2-select {
+  width: 100%;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.72);
+  color: #e2e8f0;
+  padding: 0.9rem 1rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.v2-input:focus,
+.v2-textarea:focus,
+.v2-select:focus {
+  outline: none;
+  border-color: rgba(129, 140, 248, 0.82);
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
+}
+
+.v2-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border: 0;
+  border-radius: 14px;
+  cursor: pointer;
+  padding: 0.8rem 1.1rem;
+  font-weight: 600;
+  transition: transform 0.15s ease, opacity 0.15s ease, background 0.15s ease;
+}
+
+.v2-button:hover {
+  transform: translateY(-1px);
+}
+
+.v2-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  transform: none;
+}
+
+.v2-button-primary {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: white;
+}
+
+.v2-button-secondary {
+  background: rgba(30, 41, 59, 0.92);
+  color: #e2e8f0;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.v2-button-danger {
+  background: rgba(127, 29, 29, 0.9);
+  color: #fee2e2;
+}
+
+.v2-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (max-width: 960px) {
+  .v2-table-wrap {
+    overflow-x: auto;
+  }
+}
