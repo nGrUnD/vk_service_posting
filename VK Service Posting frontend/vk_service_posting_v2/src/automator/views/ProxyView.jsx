@@ -210,7 +210,6 @@ export default function ProxyView() {
                   <th className="px-4 py-3">Прокси</th>
                   <th className="px-4 py-3">IP адрес</th>
                   <th className="px-4 py-3">Пинг</th>
-                  <th className="px-4 py-3">Geo</th>
                   <th className="px-4 py-3">Статус</th>
                   <th className="px-4 py-3 text-right">Действие</th>
                 </tr>
@@ -241,7 +240,6 @@ export default function ProxyView() {
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-gray-500">{row.geo}</td>
                     <td className="px-4 py-3">
                       <span
                         className={`inline-flex items-center gap-1.5 font-semibold ${
@@ -279,7 +277,7 @@ export default function ProxyView() {
                 ))}
                 {!statusRows.length && (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-500">
+                    <td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-500">
                       Добавьте прокси, чтобы увидеть статус шлюзов.
                     </td>
                   </tr>
