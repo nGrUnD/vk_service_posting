@@ -117,6 +117,7 @@ export default function ProxyView() {
         const checked = checkResults[proxyRow.id] || {};
         return {
           id: proxyRow.id,
+          http: proxyRow.http,
           ip: checked.ip || fallback.ip,
           port: checked.port || fallback.port,
           geo: checked.geo || '-',
@@ -133,7 +134,7 @@ export default function ProxyView() {
     <div className="mx-auto max-w-7xl animate-in fade-in duration-300">
       {contextHolder}
       <div className="rounded-3xl border border-gray-100 bg-white p-8 shadow-sm lg:p-10">
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.25fr_0.95fr]">
+        <div className="grid grid-cols-1 gap-6">
           <div className="rounded-3xl border border-gray-100 bg-white p-7">
             <div className="mb-6 inline-flex rounded-2xl bg-indigo-50 p-4 text-indigo-600 shadow-inner">
               <ShieldCheck size={32} />
@@ -162,82 +163,69 @@ export default function ProxyView() {
             </button>
           </div>
 
-          <div className="flex flex-col gap-6">
-            <div className="rounded-3xl border border-gray-100 bg-gray-50 p-6">
-              <div className="mb-6 flex items-center justify-between">
-                <h4 className="text-sm font-black uppercase tracking-wider text-gray-800">Активные сервера</h4>
-                <span className="rounded-lg bg-green-500 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-white shadow-sm">
-                  {refreshing ? '...' : `${onlineCount || proxies.length} online`}
-                </span>
-              </div>
-              <div className="max-h-80 space-y-3 overflow-y-auto">
-                {proxies.map((p) => (
-                  <div key={p.id} className="flex items-start justify-between gap-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
-                    <div className="min-w-0">
-                      <p className="break-all font-mono text-xs font-bold text-gray-700">{p.http}</p>
-                      <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wider text-gray-400">id {p.id}</p>
-                    </div>
-                    <button
-                      type="button"
-                      disabled={loading}
-                      onClick={() => handleDeleteOne(p)}
-                      className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500 disabled:opacity-60"
-                      title="Удалить прокси"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                ))}
-                {!refreshing && !proxies.length && <p className="text-center text-sm text-gray-400">Прокси нет</p>}
-              </div>
-              <button
-                type="button"
-                onClick={loadProxies}
-                className="mt-3 w-full rounded-2xl py-2 text-xs font-bold text-gray-500 hover:bg-gray-100"
-              >
-                Обновить список
-              </button>
-            </div>
-
-            <div className="rounded-3xl border border-blue-100 bg-blue-50/50 p-6">
-              <div className="flex items-start gap-3">
-                <AlertCircle size={20} className="mt-0.5 shrink-0 text-blue-500" />
-                <p className="text-xs font-medium leading-relaxed text-blue-800">
-                  Совет по безопасности: не используйте один и тот же прокси для большого числа аккаунтов.
-                  Оптимально держать не более 3-5 аккаунтов на один мобильный IP, чтобы снизить риск ограничений.
-                </p>
-              </div>
+          <div className="rounded-3xl border border-blue-100 bg-blue-50/50 p-6">
+            <div className="flex items-start gap-3">
+              <AlertCircle size={20} className="mt-0.5 shrink-0 text-blue-500" />
+              <p className="text-xs font-medium leading-relaxed text-blue-800">
+                Совет по безопасности: не используйте один и тот же прокси для большого числа аккаунтов.
+                Оптимально держать не более 3-5 аккаунтов на один мобильный IP, чтобы снизить риск ограничений.
+              </p>
             </div>
           </div>
         </div>
 
         <div className="mt-6 rounded-3xl border border-gray-100 bg-white p-6">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <h4 className="text-xl font-black text-gray-800">Статус шлюзов</h4>
-            <button
-              type="button"
-              onClick={handleCheckAll}
-              disabled={checking || loading || !proxies.length}
-              className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-bold text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-60"
-            >
-              <RefreshCcw size={15} className={checking ? 'animate-spin' : ''} />
-              {checking ? 'Проверяем...' : 'Check All'}
-            </button>
+            <div className="flex items-center gap-3">
+              <h4 className="text-xl font-black text-gray-800">Серверы и статус шлюзов</h4>
+              <span className="rounded-lg bg-green-500 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-white shadow-sm">
+                {refreshing ? '...' : `${onlineCount} online / ${proxies.length}`}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={loadProxies}
+                disabled={refreshing}
+                className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-bold text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-60"
+              >
+                Обновить список
+              </button>
+              <button
+                type="button"
+                onClick={handleCheckAll}
+                disabled={checking || loading || !proxies.length}
+                className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-bold text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-60"
+              >
+                <RefreshCcw size={15} className={checking ? 'animate-spin' : ''} />
+                {checking ? 'Проверяем...' : 'Check All'}
+              </button>
+            </div>
           </div>
 
           <div className="overflow-x-auto">
             <table className="min-w-full overflow-hidden rounded-2xl border border-gray-100">
               <thead className="bg-gray-50 text-left text-xs font-black uppercase tracking-wider text-gray-500">
                 <tr>
+                  <th className="px-4 py-3">Прокси</th>
                   <th className="px-4 py-3">IP адрес</th>
                   <th className="px-4 py-3">Пинг</th>
                   <th className="px-4 py-3">Geo</th>
                   <th className="px-4 py-3">Статус</th>
+                  <th className="px-4 py-3 text-right">Действие</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 bg-white">
                 {statusRows.map((row) => (
                   <tr key={row.id} className="text-sm">
+                    <td className="px-4 py-3">
+                      <div className="max-w-[24rem]">
+                        <p className="truncate font-mono text-xs font-semibold text-gray-700" title={row.http || ''}>
+                          {row.http || '-'}
+                        </p>
+                        <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wider text-gray-400">id {row.id}</p>
+                      </div>
+                    </td>
                     <td className="px-4 py-3 font-semibold text-gray-800">
                       {row.ip}
                       {row.port ? `:${row.port}` : ''}
@@ -276,11 +264,22 @@ export default function ProxyView() {
                         {row.status}
                       </span>
                     </td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        type="button"
+                        disabled={loading}
+                        onClick={() => handleDeleteOne({ id: row.id, http: row.http })}
+                        className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500 disabled:opacity-60"
+                        title="Удалить прокси"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </td>
                   </tr>
                 ))}
                 {!statusRows.length && (
                   <tr>
-                    <td colSpan={4} className="px-4 py-8 text-center text-sm text-gray-500">
+                    <td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-500">
                       Добавьте прокси, чтобы увидеть статус шлюзов.
                     </td>
                   </tr>
