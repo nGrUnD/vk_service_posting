@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { message } from 'antd';
-import { AlertCircle, ShieldCheck, Trash2 } from 'lucide-react';
+import { AlertCircle, RefreshCcw, ShieldCheck, Trash2 } from 'lucide-react';
 
 import api from '../../api/axios';
 import { useAutomatorUser } from '../AutomatorUserContext.jsx';
@@ -12,13 +12,22 @@ function parseProxyInput(value) {
     .filter(Boolean);
 }
 
+function parseHostPort(proxyValue) {
+  const value = (proxyValue || '').trim().split('://').pop().split('@').pop();
+  const hostPort = value.split('/')[0];
+  const idx = hostPort.lastIndexOf(':');
+  if (idx === -1) return { ip: hostPort, port: '' };
+  return { ip: hostPort.slice(0, idx), port: hostPort.slice(idx + 1) };
+}
+
 export default function ProxyView() {
   const user = useAutomatorUser();
   const [messageApi, contextHolder] = message.useMessage();
   const [inputValue, setInputValue] = useState('');
   const [proxies, setProxies] = useState([]);
-  const [selectedIds, setSelectedIds] = useState([]);
+  const [checkResults, setCheckResults] = useState({});
   const [loading, setLoading] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [refreshing, setRefreshing] = useState(true);
 
   const loadProxies = useCallback(async () => {
@@ -37,14 +46,27 @@ export default function ProxyView() {
     loadProxies();
   }, [loadProxies]);
 
-  const selectedProxyValues = useMemo(
-    () => proxies.filter((p) => selectedIds.includes(p.id)).map((p) => p.http),
-    [proxies, selectedIds],
-  );
-
-  const toggle = (id) => {
-    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-  };
+  const handleCheckAll = useCallback(async () => {
+    if (!proxies.length) {
+      messageApi.info('Нет прокси для проверки');
+      return;
+    }
+    setChecking(true);
+    try {
+      const { data } = await api.post(`/proxy/${user.id}/check_all`);
+      const rows = Array.isArray(data?.items) ? data.items : [];
+      const next = {};
+      rows.forEach((row) => {
+        next[row.id] = row;
+      });
+      setCheckResults(next);
+      messageApi.success('Проверка завершена');
+    } catch {
+      messageApi.error('Не удалось проверить прокси');
+    } finally {
+      setChecking(false);
+    }
+  }, [messageApi, proxies.length, user.id]);
 
   const handleAdd = async () => {
     const lines = parseProxyInput(inputValue);
@@ -58,6 +80,7 @@ export default function ProxyView() {
       setInputValue('');
       messageApi.success('Прокси добавлены');
       await loadProxies();
+      await handleCheckAll();
     } catch {
       messageApi.error('Ошибка добавления');
     } finally {
@@ -65,16 +88,20 @@ export default function ProxyView() {
     }
   };
 
-  const handleDeleteSelected = async () => {
-    if (!selectedProxyValues.length) {
-      messageApi.info('Выберите прокси');
-      return;
-    }
+  const handleDeleteOne = async (proxyRow) => {
+    if (!proxyRow?.id) return;
+    const ok = window.confirm(`Удалить прокси ${proxyRow.http}?\nДействие нельзя отменить.`);
+    if (!ok) return;
+
     setLoading(true);
     try {
-      await api.delete(`/proxy/${user.id}/delete_list`, { data: { proxys: selectedProxyValues } });
-      setSelectedIds([]);
-      messageApi.success('Удалено');
+      await api.delete(`/proxy/${user.id}/delete`, { params: { proxy_id: proxyRow.id } });
+      setCheckResults((prev) => {
+        const next = { ...prev };
+        delete next[proxyRow.id];
+        return next;
+      });
+      messageApi.success('Прокси удален');
       await loadProxies();
     } catch {
       messageApi.error('Ошибка удаления');
@@ -83,26 +110,45 @@ export default function ProxyView() {
     }
   };
 
+  const statusRows = useMemo(
+    () =>
+      proxies.map((proxyRow) => {
+        const fallback = parseHostPort(proxyRow.http);
+        const checked = checkResults[proxyRow.id] || {};
+        return {
+          id: proxyRow.id,
+          ip: checked.ip || fallback.ip,
+          port: checked.port || fallback.port,
+          geo: checked.geo || '-',
+          status: checked.status || 'unknown',
+          ping_ms: checked.ping_ms,
+        };
+      }),
+    [checkResults, proxies],
+  );
+
+  const onlineCount = useMemo(() => statusRows.filter((row) => row.status === 'online').length, [statusRows]);
+
   return (
-    <div className="mx-auto max-w-6xl animate-in fade-in duration-300">
+    <div className="mx-auto max-w-7xl animate-in fade-in duration-300">
       {contextHolder}
-      <div className="rounded-3xl border border-gray-100 bg-white p-10 shadow-sm">
-        <div className="flex flex-col gap-12 lg:flex-row">
-          <div className="flex-1">
+      <div className="rounded-3xl border border-gray-100 bg-white p-8 shadow-sm lg:p-10">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.25fr_0.95fr]">
+          <div className="rounded-3xl border border-gray-100 bg-white p-7">
             <div className="mb-6 inline-flex rounded-2xl bg-indigo-50 p-4 text-indigo-600 shadow-inner">
               <ShieldCheck size={32} />
             </div>
-            <h3 className="mb-4 text-2xl font-black text-gray-800">Прокси (как в V1)</h3>
+            <h3 className="mb-3 text-3xl font-black tracking-tight text-gray-800">Настройка IPv4/IPv6 прокси</h3>
             <p className="mb-8 text-sm font-medium leading-relaxed text-gray-500">
-              Те же endpoint&apos;ы: <code className="rounded bg-gray-100 px-1">/proxy/&#123;user_id&#125;/add</code> и{' '}
-              <code className="rounded bg-gray-100 px-1">delete_list</code>.
+              Добавьте список мобильных или резидентных прокси. После импорта можно сразу проверить доступность и
+              увидеть статус каждого шлюза в таблице.
             </p>
-            <label className="mb-3 ml-1 block text-xs font-black uppercase tracking-widest text-gray-400">
-              Список (один на строку)
+            <label className="mb-3 ml-1 block text-xs font-black uppercase tracking-[0.22em] text-gray-400">
+              Добавить список (один на строку)
             </label>
             <textarea
               className="h-64 w-full resize-none rounded-3xl border border-gray-100 bg-gray-50 p-6 font-mono text-sm leading-relaxed outline-none transition-all focus:ring-4 focus:ring-indigo-50"
-              placeholder={'http://login:pass@ip:port'}
+              placeholder={'http://login:pass@ip:port\nsocks5://ip:port:login:pass'}
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
             />
@@ -112,49 +158,42 @@ export default function ProxyView() {
               onClick={handleAdd}
               className="mt-6 w-full rounded-2xl bg-indigo-600 py-4 text-sm font-bold text-white shadow-lg shadow-indigo-200 transition-all hover:bg-indigo-700 disabled:opacity-60"
             >
-              {loading ? '…' : 'Добавить прокси'}
+              {loading ? 'Импорт...' : 'Импортировать и проверить'}
             </button>
           </div>
 
-          <div className="flex w-full flex-col gap-6 lg:w-96">
-            <div className="flex flex-1 flex-col rounded-3xl border border-gray-100 bg-gray-50 p-8">
+          <div className="flex flex-col gap-6">
+            <div className="rounded-3xl border border-gray-100 bg-gray-50 p-6">
               <div className="mb-6 flex items-center justify-between">
-                <h4 className="text-sm font-black uppercase tracking-wider text-gray-800">Загруженные</h4>
+                <h4 className="text-sm font-black uppercase tracking-wider text-gray-800">Активные сервера</h4>
                 <span className="rounded-lg bg-green-500 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-white shadow-sm">
-                  {refreshing ? '…' : `${proxies.length} шт.`}
+                  {refreshing ? '...' : `${onlineCount || proxies.length} online`}
                 </span>
               </div>
-              <div className="max-h-80 space-y-4 overflow-y-auto">
+              <div className="max-h-80 space-y-3 overflow-y-auto">
                 {proxies.map((p) => (
-                  <div
-                    key={p.id}
-                    className="flex items-center justify-between rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-all group-hover:border-gray-200"
-                  >
-                    <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-3">
-                      <input type="checkbox" checked={selectedIds.includes(p.id)} onChange={() => toggle(p.id)} />
-                      <div className="min-w-0">
-                        <p className="break-all font-mono text-xs font-bold text-gray-700">{p.http}</p>
-                        <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wider text-gray-400">id {p.id}</p>
-                      </div>
-                    </label>
+                  <div key={p.id} className="flex items-start justify-between gap-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+                    <div className="min-w-0">
+                      <p className="break-all font-mono text-xs font-bold text-gray-700">{p.http}</p>
+                      <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wider text-gray-400">id {p.id}</p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={loading}
+                      onClick={() => handleDeleteOne(p)}
+                      className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500 disabled:opacity-60"
+                      title="Удалить прокси"
+                    >
+                      <Trash2 size={14} />
+                    </button>
                   </div>
                 ))}
-                {!refreshing && !proxies.length && (
-                  <p className="text-center text-sm text-gray-400">Прокси нет</p>
-                )}
+                {!refreshing && !proxies.length && <p className="text-center text-sm text-gray-400">Прокси нет</p>}
               </div>
-              <button
-                type="button"
-                disabled={loading}
-                onClick={handleDeleteSelected}
-                className="mt-4 w-full rounded-2xl border border-red-100 py-3 text-sm font-bold text-red-600 hover:bg-red-50 disabled:opacity-50"
-              >
-                Удалить выбранные
-              </button>
               <button
                 type="button"
                 onClick={loadProxies}
-                className="mt-2 w-full rounded-2xl py-2 text-xs font-bold text-gray-500 hover:bg-gray-100"
+                className="mt-3 w-full rounded-2xl py-2 text-xs font-bold text-gray-500 hover:bg-gray-100"
               >
                 Обновить список
               </button>
@@ -164,10 +203,90 @@ export default function ProxyView() {
               <div className="flex items-start gap-3">
                 <AlertCircle size={20} className="mt-0.5 shrink-0 text-blue-500" />
                 <p className="text-xs font-medium leading-relaxed text-blue-800">
-                  Удаление через список строк совпадает с логикой V1: передаются значения поля <strong>http</strong>.
+                  Совет по безопасности: не используйте один и тот же прокси для большого числа аккаунтов.
+                  Оптимально держать не более 3-5 аккаунтов на один мобильный IP, чтобы снизить риск ограничений.
                 </p>
               </div>
             </div>
+          </div>
+        </div>
+
+        <div className="mt-6 rounded-3xl border border-gray-100 bg-white p-6">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <h4 className="text-xl font-black text-gray-800">Статус шлюзов</h4>
+            <button
+              type="button"
+              onClick={handleCheckAll}
+              disabled={checking || loading || !proxies.length}
+              className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-bold text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-60"
+            >
+              <RefreshCcw size={15} className={checking ? 'animate-spin' : ''} />
+              {checking ? 'Проверяем...' : 'Check All'}
+            </button>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="min-w-full overflow-hidden rounded-2xl border border-gray-100">
+              <thead className="bg-gray-50 text-left text-xs font-black uppercase tracking-wider text-gray-500">
+                <tr>
+                  <th className="px-4 py-3">IP адрес</th>
+                  <th className="px-4 py-3">Пинг</th>
+                  <th className="px-4 py-3">Geo</th>
+                  <th className="px-4 py-3">Статус</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 bg-white">
+                {statusRows.map((row) => (
+                  <tr key={row.id} className="text-sm">
+                    <td className="px-4 py-3 font-semibold text-gray-800">
+                      {row.ip}
+                      {row.port ? `:${row.port}` : ''}
+                    </td>
+                    <td className="px-4 py-3">
+                      {row.ping_ms ? (
+                        <span className="rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-bold text-blue-700">
+                          {row.ping_ms}ms
+                        </span>
+                      ) : (
+                        <span className="rounded-md border border-gray-200 bg-gray-50 px-2 py-0.5 text-xs font-bold text-gray-500">
+                          -
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-gray-500">{row.geo}</td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`inline-flex items-center gap-1.5 font-semibold ${
+                          row.status === 'online'
+                            ? 'text-green-600'
+                            : row.status === 'offline'
+                              ? 'text-red-500'
+                              : 'text-gray-500'
+                        }`}
+                      >
+                        <span
+                          className={`h-2 w-2 rounded-full ${
+                            row.status === 'online'
+                              ? 'bg-green-500'
+                              : row.status === 'offline'
+                                ? 'bg-red-500'
+                                : 'bg-gray-400'
+                          }`}
+                        />
+                        {row.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+                {!statusRows.length && (
+                  <tr>
+                    <td colSpan={4} className="px-4 py-8 text-center text-sm text-gray-500">
+                      Добавьте прокси, чтобы увидеть статус шлюзов.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
