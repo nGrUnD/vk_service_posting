@@ -21,16 +21,35 @@ function formatHourLabel(iso) {
 }
 
 function logLine(item) {
+  if (item.message) return item.message;
   const g = item.group_name || '—';
   if (item.status === 'success') return `Опубликован клип в «${g}»`;
   if (item.status === 'starting') return `В очереди на публикацию в «${g}»`;
   return `Событие в «${g}» (${item.status})`;
 }
 
-function logDotClass(status) {
+function logDotClass(status, group) {
+  if (group === 'proxy') return 'bg-violet-500';
+  if (group === 'worker') return 'bg-cyan-500';
+  if (group === 'account') return 'bg-amber-500';
+  if (group === 'group') return 'bg-indigo-500';
+  if (group === 'clip') return 'bg-fuchsia-500';
   if (status === 'success') return 'bg-green-500';
   if (status === 'starting') return 'bg-blue-500';
   return 'bg-red-500';
+}
+
+function groupLabel(group) {
+  const map = {
+    post: 'Post',
+    worker: 'Worker',
+    account: 'Account',
+    group: 'Group',
+    clip: 'Clip',
+    proxy: 'Proxy',
+    task: 'Task',
+  };
+  return map[group] || group;
 }
 
 export default function DashboardView() {
@@ -40,6 +59,8 @@ export default function DashboardView() {
   const [clipsTotal, setClipsTotal] = useState(0);
   const [buckets, setBuckets] = useState([]);
   const [logItems, setLogItems] = useState([]);
+  const [logGroupsAvailable, setLogGroupsAvailable] = useState(['post', 'worker', 'account', 'group', 'clip', 'proxy', 'task']);
+  const [selectedLogGroups, setSelectedLogGroups] = useState(['post', 'worker', 'account', 'group', 'clip', 'proxy', 'task']);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -72,9 +93,20 @@ export default function DashboardView() {
       }
 
       if (logRes.status === 'fulfilled') {
-        setLogItems(Array.isArray(logRes.value.data?.items) ? logRes.value.data.items : []);
+        const apiItems = Array.isArray(logRes.value.data?.items) ? logRes.value.data.items : [];
+        const apiGroups = Array.isArray(logRes.value.data?.groups_available)
+          ? logRes.value.data.groups_available
+          : ['post', 'worker', 'account', 'group', 'clip', 'proxy', 'task'];
+        setLogItems(apiItems);
+        setLogGroupsAvailable(apiGroups);
+        setSelectedLogGroups((prev) => {
+          if (!Array.isArray(prev) || prev.length === 0) return apiGroups;
+          const keep = prev.filter((g) => apiGroups.includes(g));
+          return keep.length > 0 ? keep : apiGroups;
+        });
       } else {
         setLogItems([]);
+        setLogGroupsAvailable(['post', 'worker', 'account', 'group', 'clip', 'proxy', 'task']);
       }
 
       const failedCount = [sumRes, clipsRes, actRes, logRes].filter((res) => res.status === 'rejected').length;
@@ -96,6 +128,18 @@ export default function DashboardView() {
     const m = Math.max(0, ...buckets.map((b) => Number(b.posted) || 0));
     return m > 0 ? m : 1;
   }, [buckets]);
+
+  const filteredLogItems = useMemo(
+    () => logItems.filter((item) => selectedLogGroups.includes(item.group || 'post')),
+    [logItems, selectedLogGroups],
+  );
+
+  const toggleLogGroup = (group) => {
+    setSelectedLogGroups((prev) => {
+      if (prev.includes(group)) return prev.filter((g) => g !== group);
+      return [...prev, group];
+    });
+  };
 
   const stats = [
     {
@@ -203,16 +247,42 @@ export default function DashboardView() {
             <Activity className="text-blue-500" size={20} />
             <h3 className="text-lg font-bold text-gray-800">Живой лог</h3>
           </div>
+          <div className="mb-4 flex flex-wrap gap-2">
+            {logGroupsAvailable.map((group) => {
+              const checked = selectedLogGroups.includes(group);
+              return (
+                <label
+                  key={group}
+                  className={`inline-flex cursor-pointer items-center gap-2 rounded-xl border px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+                    checked
+                      ? 'border-blue-300 bg-blue-50 text-blue-700'
+                      : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    className="h-3.5 w-3.5 accent-blue-600"
+                    checked={checked}
+                    onChange={() => toggleLogGroup(group)}
+                  />
+                  {groupLabel(group)}
+                </label>
+              );
+            })}
+          </div>
           <ul className="max-h-[min(22rem,55vh)] space-y-4 overflow-y-auto pr-1">
-            {logItems.length === 0 ? (
-              <li className="text-sm text-gray-500">Пока нет записей расписания</li>
+            {filteredLogItems.length === 0 ? (
+              <li className="text-sm text-gray-500">Нет событий по выбранным группам логов</li>
             ) : (
-              logItems.map((item, idx) => (
+              filteredLogItems.map((item, idx) => (
                 <li key={`${item.at}-${idx}`} className="flex gap-3 text-sm">
-                  <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${logDotClass(item.status)}`} />
+                  <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${logDotClass(item.status, item.group)}`} />
                   <div className="min-w-0">
                     <p className="font-medium text-gray-800">{logLine(item)}</p>
                     <p className="text-xs text-gray-400">
+                      <span className="mr-2 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-gray-500">
+                        {groupLabel(item.group || 'post')}
+                      </span>
                       {item.at
                         ? new Date(item.at).toLocaleTimeString('ru-RU', {
                             hour: '2-digit',

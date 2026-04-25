@@ -14,7 +14,7 @@ const PALETTE = [
 ];
 
 function getV1Url() {
-  return import.meta.env.VITE_V1_URL || `${window.location.protocol}//${window.location.hostname}:5173/`;
+  return import.meta.env.VITE_V1_URL || `${window.location.protocol}//${window.location.hostname}/`;
 }
 
 export default function SourcesView() {

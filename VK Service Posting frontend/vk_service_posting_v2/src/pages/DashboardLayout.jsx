@@ -17,7 +17,7 @@ const navItems = [
 function getV1Url() {
   return (
     import.meta.env.VITE_V1_URL ||
-    `${window.location.protocol}//${window.location.hostname}:5173/`
+    `${window.location.protocol}//${window.location.hostname}/`
   );
 }
 
