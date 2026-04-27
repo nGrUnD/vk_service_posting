@@ -485,29 +485,41 @@ export default function AccountTableChecker({ viewMode = "user", onViewModeChang
                 />
             </div>
 
-            <div className="grid xl:grid-cols-[minmax(0,1fr)_260px] gap-4 items-start">
-                <Spin spinning={loading}>
-                    <Table
-                        rowKey="id"
-                        size="small"
-                        rowSelection={{
-                            selectedRowKeys,
-                            onChange: setSelectedRowKeys,
-                            columnTitle: "Выделить всё",
-                        }}
-                        columns={activeViewMode === "developer" ? developerColumns : userColumns}
-                        dataSource={accounts}
-                        bordered
-                        className="shadow-md compact-account-table"
-                        pagination={{
-                            defaultPageSize: 10,
-                            showSizeChanger: true,
-                            pageSizeOptions: ["10", "20", "50", "100"],
-                        }}
-                    />
-                </Spin>
+            <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(260px,280px)] gap-4 items-start">
+                {/* min-w-0: ячейка grid может сжиматься, иначе широкая таблица залезает под правую панель */}
+                <div className="min-w-0 w-full overflow-x-auto">
+                    <Spin spinning={loading}>
+                        <Table
+                            rowKey="id"
+                            size="small"
+                            rowSelection={{
+                                selectedRowKeys,
+                                onChange: setSelectedRowKeys,
+                                columnTitle: "Выделить всё",
+                            }}
+                            columns={activeViewMode === "developer" ? developerColumns : userColumns}
+                            dataSource={accounts}
+                            bordered
+                            className="shadow-md compact-account-table"
+                            scroll={
+                                activeViewMode === "developer"
+                                    ? { x: "max-content" }
+                                    : undefined
+                            }
+                            pagination={{
+                                defaultPageSize: 10,
+                                showSizeChanger: true,
+                                pageSizeOptions: ["10", "20", "50", "100"],
+                            }}
+                        />
+                    </Spin>
+                </div>
 
-                <Card size="small" title="Операции с выделенными" className="sticky top-4">
+                <Card
+                    size="small"
+                    title="Операции с выделенными"
+                    className="w-full shrink-0 max-xl:max-w-md xl:sticky xl:top-4 xl:self-start"
+                >
                     <div className="flex flex-col gap-2">
                         <div className="text-sm text-gray-600">
                             Выбрано аккаунтов: <strong>{selectedRowKeys.length}</strong>
