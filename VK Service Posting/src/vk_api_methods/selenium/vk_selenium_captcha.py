@@ -1152,6 +1152,10 @@ def vk_login(login: str, password: str, vkpublic = None, proxy = None, log_signa
     options.page_load_strategy = "eager"
     options.add_argument("--start-maximized")
     options.add_argument("--headless=new")
+    options.add_argument("--lang=ru-RU")
+    options.add_experimental_option("prefs", {
+        "intl.accept_languages": "ru-RU,ru"
+    })
 
     options.add_argument("--window-size=1920,1080")
     options.add_argument("--no-sandbox")
