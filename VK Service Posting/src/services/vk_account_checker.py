@@ -13,6 +13,7 @@ from src.vk_api_methods.vk_auth import get_new_token_request, get_token
 from vk_api.vk_api import vk_api
 import logging
 
+from src.schemas.account_checker_batch import AccountCheckerBatchIn
 from src.schemas.tools import AccountCheckResult, AccountChangeResult
 from src.utils.database_manager import DataBaseManager
 from src.utils.rand_user_agent import get_random_user_agent
@@ -44,20 +45,37 @@ class AccountChecker:
         if not proxies:
             raise RuntimeError("Нет доступных прокси")
 
-        for i, acc in enumerate(data.accounts):
+        # Собираем только новые логины (как раньше — дубли пропускаем)
+        to_queue: list[tuple[str, str]] = []
+        for acc in data.accounts:
             if ":" not in acc:
                 continue
             login, password = acc.split(":", 1)
+            vk_account_db = await self.database.vk_account.get_one_or_none(login=login)
+            if vk_account_db:
+                logging.info("%s уже есть в базе данных", login)
+                continue
+            to_queue.append((login, password))
+
+        if not to_queue:
+            return {"detail": "ALL OK", "batch_id": None, "queued": 0}
+
+        batch_row = await self.database.account_checker_batch.create(
+            AccountCheckerBatchIn(
+                user_id=user_id,
+                total_tasks=len(to_queue),
+                completed_tasks=0,
+                status="processing",
+            )
+        )
+        await self.database.commit()
+        batch_id = batch_row.id
+
+        for i, (login, password) in enumerate(to_queue):
             encrypted_password = AuthService().encrypt_data(password)
             proxy = proxies[i % len(proxies)]
             proxy_http = proxy.http
-
-            vk_account_db = await self.database.vk_account.get_one_or_none(login=login)
-            if vk_account_db:
-                logging.info(f"{login} уже есть в базе данных")
-                continue
-
-            logging.info(f"{login, password, proxy_http}")
+            logging.info("%s", (login, password, proxy_http))
 
             new_data = VKAccountAdd(
                 user_id=user_id,
@@ -81,13 +99,18 @@ class AccountChecker:
             vk_account_db = await self.database.vk_account.add(new_data)
             await self.database.commit()
 
-            task = vk_checker_add_account.delay(user_id, vk_account_db.id, login, password, proxy_http)
+            task = vk_checker_add_account.delay(
+                user_id, vk_account_db.id, login, password, proxy_http, "checker", batch_id
+            )
 
-            await self.database.vk_account.edit(VKAccountUpdate(task_id=task.id), exclude_unset=True,
-                                                id=vk_account_db.id)
+            await self.database.vk_account.edit(
+                VKAccountUpdate(task_id=task.id),
+                exclude_unset=True,
+                id=vk_account_db.id,
+            )
             await self.database.commit()
 
-        return "ALL OK"
+        return {"detail": "ALL OK", "batch_id": batch_id, "queued": len(to_queue)}
 
     @staticmethod
     def _change_password_sync(login: str, old_password: str, proxy_http: str, token: str, cookie: str):

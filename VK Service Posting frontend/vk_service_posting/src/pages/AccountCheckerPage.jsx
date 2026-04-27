@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Button, Card, Input, Typography, message, Space, Alert, List, Tooltip, InputNumber } from 'antd';
+import React, { useState } from 'react';
+import { Button, Card, Input, Typography, message, Space, Alert, List, Tooltip } from 'antd';
 import { ReloadOutlined, LockOutlined } from '@ant-design/icons';
 import api from '../api/axios';
 import AccountTableChecker from '../components/AccountTableCheckerComponent.jsx';
@@ -8,7 +8,24 @@ const { Title, Text } = Typography;
 const { TextArea } = Input;
 const MAX_BATCH_SIZE = 20;
 const QUEUE_STORAGE_KEY = 'account_checker_queue_v1';
-const DEFAULT_BATCH_CONNECT_TIME_MINUTES = 15;
+const BATCH_POLL_MS = 2000;
+
+/** Ждёт, пока на сервере не завершатся все фоновые задачи батча. */
+async function waitForServerBatchComplete(batchId) {
+    if (!batchId) {
+        return null;
+    }
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+        const { data } = await api.get(
+            `/tools/{user_id}/account_checker/batch/${batchId}`
+        );
+        if (data?.status === 'completed') {
+            return data;
+        }
+        await new Promise((r) => setTimeout(r, BATCH_POLL_MS));
+    }
+}
 
 export default function AccountCheckerPage() {
     const [inputAccounts, setInputAccounts] = useState('');
@@ -18,8 +35,6 @@ export default function AccountCheckerPage() {
     const [loadingChange, setLoadingChange] = useState(false);
     const [queueRunning, setQueueRunning] = useState(false);
     const [tableMode, setTableMode] = useState('user');
-    const [batchConnectTimeMinutes, setBatchConnectTimeMinutes] = useState(DEFAULT_BATCH_CONNECT_TIME_MINUTES);
-    const [nowTs, setNowTs] = useState(Date.now());
     const [batchQueue, setBatchQueue] = useState(() => {
         try {
             const raw = localStorage.getItem(QUEUE_STORAGE_KEY);
@@ -30,13 +45,6 @@ export default function AccountCheckerPage() {
         }
     });
     const [messageApi, contextHolder] = message.useMessage();
-
-    useEffect(() => {
-        const timerId = setInterval(() => {
-            setNowTs(Date.now());
-        }, 1000);
-        return () => clearInterval(timerId);
-    }, []);
 
     const parseAccounts = () =>
         inputAccounts
@@ -60,6 +68,20 @@ export default function AccountCheckerPage() {
         return true;
     };
 
+    const formatDuration = (msValue) => {
+        const totalSeconds = Math.max(0, Math.floor(msValue / 1000));
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    };
+
+    const formatDurationSeconds = (sec) => {
+        if (sec == null || Number.isNaN(Number(sec))) {
+            return '—';
+        }
+        return formatDuration(Number(sec) * 1000);
+    };
+
     const handleCheck = async () => {
         const accounts = parseAccounts();
         if (!accounts.length) {
@@ -72,8 +94,19 @@ export default function AccountCheckerPage() {
 
         setLoadingCheck(true);
         try {
-            await api.post('/tools/{user_id}/account_checker', { accounts });
-            messageApi.success('Пачка отправлена на проверку.');
+            const { data: submit } = await api.post('/tools/{user_id}/account_checker', { accounts });
+            if (submit.batch_id) {
+                const final = await waitForServerBatchComplete(submit.batch_id);
+                const sec = final.duration_seconds ?? final.elapsed_seconds;
+                messageApi.success(
+                    `Пачка обработана. Фоновое подключение (сервер) заняло: ${formatDurationSeconds(sec)}.`
+                );
+            } else {
+                messageApi.success(
+                    submit.detail
+                        || 'Нет новых аккаунтов для постановки (возможно, все логины уже в базе).'
+                );
+            }
         } catch (e) {
             messageApi.error('Ошибка при проверке аккаунтов');
         }
@@ -119,7 +152,6 @@ export default function AccountCheckerPage() {
             note: batchNote.trim(),
             accounts,
             status: 'pending',
-            connectTimeLimitMinutes: Number(batchConnectTimeMinutes) || DEFAULT_BATCH_CONNECT_TIME_MINUTES,
             createdAt: new Date().toISOString(),
         };
 
@@ -149,38 +181,40 @@ export default function AccountCheckerPage() {
                 continue;
             }
 
-            const startedAt = new Date().toISOString();
-            const limitMinutes = Number(nextQueue[index].connectTimeLimitMinutes) || DEFAULT_BATCH_CONNECT_TIME_MINUTES;
-            const deadlineAt = new Date(Date.now() + limitMinutes * 60 * 1000).toISOString();
             nextQueue[index] = {
                 ...nextQueue[index],
                 status: 'running',
-                startedAt,
-                deadlineAt,
-                completedAt: null,
-                timeExceeded: false,
             };
             saveQueue([...nextQueue]);
 
             try {
-                await api.post('/tools/{user_id}/account_checker', { accounts: batch.accounts });
-                const completedAt = new Date().toISOString();
-                const elapsedMs = new Date(completedAt).getTime() - new Date(startedAt).getTime();
-                nextQueue[index] = {
-                    ...nextQueue[index],
-                    status: 'success',
-                    completedAt,
-                    timeExceeded: elapsedMs > limitMinutes * 60 * 1000,
-                };
+                const { data: submit } = await api.post(
+                    '/tools/{user_id}/account_checker',
+                    { accounts: batch.accounts }
+                );
+                if (submit.batch_id) {
+                    const final = await waitForServerBatchComplete(submit.batch_id);
+                    const sec = final.duration_seconds ?? final.elapsed_seconds;
+                    nextQueue[index] = {
+                        ...nextQueue[index],
+                        status: 'success',
+                        serverBatchId: submit.batch_id,
+                        serverDurationSeconds: final.duration_seconds ?? sec,
+                    };
+                } else {
+                    nextQueue[index] = {
+                        ...nextQueue[index],
+                        status: 'success',
+                        serverBatchId: null,
+                        serverDurationSeconds: null,
+                        noNewAccounts: true,
+                    };
+                }
             } catch (error) {
                 console.error(error);
-                const completedAt = new Date().toISOString();
-                const elapsedMs = new Date(completedAt).getTime() - new Date(startedAt).getTime();
                 nextQueue[index] = {
                     ...nextQueue[index],
                     status: 'error',
-                    completedAt,
-                    timeExceeded: elapsedMs > limitMinutes * 60 * 1000,
                     detail: error?.response?.data?.detail || 'Ошибка отправки пачки',
                 };
             }
@@ -192,27 +226,31 @@ export default function AccountCheckerPage() {
         messageApi.success('Очередь обработана.');
     };
 
-    const formatDuration = (msValue) => {
-        const totalSeconds = Math.max(0, Math.floor(msValue / 1000));
-        const minutes = Math.floor(totalSeconds / 60);
-        const seconds = totalSeconds % 60;
-        return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-    };
-
-    const getBatchTimingInfo = (batch) => {
-        const limitMinutes = Number(batch.connectTimeLimitMinutes) || DEFAULT_BATCH_CONNECT_TIME_MINUTES;
-        const limitMs = limitMinutes * 60 * 1000;
-        const hasStarted = Boolean(batch.startedAt);
-        const endTs = batch.completedAt ? new Date(batch.completedAt).getTime() : nowTs;
-        const startTs = hasStarted ? new Date(batch.startedAt).getTime() : null;
-        const elapsedMs = startTs ? Math.max(0, endTs - startTs) : 0;
-        const timeExceeded = Boolean(batch.timeExceeded) || (hasStarted && elapsedMs > limitMs);
-
-        return {
-            limitMinutes,
-            elapsedText: hasStarted ? formatDuration(elapsedMs) : '00:00',
-            isExpired: timeExceeded,
-        };
+    const getBatchConnectDurationInfo = (batch) => {
+        if (batch.serverDurationSeconds != null) {
+            return {
+                label: formatDurationSeconds(batch.serverDurationSeconds),
+                sub: 'фон (сервер): от приёма пачки до готовности',
+            };
+        }
+        if (batch.status === 'success' && batch.noNewAccounts) {
+            return { label: '—', sub: 'все логины уже в базе' };
+        }
+        if (batch.status === 'running') {
+            return { label: '…', sub: 'фоновая обработка на сервере' };
+        }
+        if (batch.status === 'pending') {
+            return { label: '—', sub: 'еще не запускалась' };
+        }
+        if (batch.startedAt) {
+            const endTs = batch.completedAt ? new Date(batch.completedAt).getTime() : Date.now();
+            const startTs = new Date(batch.startedAt).getTime();
+            return {
+                label: formatDuration(Math.max(0, endTs - startTs)),
+                sub: 'клиент (устар.)',
+            };
+        }
+        return { label: '—', sub: '—' };
     };
 
     return (
@@ -242,16 +280,6 @@ export default function AccountCheckerPage() {
                                 value={batchNote}
                                 onChange={(e) => setBatchNote(e.target.value)}
                             />
-                            <div className="mb-3">
-                                <Text type="secondary">Время на подключение одной пачки (мин)</Text>
-                                <InputNumber
-                                    className="w-full mt-1"
-                                    min={1}
-                                    max={240}
-                                    value={batchConnectTimeMinutes}
-                                    onChange={(value) => setBatchConnectTimeMinutes(Number(value) || DEFAULT_BATCH_CONNECT_TIME_MINUTES)}
-                                />
-                            </div>
                             <TextArea
                                 className="flex-1"
                                 rows={10}
@@ -311,7 +339,7 @@ export default function AccountCheckerPage() {
                                     locale={{ emptyText: 'Очередь пуста' }}
                                     dataSource={batchQueue}
                                     renderItem={(item) => {
-                                        const timing = getBatchTimingInfo(item);
+                                        const duration = getBatchConnectDurationInfo(item);
                                         return (
                                             <List.Item
                                                 actions={[
@@ -336,11 +364,9 @@ export default function AccountCheckerPage() {
                                                     <div className="truncate">{item.note || 'Без подписи'}</div>
                                                     <Text type="secondary">{item.accounts.length} аккаунтов</Text>
                                                     <div className="text-xs text-gray-500">
-                                                        Лимит: {timing.limitMinutes} мин | Прошло: {timing.elapsedText}
+                                                        <span className="font-mono">{duration.label}</span>
+                                                        <span> — {duration.sub}</span>
                                                     </div>
-                                                    <Text type={timing.isExpired ? 'danger' : 'secondary'} className="text-xs">
-                                                        {timing.isExpired ? 'Время подключения вышло' : 'Время подключения не вышло'}
-                                                    </Text>
                                                 </div>
                                             </List.Item>
                                         );

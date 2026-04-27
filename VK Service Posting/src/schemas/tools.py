@@ -1,4 +1,5 @@
-from typing import List, Literal
+from typing import List, Literal, Optional
+
 from pydantic import BaseModel
 
 # ==== Модели ====
@@ -12,6 +13,13 @@ class AccountCheckResult(BaseModel):
 
 class AccountCheckResponse(BaseModel):
     results: List[AccountCheckResult]
+
+
+class AccountCheckerSubmitResponse(BaseModel):
+    status: str
+    detail: str
+    batch_id: Optional[int] = None
+    queued: int = 0
 
 class AccountChangeResult(BaseModel):
     login: str

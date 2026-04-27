@@ -20,6 +20,7 @@ def vk_checker_add_account(
     password: str,
     proxy_http: str,
     target_account_type: str = "checker",
+    batch_id: int | None = None,
 ):
     database_manager = SyncSessionLocal()
 
@@ -49,6 +50,16 @@ def vk_checker_add_account(
     except Exception as e:
         update_db_vk_account_error(database_manager, vk_account_id_db, str(e))
         raise e
+    finally:
+        if batch_id is not None:
+            try:
+                from src.services.account_checker_batch_sync import mark_checker_batch_task_done_sync
+
+                mark_checker_batch_task_done_sync(batch_id)
+            except Exception:
+                logging.exception(
+                    "Не удалось обновить счётчик батча checker (batch_id=%s)", batch_id
+                )
 
 
 def update_db_vk_account_start(database_manager, vk_account_id: int):
