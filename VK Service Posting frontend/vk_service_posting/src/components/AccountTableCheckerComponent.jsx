@@ -1,7 +1,23 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Table, Tag, Spin, Button, Popconfirm, message, Tooltip, Segmented, Card } from "antd";
+import {
+    Table,
+    Tag,
+    Spin,
+    Button,
+    Popconfirm,
+    message,
+    Tooltip,
+    Segmented,
+    Collapse,
+    Dropdown,
+    Typography,
+} from "antd";
+import { DownOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import api from "../api/axios";
+
+const { Text: TypographyText } = Typography;
+const BULK_PANEL_STORAGE_KEY = "accountCheckerBulkOpen";
 
 export default function AccountTableChecker({ viewMode = "user", onViewModeChange }) {
     const [messageApi, contextHolder] = message.useMessage();
@@ -13,6 +29,13 @@ export default function AccountTableChecker({ viewMode = "user", onViewModeChang
     const [selectedRowKeys, setSelectedRowKeys] = useState([]);
     const [bulkActionLoading, setBulkActionLoading] = useState(null);
     const [localMode, setLocalMode] = useState(viewMode);
+    const [bulkOpenKeys, setBulkOpenKeys] = useState(() => {
+        try {
+            return sessionStorage.getItem(BULK_PANEL_STORAGE_KEY) === "1" ? ["bulk"] : [];
+        } catch {
+            return [];
+        }
+    });
 
     const activeViewMode = onViewModeChange ? viewMode : localMode;
 
@@ -263,6 +286,69 @@ export default function AccountTableChecker({ viewMode = "user", onViewModeChang
         return "-";
     };
 
+    const renderDeveloperRowActions = (record) => (
+        <Dropdown
+            trigger={["click"]}
+            dropdownRender={() => (
+                <div
+                    className="min-w-[220px] rounded border border-gray-200 bg-white p-2 shadow-md"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <div className="flex flex-col gap-1">
+                        <Tooltip title="Проверяет, что у аккаунта рабочий curl/токен" placement="left">
+                            <Button
+                                size="small"
+                                block
+                                loading={checkingCurlId === record.id}
+                                onClick={() => handleCheckCurl(record.id)}
+                            >
+                                Проверить curl
+                            </Button>
+                        </Tooltip>
+                        <Popconfirm
+                            title="Переподключить curl для этого аккаунта?"
+                            okText="Да"
+                            cancelText="Нет"
+                            onConfirm={() => handleReconnectCurl(record.id)}
+                        >
+                            <Button
+                                size="small"
+                                block
+                                loading={reconnectingCurlId === record.id}
+                            >
+                                Переподключить curl
+                            </Button>
+                        </Popconfirm>
+                        <Popconfirm
+                            title="Удалить аккаунт?"
+                            okText="Да"
+                            cancelText="Нет"
+                            onConfirm={() => handleDelete(record.id)}
+                        >
+                            <Button danger size="small" block>
+                                Удалить
+                            </Button>
+                        </Popconfirm>
+                        <Tooltip title="Меняет пароль и копирует новый login:pass в буфер" placement="left">
+                            <Button
+                                size="small"
+                                block
+                                loading={changingPasswordId === record.id}
+                                onClick={() => handleChangePassword(record)}
+                            >
+                                Сменить пароль
+                            </Button>
+                        </Tooltip>
+                    </div>
+                </div>
+            )}
+        >
+            <Button size="small" className="!px-2">
+                Действия <DownOutlined />
+            </Button>
+        </Dropdown>
+    );
+
     const userColumns = [
         {
             title: "Log:pass",
@@ -338,51 +424,67 @@ export default function AccountTableChecker({ viewMode = "user", onViewModeChang
             key: "id",
             sorter: (a, b) => a.id - b.id,
             defaultSortOrder: "descend",
-            width: 90,
+            width: 64,
         },
-        { title: "ID VK", dataIndex: "vk_account_id", key: "vk_account_id" },
+        { title: "ID VK", dataIndex: "vk_account_id", key: "vk_account_id", ellipsis: true },
         {
             title: "VK Аккаунт",
             key: "vk_account_url",
-            render: (_, record) => (
-                <a
-                    href={record.vk_account_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="hover:underline text-blue-500 flex items-center gap-2"
-                >
-                    <img
-                        src={record.avatar_url}
-                        alt={record.name}
-                        className="w-6 h-6 rounded-full"
-                    />
-                    {`${record.name ?? ""} ${record.second_name ?? ""}`}
-                </a>
-            ),
+            ellipsis: { showTitle: false },
+            render: (_, record) => {
+                const text = `${record.name ?? ""} ${record.second_name ?? ""}`.trim() || "—";
+                return (
+                    <a
+                        href={record.vk_account_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hover:underline text-blue-500 flex min-w-0 items-start gap-1.5"
+                    >
+                        <img
+                            src={record.avatar_url}
+                            alt=""
+                            className="h-5 w-5 shrink-0 rounded-full"
+                        />
+                        <TypographyText ellipsis={{ tooltip: true }} className="!mb-0 min-w-0 !max-w-full text-inherit">
+                            {text}
+                        </TypographyText>
+                    </a>
+                );
+            },
         },
         {
             title: "Login",
             key: "login",
+            ellipsis: { showTitle: false },
             render: (_, record) => {
                 const login = record.login ?? "";
                 const password = record.password ?? "";
                 if (!login && !password) return "—";
-                return `${login}:${password}`;
+                return (
+                    <TypographyText
+                        ellipsis={{ tooltip: true }}
+                        className="!mb-0 w-full !max-w-full font-mono text-xs"
+                    >
+                        {`${login}:${password}`}
+                    </TypographyText>
+                );
             },
         },
         {
             title: "ID Proxy",
             dataIndex: "proxy_id",
             key: "proxy_id",
+            ellipsis: true,
             render: (val) => val ?? "-",
         },
-        { title: "VK Паблики", dataIndex: "groups_count", key: "groups_count" },
+        { title: "Паблики", dataIndex: "groups_count", key: "groups_count", align: "right" },
         {
-            title: "Флудконтроль",
+            title: "Флуд",
             key: "floodControl",
+            ellipsis: true,
             render: (_, record) => {
                 if (record.flood_control && record.flood_control_time) {
-                    return dayjs(record.flood_control_time).format("YYYY-MM-DD HH:mm");
+                    return dayjs(record.flood_control_time).format("DD.MM.YY HH:mm");
                 }
                 return "Нет";
             },
@@ -407,67 +509,40 @@ export default function AccountTableChecker({ viewMode = "user", onViewModeChang
             title: "Куки",
             dataIndex: "cookies",
             key: "cookies",
-            render: (cookies) => (cookies ? "Есть" : "—"),
+            render: (cookies) => (cookies ? "Да" : "—"),
         },
         {
             title: "Действия",
             key: "actions",
-            render: (_, record) => (
-                <div className="flex flex-wrap gap-2">
-                    <Tooltip title="Проверяет, что у аккаунта рабочий curl/токен">
-                        <Button
-                            size="small"
-                            loading={checkingCurlId === record.id}
-                            onClick={() => handleCheckCurl(record.id)}
-                        >
-                            Проверить curl
-                        </Button>
-                    </Tooltip>
-                    <Tooltip title="Запускает переподключение curl через login:password">
-                        <Popconfirm
-                            title="Переподключить curl для этого аккаунта?"
-                            okText="Да"
-                            cancelText="Нет"
-                            onConfirm={() => handleReconnectCurl(record.id)}
-                        >
-                            <Button
-                                size="small"
-                                loading={reconnectingCurlId === record.id}
-                            >
-                                Переподключить curl
-                            </Button>
-                        </Popconfirm>
-                    </Tooltip>
-                    <Tooltip title="Удаляет аккаунт из текущей таблицы">
-                        <Popconfirm
-                            title="Удалить аккаунт?"
-                            okText="Да"
-                            cancelText="Нет"
-                            onConfirm={() => handleDelete(record.id)}
-                        >
-                            <Button danger size="small">
-                                Удалить
-                            </Button>
-                        </Popconfirm>
-                    </Tooltip>
-                    <Tooltip title="Меняет пароль и копирует новый login:pass в буфер">
-                        <Button
-                            size="small"
-                            loading={changingPasswordId === record.id}
-                            onClick={() => handleChangePassword(record)}
-                        >
-                            Сменить пароль
-                        </Button>
-                    </Tooltip>
-                </div>
-            ),
+            width: 102,
+            align: "center",
+            render: (_, record) => renderDeveloperRowActions(record),
         },
     ];
+
+    const handleBulkPanelChange = (keys) => {
+        const next = Array.isArray(keys) ? keys : keys != null ? [keys] : [];
+        setBulkOpenKeys(next);
+        try {
+            sessionStorage.setItem(BULK_PANEL_STORAGE_KEY, next.includes("bulk") ? "1" : "0");
+        } catch {
+            /* ignore */
+        }
+    };
+
+    const bulkPanelLabel = (
+        <span className="font-medium">
+            Операции с выделенными
+            {selectedRowKeys.length > 0 ? (
+                <span className="ml-2 text-gray-500">({selectedRowKeys.length} выд.)</span>
+            ) : null}
+        </span>
+    );
 
     return (
         <div className="mt-8">
             {contextHolder}
-            <div className="flex items-center justify-between gap-4 mb-4">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-lg font-semibold">Подключённые аккаунты</h2>
                 <Segmented
                     options={[
@@ -485,90 +560,96 @@ export default function AccountTableChecker({ viewMode = "user", onViewModeChang
                 />
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(260px,280px)] gap-4 items-start">
-                {/* min-w-0: ячейка grid может сжиматься, иначе широкая таблица залезает под правую панель */}
-                <div className="min-w-0 w-full overflow-x-auto">
-                    <Spin spinning={loading}>
-                        <Table
-                            rowKey="id"
-                            size="small"
-                            rowSelection={{
-                                selectedRowKeys,
-                                onChange: setSelectedRowKeys,
-                                columnTitle: "Выделить всё",
-                            }}
-                            columns={activeViewMode === "developer" ? developerColumns : userColumns}
-                            dataSource={accounts}
-                            bordered
-                            className="shadow-md compact-account-table"
-                            scroll={
-                                activeViewMode === "developer"
-                                    ? { x: "max-content" }
-                                    : undefined
-                            }
-                            pagination={{
-                                defaultPageSize: 10,
-                                showSizeChanger: true,
-                                pageSizeOptions: ["10", "20", "50", "100"],
-                            }}
-                        />
-                    </Spin>
-                </div>
-
-                <Card
+            <div className="w-full min-w-0">
+                <Collapse
                     size="small"
-                    title="Операции с выделенными"
-                    className="w-full shrink-0 max-xl:max-w-md xl:sticky xl:top-4 xl:self-start"
-                >
-                    <div className="flex flex-col gap-2">
-                        <div className="text-sm text-gray-600">
-                            Выбрано аккаунтов: <strong>{selectedRowKeys.length}</strong>
-                        </div>
-                        <Tooltip title="Проверка curl/токена для всех выделенных аккаунтов">
-                            <Button
-                                size="small"
-                                loading={bulkActionLoading === "check"}
-                                onClick={() => runBulkAction("check", checkCurlRequest, "Проверено")}
-                            >
-                                Проверить curl
-                            </Button>
-                        </Tooltip>
-                        <Tooltip title="Массовое переподключение curl для выделенных аккаунтов">
-                            <Button
-                                size="small"
-                                loading={bulkActionLoading === "reconnect"}
-                                onClick={() => runBulkAction("reconnect", reconnectCurlRequest, "Переподключено")}
-                            >
-                                Переподключить curl
-                            </Button>
-                        </Tooltip>
-                        <Tooltip title="Массовая смена пароля по login:password">
-                            <Button
-                                size="small"
-                                loading={bulkActionLoading === "change-password"}
-                                onClick={handleBulkChangePasswords}
-                            >
-                                Сменить пароль
-                            </Button>
-                        </Tooltip>
-                        <Tooltip title="Массовое удаление выделенных аккаунтов">
-                            <Popconfirm
-                                title="Удалить выделенные аккаунты?"
-                                okText="Да"
-                                cancelText="Нет"
-                                onConfirm={() => runBulkAction("delete", deleteAccountRequest, "Удалено")}
-                            >
-                                <Button
-                                    danger
-                                    size="small"
-                                    loading={bulkActionLoading === "delete"}
-                                >
-                                    Удалить
-                                </Button>
-                            </Popconfirm>
-                        </Tooltip>
-                    </div>
-                </Card>
+                    bordered
+                    className="mb-3 bg-white"
+                    activeKey={bulkOpenKeys}
+                    onChange={handleBulkPanelChange}
+                    items={[
+                        {
+                            key: "bulk",
+                            label: bulkPanelLabel,
+                            children: (
+                                <div className="flex flex-wrap gap-2">
+                                    <TypographyText type="secondary" className="!mb-0 block w-full text-sm">
+                                        Выбрано аккаунтов: <strong>{selectedRowKeys.length}</strong>
+                                    </TypographyText>
+                                    <Tooltip title="Проверка curl/токена для всех выделенных аккаунтов">
+                                        <Button
+                                            size="small"
+                                            loading={bulkActionLoading === "check"}
+                                            onClick={() => runBulkAction("check", checkCurlRequest, "Проверено")}
+                                        >
+                                            Проверить curl
+                                        </Button>
+                                    </Tooltip>
+                                    <Tooltip title="Массовое переподключение curl для выделенных аккаунтов">
+                                        <Button
+                                            size="small"
+                                            loading={bulkActionLoading === "reconnect"}
+                                            onClick={() =>
+                                                runBulkAction("reconnect", reconnectCurlRequest, "Переподключено")
+                                            }
+                                        >
+                                            Переподключить curl
+                                        </Button>
+                                    </Tooltip>
+                                    <Tooltip title="Массовая смена пароля по login:password">
+                                        <Button
+                                            size="small"
+                                            loading={bulkActionLoading === "change-password"}
+                                            onClick={handleBulkChangePasswords}
+                                        >
+                                            Сменить пароль
+                                        </Button>
+                                    </Tooltip>
+                                    <Tooltip title="Массовое удаление выделенных аккаунтов">
+                                        <Popconfirm
+                                            title="Удалить выделенные аккаунты?"
+                                            okText="Да"
+                                            cancelText="Нет"
+                                            onConfirm={() => runBulkAction("delete", deleteAccountRequest, "Удалено")}
+                                        >
+                                            <Button
+                                                danger
+                                                size="small"
+                                                loading={bulkActionLoading === "delete"}
+                                            >
+                                                Удалить
+                                            </Button>
+                                        </Popconfirm>
+                                    </Tooltip>
+                                </div>
+                            ),
+                        },
+                    ]}
+                />
+
+                <Spin spinning={loading}>
+                    <Table
+                        rowKey="id"
+                        size="small"
+                        tableLayout="fixed"
+                        rowSelection={{
+                            selectedRowKeys,
+                            onChange: setSelectedRowKeys,
+                            columnTitle: "Выделить всё",
+                        }}
+                        columns={activeViewMode === "developer" ? developerColumns : userColumns}
+                        dataSource={accounts}
+                        bordered
+                        className={`shadow-md compact-account-table w-full ${
+                            activeViewMode === "developer" ? "developer-mode-table" : ""
+                        }`}
+                        pagination={{
+                            defaultPageSize: 10,
+                            showSizeChanger: true,
+                            pageSizeOptions: ["10", "20", "50", "100"],
+                        }}
+                    />
+                </Spin>
             </div>
         </div>
     );

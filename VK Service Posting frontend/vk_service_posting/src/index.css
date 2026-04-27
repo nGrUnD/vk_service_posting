@@ -11,3 +11,16 @@
 .compact-account-table .ant-table-tbody > tr > td {
   padding: 6px 8px !important;
 }
+
+/* Таблица в режиме «Разработчик» — вписываемся в ширину экрана, длинный текст в ячейках */
+.developer-mode-table .ant-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.developer-mode-table .ant-table-tbody > tr > td,
+.developer-mode-table .ant-table-thead > tr > th {
+  overflow: hidden;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
