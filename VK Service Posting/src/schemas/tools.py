@@ -5,6 +5,7 @@ from pydantic import BaseModel
 # ==== Модели ====
 class AccountInput(BaseModel):
     accounts: List[str]
+    batch_label: Optional[str] = None
 
 class AccountCheckResult(BaseModel):
     login: str

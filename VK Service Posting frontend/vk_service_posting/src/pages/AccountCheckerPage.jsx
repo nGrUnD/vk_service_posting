@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button, Card, Input, Typography, message, Space, Alert, List, Tooltip } from 'antd';
 import { ReloadOutlined, LockOutlined } from '@ant-design/icons';
 import api from '../api/axios';
@@ -45,6 +45,47 @@ export default function AccountCheckerPage() {
         }
     });
     const [messageApi, contextHolder] = message.useMessage();
+    const batchQueueRef = useRef(batchQueue);
+    useEffect(() => {
+        batchQueueRef.current = batchQueue;
+    }, [batchQueue]);
+
+    /** Пока пачка в running и есть serverBatchId — тянем elapsed_seconds с API для отображения времени. */
+    useEffect(() => {
+        const tick = async () => {
+            const q = batchQueueRef.current;
+            const toPoll = q.filter((b) => b.status === 'running' && b.serverBatchId);
+            if (!toPoll.length) {
+                return;
+            }
+            for (const b of toPoll) {
+                try {
+                    const { data } = await api.get(
+                        `/tools/{user_id}/account_checker/batch/${b.serverBatchId}`
+                    );
+                    if (!data) {
+                        continue;
+                    }
+                    setBatchQueue((prev) => {
+                        const next = prev.map((item) =>
+                            item.id === b.id ? { ...item, serverPoll: data } : item
+                        );
+                        try {
+                            localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(next));
+                        } catch {
+                            /* ignore */
+                        }
+                        return next;
+                    });
+                } catch (e) {
+                    console.error(e);
+                }
+            }
+        };
+        void tick();
+        const id = setInterval(tick, BATCH_POLL_MS);
+        return () => clearInterval(id);
+    }, []);
 
     const parseAccounts = () =>
         inputAccounts
@@ -94,7 +135,10 @@ export default function AccountCheckerPage() {
 
         setLoadingCheck(true);
         try {
-            const { data: submit } = await api.post('/tools/{user_id}/account_checker', { accounts });
+            const { data: submit } = await api.post('/tools/{user_id}/account_checker', {
+                accounts,
+                batch_label: batchNote.trim() || undefined,
+            });
             if (submit.batch_id) {
                 const final = await waitForServerBatchComplete(submit.batch_id);
                 const sec = final.duration_seconds ?? final.elapsed_seconds;
@@ -190,9 +234,17 @@ export default function AccountCheckerPage() {
             try {
                 const { data: submit } = await api.post(
                     '/tools/{user_id}/account_checker',
-                    { accounts: batch.accounts }
+                    { accounts: batch.accounts, batch_label: batch.note || undefined }
                 );
                 if (submit.batch_id) {
+                    // Сразу пишем id батча — чтобы таймер опроса тянул elapsed_seconds, пока ждём завершения
+                    nextQueue[index] = {
+                        ...nextQueue[index],
+                        status: 'running',
+                        serverBatchId: submit.batch_id,
+                    };
+                    saveQueue([...nextQueue]);
+
                     const final = await waitForServerBatchComplete(submit.batch_id);
                     const sec = final.duration_seconds ?? final.elapsed_seconds;
                     nextQueue[index] = {
@@ -200,6 +252,7 @@ export default function AccountCheckerPage() {
                         status: 'success',
                         serverBatchId: submit.batch_id,
                         serverDurationSeconds: final.duration_seconds ?? sec,
+                        serverPoll: final,
                     };
                 } else {
                     nextQueue[index] = {
@@ -226,7 +279,7 @@ export default function AccountCheckerPage() {
         messageApi.success('Очередь обработана.');
     };
 
-    const getBatchConnectDurationInfo = (batch) => {
+    const getBatchConnectDurationInfo = (batch, queue = batchQueue, runningFlag = queueRunning) => {
         if (batch.serverDurationSeconds != null) {
             return {
                 label: formatDurationSeconds(batch.serverDurationSeconds),
@@ -236,11 +289,31 @@ export default function AccountCheckerPage() {
         if (batch.status === 'success' && batch.noNewAccounts) {
             return { label: '—', sub: 'все логины уже в базе' };
         }
+        // Подключение идёт: время с сервера (опрос) или сразу после старта
         if (batch.status === 'running') {
-            return { label: '…', sub: 'фоновая обработка на сервере' };
+            const sec =
+                batch.serverPoll?.elapsed_seconds != null
+                    ? batch.serverPoll.elapsed_seconds
+                    : batch.serverPoll?.duration_seconds;
+            if (sec != null && !Number.isNaN(Number(sec))) {
+                return {
+                    label: formatDurationSeconds(sec),
+                    sub: 'время с момента приёма пачки (сервер), подключение…',
+                };
+            }
+            if (batch.serverBatchId) {
+                return { label: '00:00', sub: 'подключение на сервере, получаю время…' };
+            }
+            return { label: '—', sub: 'отправка запроса…' };
         }
         if (batch.status === 'pending') {
-            return { label: '—', sub: 'еще не запускалась' };
+            if (runningFlag) {
+                const hasRunning = queue.some((b) => b.status === 'running');
+                if (hasRunning) {
+                    return { label: '—', sub: 'в очереди — ждёт завершения текущей пачки' };
+                }
+            }
+            return { label: '—', sub: 'в очереди — нажмите «Запустить очередь»' };
         }
         if (batch.startedAt) {
             const endTs = batch.completedAt ? new Date(batch.completedAt).getTime() : Date.now();

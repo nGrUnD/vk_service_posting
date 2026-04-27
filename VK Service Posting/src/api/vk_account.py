@@ -34,9 +34,11 @@ def _vk_accounts_with_posting_status(
         accounts: list[VKAccount],
         workerposts,
         groups,
+        batch_label_by_id: dict | None = None,
 ) -> list[dict]:
     group_by_id = {group.id: group for group in groups}
     posting_by_account_id = {}
+    batch_label_by_id = batch_label_by_id or {}
 
     # Выбираем наиболее релевантный workerpost на аккаунт:
     # приоритет у активного, иначе берём самый новый по id.
@@ -53,6 +55,9 @@ def _vk_accounts_with_posting_status(
     out: list[dict] = []
     for account in accounts:
         row = account.model_dump()
+        batch_id = row.get("account_checker_batch_id")
+        row["checker_batch_label"] = batch_label_by_id.get(batch_id) if batch_id else None
+
         workerpost = posting_by_account_id.get(account.id)
 
         if workerpost and workerpost.is_active:
@@ -164,7 +169,22 @@ async def get_all_vk_accounts_checker_connect(
     if group_ids:
         groups = await database.vk_group.get_all_filtered(user_id=user_id, id=group_ids)
 
-    return _vk_accounts_with_posting_status(accounts, workerposts, groups)
+    batch_ids = {
+        a.account_checker_batch_id
+        for a in accounts
+        if getattr(a, "account_checker_batch_id", None)
+    }
+    batch_label_by_id: dict = {}
+    if batch_ids:
+        batches = await database.account_checker_batch.get_all_filtered(
+            user_id=user_id,
+            id=list(batch_ids),
+        )
+        for b in batches:
+            if b.id is not None and b.label:
+                batch_label_by_id[b.id] = b.label
+
+    return _vk_accounts_with_posting_status(accounts, workerposts, groups, batch_label_by_id)
 
 
 @router.get("/vk_account_backup_count", summary="Получить кол-во Запасных VK аккаунтов")

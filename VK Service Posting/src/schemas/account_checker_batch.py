@@ -8,6 +8,7 @@ class AccountCheckerBatchIn(BaseModel):
     total_tasks: int
     completed_tasks: int = 0
     status: str = "processing"
+    label: str | None = None
 
 
 class AccountCheckerBatchOut(BaseModel):
@@ -16,6 +17,7 @@ class AccountCheckerBatchOut(BaseModel):
     total_tasks: int
     completed_tasks: int
     status: str
+    label: str | None = None
     created_at: datetime
     completed_at: datetime | None = None
 

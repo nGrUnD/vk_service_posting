@@ -60,12 +60,15 @@ class AccountChecker:
         if not to_queue:
             return {"detail": "ALL OK", "batch_id": None, "queued": 0}
 
+        label = (getattr(data, "batch_label", None) or "").strip()[:255] or None
+
         batch_row = await self.database.account_checker_batch.create(
             AccountCheckerBatchIn(
                 user_id=user_id,
                 total_tasks=len(to_queue),
                 completed_tasks=0,
                 status="processing",
+                label=label,
             )
         )
         await self.database.commit()
@@ -95,6 +98,7 @@ class AccountChecker:
                 task_id="pending",
                 proxy_id=proxy.id,
                 cookies="",
+                account_checker_batch_id=batch_id,
             )
             vk_account_db = await self.database.vk_account.add(new_data)
             await self.database.commit()

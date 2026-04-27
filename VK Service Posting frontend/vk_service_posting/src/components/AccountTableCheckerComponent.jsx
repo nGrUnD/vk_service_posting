@@ -353,10 +353,29 @@ export default function AccountTableChecker({ viewMode = "user", onViewModeChang
         {
             title: "Log:pass",
             key: "login_pass",
-            width: 260,
+            width: 220,
             render: (_, record) => {
                 const loginPass = getRecordLoginPass(record);
                 return <span className="font-mono text-xs select-text">{loginPass || "—"}</span>;
+            },
+        },
+        {
+            title: "Пачка",
+            key: "checker_batch",
+            width: 130,
+            ellipsis: true,
+            render: (_, record) => {
+                const name = record.checker_batch_label;
+                if (!name) {
+                    return <span className="text-gray-400">—</span>;
+                }
+                return (
+                    <Tooltip title={name}>
+                        <Tag color="geekblue" className="!m-0 !max-w-full truncate">
+                            {name}
+                        </Tag>
+                    </Tooltip>
+                );
             },
         },
         {
@@ -471,6 +490,25 @@ export default function AccountTableChecker({ viewMode = "user", onViewModeChang
             },
         },
         {
+            title: "Пачка",
+            key: "checker_batch",
+            width: 100,
+            ellipsis: true,
+            render: (_, record) => {
+                const name = record.checker_batch_label;
+                if (!name) {
+                    return <span className="text-gray-400">—</span>;
+                }
+                return (
+                    <Tooltip title={name}>
+                        <Tag color="geekblue" className="!m-0 !max-w-full truncate text-xs">
+                            {name}
+                        </Tag>
+                    </Tooltip>
+                );
+            },
+        },
+        {
             title: "ID Proxy",
             dataIndex: "proxy_id",
             key: "proxy_id",
@@ -538,6 +576,14 @@ export default function AccountTableChecker({ viewMode = "user", onViewModeChang
             ) : null}
         </span>
     );
+
+    const checkerBatchRowClassName = (record) => {
+        if (record?.account_checker_batch_id == null) {
+            return "";
+        }
+        const idx = Math.abs(Number(record.account_checker_batch_id)) % 4;
+        return `checker-batch-row-${idx}`;
+    };
 
     return (
         <div className="mt-8">
@@ -632,6 +678,7 @@ export default function AccountTableChecker({ viewMode = "user", onViewModeChang
                         rowKey="id"
                         size="small"
                         tableLayout="fixed"
+                        rowClassName={checkerBatchRowClassName}
                         rowSelection={{
                             selectedRowKeys,
                             onChange: setSelectedRowKeys,

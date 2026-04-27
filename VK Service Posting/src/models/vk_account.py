@@ -27,6 +27,11 @@ class VKAccountOrm(Base):
 
     proxy_id: Mapped[int] = mapped_column(ForeignKey("proxy.id"), nullable=True)
 
+    account_checker_batch_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("account_checker_batch.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
     token: Mapped[str] = mapped_column(String(1000), nullable=True)
     encrypted_curl: Mapped[str] = mapped_column(String(10000), nullable=True)
     login: Mapped[str] = mapped_column(String(200), unique=True, nullable=True)

@@ -30,6 +30,7 @@ class VKAccountAdd(BaseModel):
     user_id: int
     proxy_id: Optional[int] = None
     vk_group_id: Optional[int] = None
+    account_checker_batch_id: Optional[int] = None
     vk_account_id: int
     token: str
     encrypted_curl: str
@@ -85,6 +86,7 @@ class VKAccount(BaseModel):
     encrypted_password: str
     proxy_id: Optional[int] = None
     vk_group_id: Optional[int] = None
+    account_checker_batch_id: Optional[int] = None
     vk_account_url : str
     avatar_url: str
     name: str
@@ -98,6 +100,8 @@ class VKAccount(BaseModel):
     cookies: Optional[str] = None
     # Расшифрованный пароль; заполняется только в list-эндпоинтах (см. api/vk_account).
     password: Optional[str] = None
+    # Подпись пачки account checker; подставляется в API, не ORM-поле.
+    checker_batch_label: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 

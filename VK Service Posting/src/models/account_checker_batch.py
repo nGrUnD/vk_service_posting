@@ -22,6 +22,8 @@ class AccountCheckerBatchOrm(Base):
     total_tasks: Mapped[int] = mapped_column(Integer, nullable=False)
     completed_tasks: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
+    label: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
     # pending -> processing: после постановки в очередь; completed: все таски завершились
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
 

@@ -24,3 +24,17 @@
   word-break: break-word;
   overflow-wrap: anywhere;
 }
+
+/* Подсветка строк одной пачки (account checker) */
+.checker-batch-row-0 .ant-table-cell {
+  background: rgba(254, 243, 199, 0.55) !important;
+}
+.checker-batch-row-1 .ant-table-cell {
+  background: rgba(224, 242, 254, 0.6) !important;
+}
+.checker-batch-row-2 .ant-table-cell {
+  background: rgba(237, 233, 254, 0.55) !important;
+}
+.checker-batch-row-3 .ant-table-cell {
+  background: rgba(209, 250, 229, 0.55) !important;
+}
