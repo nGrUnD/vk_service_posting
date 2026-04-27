@@ -731,7 +731,7 @@ export default function AccountTableChecker({ viewMode = "user", onViewModeChang
                         rowSelection={{
                             selectedRowKeys,
                             onChange: setSelectedRowKeys,
-                            columnTitle: "Выделить всё",
+                            columnWidth: 48,
                         }}
                         columns={activeViewMode === "developer" ? developerColumns : userColumns}
                         dataSource={accounts}
