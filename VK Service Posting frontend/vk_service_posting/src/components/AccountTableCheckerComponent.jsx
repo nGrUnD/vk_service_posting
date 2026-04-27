@@ -12,7 +12,7 @@ import {
     Dropdown,
     Typography,
 } from "antd";
-import { DownOutlined } from "@ant-design/icons";
+import { CopyOutlined, DownOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import api from "../api/axios";
 
@@ -154,6 +154,23 @@ export default function AccountTableChecker({ viewMode = "user", onViewModeChang
             return null;
         }
         return `${login}:${password}`;
+    };
+
+    const copyLoginPassToClipboard = async (text) => {
+        if (!text) {
+            return;
+        }
+        try {
+            if (navigator?.clipboard?.writeText) {
+                await navigator.clipboard.writeText(text);
+                messageApi.success("Скопировано в буфер");
+            } else {
+                messageApi.warning("Буфер обмена недоступен");
+            }
+        } catch (e) {
+            console.error(e);
+            messageApi.error("Не удалось скопировать");
+        }
     };
 
     const handleChangePassword = async (record) => {
@@ -356,7 +373,26 @@ export default function AccountTableChecker({ viewMode = "user", onViewModeChang
             width: 220,
             render: (_, record) => {
                 const loginPass = getRecordLoginPass(record);
-                return <span className="font-mono text-xs select-text">{loginPass || "—"}</span>;
+                if (!loginPass) {
+                    return <span className="text-gray-400">—</span>;
+                }
+                return (
+                    <div className="flex min-w-0 items-center gap-0.5">
+                        <span className="min-w-0 flex-1 truncate font-mono text-xs select-text">
+                            {loginPass}
+                        </span>
+                        <Tooltip title="Копировать login:pass">
+                            <Button
+                                type="text"
+                                size="small"
+                                className="!shrink-0 !px-1 text-gray-500 hover:text-blue-600"
+                                icon={<CopyOutlined />}
+                                onClick={() => copyLoginPassToClipboard(loginPass)}
+                                aria-label="Копировать login:pass"
+                            />
+                        </Tooltip>
+                    </div>
+                );
             },
         },
         {
@@ -479,13 +515,26 @@ export default function AccountTableChecker({ viewMode = "user", onViewModeChang
                 const login = record.login ?? "";
                 const password = record.password ?? "";
                 if (!login && !password) return "—";
+                const line = `${login}:${password}`;
                 return (
-                    <TypographyText
-                        ellipsis={{ tooltip: true }}
-                        className="!mb-0 w-full !max-w-full font-mono text-xs"
-                    >
-                        {`${login}:${password}`}
-                    </TypographyText>
+                    <div className="flex min-w-0 items-center gap-0.5">
+                        <TypographyText
+                            ellipsis={{ tooltip: true }}
+                            className="!mb-0 min-w-0 flex-1 font-mono text-xs"
+                        >
+                            {line}
+                        </TypographyText>
+                        <Tooltip title="Копировать login:pass">
+                            <Button
+                                type="text"
+                                size="small"
+                                className="!shrink-0 !px-1 text-gray-500 hover:text-blue-600"
+                                icon={<CopyOutlined />}
+                                onClick={() => copyLoginPassToClipboard(line)}
+                                aria-label="Копировать login:pass"
+                            />
+                        </Tooltip>
+                    </div>
                 );
             },
         },
