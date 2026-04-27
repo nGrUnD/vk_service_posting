@@ -480,16 +480,23 @@ async def reconnect_vk_account_curl(
         proxy_db = await database.proxy.get_one_or_none(id=account.proxy_id)
         proxy_http = proxy_db.http if proxy_db else None
 
+    # backup — отдельный сценарий; checker / connect — флоу Account Checker, тип не понижать до backup
+    target_account_type = "backup" if account.account_type == "backup" else "checker"
+
     task = vk_checker_add_account.delay(
         user_id,
         account.id,
         account.login,
         password,
         proxy_http,
-        "backup",
+        target_account_type,
     )
     await database.vk_account.edit(
-        VKAccountUpdate(task_id=task.id, parse_status="pending", account_type="backup"),
+        VKAccountUpdate(
+            task_id=task.id,
+            parse_status="pending",
+            account_type=target_account_type,
+        ),
         exclude_unset=True,
         id=account.id,
     )
