@@ -166,48 +166,86 @@ def press_f5(driver):
     # driver.refresh()
     time.sleep(10)  # ждём загрузки
 
-def has_too_many_attempts_alert(driver, timeout=2):
-    """
-    Проверяет, есть ли окно ошибки о превышении лимита попыток:
-    - Русский: 'Ошибка' / 'Слишком много попыток. Попробуйте позже.'
-    - Английский: 'Ошибка' / 'Flood control: too many requests'
 
-    Возвращает:
-        True  — если окно найдено и видно
-        False — если окно не найдено
+class VkLoginFloodControlError(Exception):
+    """Превышен лимит попыток VK (модалка «Слишком много попыток…»). Атрибут message — полный текст для UI."""
+
+    def __str__(self) -> str:  # noqa: D105
+        return (self.args[0] or "") if self.args else "Слишком много попыток"
+
+
+def _is_flood_alert_description(desc_raw: str) -> bool:
+    d = (desc_raw or "").strip().lower()
+    return any(
+        x in d
+        for x in (
+            "слишком много попыток",
+            "flood control",
+            "too many requests",
+        )
+    )
+
+
+def read_too_many_attempts_message(driver, timeout=2):
+    """
+    Если видна модалка «слишком много попыток», возвращает полный пользовательский текст
+    (заголовок + описание). Иначе None.
     """
     try:
         wait = WebDriverWait(driver, timeout)
-
-        # Ищем контейнер алерта
         alert = wait.until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "div.vkuiAlert__content"))
         )
-
-        # Должен быть видимым
         if not alert.is_displayed():
-            return False
+            return None
 
-        # Ищем заголовок и описание внутри
-        title_el = alert.find_element(By.CSS_SELECTOR, ".vkuiAlert__title")
-        desc_el  = alert.find_element(By.CSS_SELECTOR, ".vkuiAlert__description")
+        try:
+            title_el = alert.find_element(By.CSS_SELECTOR, ".vkuiAlert__title")
+            desc_el = alert.find_element(By.CSS_SELECTOR, ".vkuiAlert__description")
+        except Exception:
+            return None
 
         title = (title_el.text or "").strip()
-        desc  = (desc_el.text or "").strip().lower()
+        desc = (desc_el.text or "").strip()
+        descl = desc.lower()
 
-        # Проверяем заголовок (русский или английский)
-        if title not in ["Ошибка", "Error"]:
-            return False
+        if title not in ("Ошибка", "Error"):
+            return None
+        if not (
+            "слишком много попыток" in descl
+            or "flood control" in descl
+            or "too many requests" in descl
+        ):
+            return None
 
-        # Проверяем описание (русский или английский)
-        if "слишком много попыток" in desc or "flood control" in desc or "too many requests" in desc:
-            print("Flood control")
-            return True
-
-        return False
+        out = f"{title}\n{desc}" if desc else title
+        print(f"Flood control: {out!r}")
+        return out
 
     except Exception:
-        return False
+        pass
+
+    for xpath in (
+        "//*[contains(.,'Слишком много попыток')]",
+        "//*[contains(.,'Flood control') and contains(.,'too many')]",
+    ):
+        try:
+            for el in driver.find_elements(By.XPATH, xpath):
+                if not el.is_displayed():
+                    continue
+                text = (el.text or "").strip()
+                if _is_flood_alert_description(text) and len(text) > 3:
+                    return text
+        except Exception:
+            continue
+    return None
+
+
+def has_too_many_attempts_alert(driver, timeout=2):
+    """
+    Проверяет, есть ли окно ошибки о превышении лимита попыток.
+    """
+    return read_too_many_attempts_message(driver, timeout) is not None
 
 def click_confirm_another_way_if_present(driver, timeout_each=3):
     """
@@ -1216,13 +1254,21 @@ def vk_login(login: str, password: str, vkpublic = None, proxy = None, log_signa
         ],
     )
 
-    if has_too_many_attempts_alert(driver):
+    _flood = read_too_many_attempts_message(driver)
+    if _flood:
         driver.quit()
         shutil.rmtree(tmpdir, ignore_errors=True)
-        return None, False, None
+        raise VkLoginFloodControlError(_flood)
 
     solve_vk_slider_captcha(driver, log_signal)
     solve_simple_captcha(driver, log_signal)
+
+    # После капчи модалка «слишком много попыток» часто появляется раньше, чем MAX/SMS
+    _flood2 = read_too_many_attempts_message(driver, timeout=3)
+    if _flood2:
+        driver.quit()
+        shutil.rmtree(tmpdir, ignore_errors=True)
+        raise VkLoginFloodControlError(_flood2)
 
     check_for_max_window(driver,log_signal)
     check_for_sms_window(driver,log_signal)
@@ -1248,10 +1294,11 @@ def vk_login(login: str, password: str, vkpublic = None, proxy = None, log_signa
         ],
     )
 
-    if has_too_many_attempts_alert(driver):
+    _flood3 = read_too_many_attempts_message(driver)
+    if _flood3:
         driver.quit()
         shutil.rmtree(tmpdir, ignore_errors=True)
-        return None, False, None
+        raise VkLoginFloodControlError(_flood3)
 
     solve_vk_slider_captcha(driver, log_signal)
     solve_simple_captcha(driver, log_signal)

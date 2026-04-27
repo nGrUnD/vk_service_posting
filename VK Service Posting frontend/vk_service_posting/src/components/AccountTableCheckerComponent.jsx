@@ -297,7 +297,23 @@ export default function AccountTableChecker({ viewMode = "user", onViewModeChang
 
         const status = record?.parse_status;
         if (status) {
-            return <Tag color={statusColors[status] || "default"}>{status.toUpperCase()}</Tag>;
+            const tag = <Tag color={statusColors[status] || "default"}>{status.toUpperCase()}</Tag>;
+            if (status === "failure") {
+                const raw = [record?.name, record?.second_name].find(
+                    (x) =>
+                        typeof x === "string" &&
+                        x.trim().length > 0 &&
+                        !["pending", "started"].includes(x.trim())
+                );
+                if (raw) {
+                    return (
+                        <Tooltip title={raw}>
+                            <span className="inline-block cursor-help">{tag}</span>
+                        </Tooltip>
+                    );
+                }
+            }
+            return tag;
         }
 
         return "-";

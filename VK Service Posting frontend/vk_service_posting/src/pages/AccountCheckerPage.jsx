@@ -10,6 +10,30 @@ const MAX_BATCH_SIZE = 20;
 const QUEUE_STORAGE_KEY = 'account_checker_queue_v1';
 const BATCH_POLL_MS = 2000;
 
+/** После перезагрузки страницы пачки в running в localStorage уже не догоняют await — помечаем как прерванные. */
+function normalizeQueueFromStorage(items) {
+    if (!Array.isArray(items)) {
+        return { items: [], changed: false };
+    }
+    let changed = false;
+    const next = items.map((b) => {
+        if (b.status === 'running') {
+            changed = true;
+            return {
+                ...b,
+                status: 'error',
+                detail:
+                    b.detail ||
+                    'Подключение прервано (перезагрузка страницы или остановка сервиса). Удалите запись или добавьте пачку заново.',
+                serverBatchId: undefined,
+                serverPoll: undefined,
+            };
+        }
+        return b;
+    });
+    return { items: next, changed };
+}
+
 /** Ждёт, пока на сервере не завершатся все фоновые задачи батча. */
 async function waitForServerBatchComplete(batchId) {
     if (!batchId) {
@@ -35,7 +59,16 @@ export default function AccountCheckerPage() {
     const [batchQueue, setBatchQueue] = useState(() => {
         try {
             const raw = localStorage.getItem(QUEUE_STORAGE_KEY);
-            return raw ? JSON.parse(raw) : [];
+            const parsed = raw ? JSON.parse(raw) : [];
+            const { items, changed } = normalizeQueueFromStorage(parsed);
+            if (changed) {
+                try {
+                    localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(items));
+                } catch {
+                    /* ignore */
+                }
+            }
+            return items;
         } catch (error) {
             console.error('Не удалось прочитать очередь из localStorage', error);
             return [];
@@ -228,6 +261,9 @@ export default function AccountCheckerPage() {
     };
 
     const getBatchConnectDurationInfo = (batch) => {
+        if (batch.status === 'error' && batch.detail) {
+            return { label: '—', sub: batch.detail };
+        }
         if (batch.serverDurationSeconds != null) {
             return {
                 label: formatDurationSeconds(batch.serverDurationSeconds),
@@ -343,17 +379,23 @@ export default function AccountCheckerPage() {
                                                     {st.label}
                                                 </Tag>,
                                                 startBtn,
-                                                <Button
-                                                    key={`${item.id}-delete`}
-                                                    size="small"
-                                                    danger
-                                                    disabled={
-                                                        connectingBatchId === item.id || item.status === 'running'
+                                                <Tooltip
+                                                    title={
+                                                        connectingBatchId === item.id
+                                                            ? 'Дождитесь ответа сервера или обновите страницу'
+                                                            : 'Убрать пачку из списка (данные только в браузере)'
                                                     }
-                                                    onClick={() => handleRemoveBatch(item.id)}
                                                 >
-                                                    Удалить
-                                                </Button>,
+                                                    <Button
+                                                        key={`${item.id}-delete`}
+                                                        size="small"
+                                                        danger
+                                                        disabled={connectingBatchId === item.id}
+                                                        onClick={() => handleRemoveBatch(item.id)}
+                                                    >
+                                                        Удалить
+                                                    </Button>
+                                                </Tooltip>,
                                             ].filter(Boolean)}
                                         >
                                             <div className="min-w-0 space-y-1">

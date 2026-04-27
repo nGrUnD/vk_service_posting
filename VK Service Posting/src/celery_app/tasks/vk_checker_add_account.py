@@ -10,6 +10,7 @@ from sqlalchemy import select
 
 from src.models.vk_account import VKAccountOrm
 from src.celery_app.tasks.vk_account_backup_parse import parse_vk_profile_backup
+from src.vk_api_methods.selenium.vk_selenium_captcha import VkLoginFloodControlError
 from src.celery_app.tasks.vk_selenium_login_retry import vk_login_with_proxy_retry
 
 @app.task(name="vk_checker_add_account")
@@ -47,6 +48,8 @@ def vk_checker_add_account(
         parse_vk_profile_backup(
             vk_account_id_db, _used_proxy or proxy_http, user_id, target_account_type
         )
+    except VkLoginFloodControlError as e:
+        update_db_vk_account_flood_failure(database_manager, vk_account_id_db, str(e))
     except Exception as e:
         update_db_vk_account_error(database_manager, vk_account_id_db, str(e))
         raise e
@@ -83,6 +86,21 @@ def _display_error_prefix(message: str) -> str:
     if "captcha" in m or "заблок" in m or "block" in m:
         return "Капча / блокировка?\n"
     return "Ошибка входа\n"
+
+
+def update_db_vk_account_flood_failure(database_manager, vk_account_id: int, message: str):
+    """Модалка «Слишком много попыток» в VK: failure + полный текст в name для тултипа в Account Checker."""
+    with database_manager as session:
+        stmt = select(VKAccountOrm).where(VKAccountOrm.id == vk_account_id)
+        result = session.execute(stmt)
+        vk_account_db = result.scalars().one_or_none()
+
+        if not vk_account_db:
+            raise ValueError(f"VK Account {vk_account_id} not found in database")
+
+        vk_account_db.parse_status = "failure"
+        vk_account_db.name = (message or "Слишком много попыток")[:2000]
+        session.commit()
 
 
 def update_db_vk_account_error(database_manager, vk_account_id: int, error: str):

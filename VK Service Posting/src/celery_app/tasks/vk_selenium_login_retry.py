@@ -9,7 +9,7 @@ from sqlalchemy import select
 
 from src.models.proxy import ProxyOrm
 from src.models.vk_account import VKAccountOrm
-from src.vk_api_methods.selenium.vk_selenium_captcha import vk_login
+from src.vk_api_methods.selenium.vk_selenium_captcha import VkLoginFloodControlError, vk_login
 
 
 def is_proxy_connection_error(error: Exception) -> bool:
@@ -69,6 +69,8 @@ def vk_login_with_proxy_retry(
                 )
                 return curl, vk_group_sub, access_token, current_proxy
             except Exception as error:
+                if isinstance(error, VkLoginFloodControlError):
+                    raise
                 if is_proxy_connection_error(error):
                     print(
                         f"Попытка {attempt}/{retries}: сбой прокси {current_proxy}: {error!s}"
