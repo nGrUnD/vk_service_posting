@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Button, Card, Input, Typography, message, Space, Alert, List, Tooltip } from 'antd';
-import { ReloadOutlined, LockOutlined } from '@ant-design/icons';
+import { Button, Card, Input, Typography, message, Space, Alert, List, Tooltip, Tag } from 'antd';
+import { PlusOutlined } from '@ant-design/icons';
 import api from '../api/axios';
 import AccountTableChecker from '../components/AccountTableCheckerComponent.jsx';
 
@@ -30,10 +30,7 @@ async function waitForServerBatchComplete(batchId) {
 export default function AccountCheckerPage() {
     const [inputAccounts, setInputAccounts] = useState('');
     const [batchNote, setBatchNote] = useState('');
-    const [changedPasswords, setChangedPasswords] = useState('');
-    const [loadingCheck, setLoadingCheck] = useState(false);
-    const [loadingChange, setLoadingChange] = useState(false);
-    const [queueRunning, setQueueRunning] = useState(false);
+    const [connectingBatchId, setConnectingBatchId] = useState(null);
     const [tableMode, setTableMode] = useState('user');
     const [batchQueue, setBatchQueue] = useState(() => {
         try {
@@ -116,6 +113,16 @@ export default function AccountCheckerPage() {
         return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
     };
 
+    const batchStatusTag = (status) => {
+        const map = {
+            pending: { label: 'В ожидании', color: 'warning' },
+            running: { label: 'На подключении', color: 'processing' },
+            success: { label: 'Готово', color: 'success' },
+            error: { label: 'Ошибка', color: 'error' },
+        };
+        return map[status] || { label: String(status), color: 'default' };
+    };
+
     const formatDurationSeconds = (sec) => {
         if (sec == null || Number.isNaN(Number(sec))) {
             return '—';
@@ -123,71 +130,13 @@ export default function AccountCheckerPage() {
         return formatDuration(Number(sec) * 1000);
     };
 
-    const handleCheck = async () => {
-        const accounts = parseAccounts();
-        if (!accounts.length) {
-            messageApi.warning('Добавьте хотя бы один аккаунт.');
-            return;
-        }
-        if (!validateBatchLimit(accounts)) {
-            return;
-        }
-
-        setLoadingCheck(true);
-        try {
-            const { data: submit } = await api.post('/tools/{user_id}/account_checker', {
-                accounts,
-                batch_label: batchNote.trim() || undefined,
-            });
-            if (submit.batch_id) {
-                const final = await waitForServerBatchComplete(submit.batch_id);
-                const sec = final.duration_seconds ?? final.elapsed_seconds;
-                messageApi.success(
-                    `Пачка обработана. Фоновое подключение (сервер) заняло: ${formatDurationSeconds(sec)}.`
-                );
-            } else {
-                messageApi.success(
-                    submit.detail
-                        || 'Нет новых аккаунтов для постановки (возможно, все логины уже в базе).'
-                );
-            }
-        } catch (e) {
-            messageApi.error('Ошибка при проверке аккаунтов');
-        }
-        setLoadingCheck(false);
-    };
-
-    const handleChangePasswords = async () => {
-        const accounts = parseAccounts();
-        if (!accounts.length) {
-            messageApi.warning('Добавьте хотя бы один аккаунт.');
-            return;
-        }
-        if (!validateBatchLimit(accounts)) {
-            return;
-        }
-
-        setLoadingChange(true);
-        try {
-            const res = await api.post('/tools/{user_id}/account_change_passwords', { accounts });
-            setChangedPasswords(
-                res.data.new_accounts.map((acc) => `${acc.login}:${acc.password}`).join('\n')
-            );
-            messageApi.success('Пароли успешно изменены.');
-        } catch (e) {
-            messageApi.error('Ошибка при смене паролей');
-        }
-        setLoadingChange(false);
-    };
-
-    const handleAddBatchToQueue = () => {
+    const handleAddToQueue = () => {
         const accounts = parseAccounts();
         if (!accounts.length) {
             messageApi.warning('Нельзя добавить пустую пачку.');
             return;
         }
-        if (accounts.length > MAX_BATCH_SIZE) {
-            messageApi.warning(`Для очереди максимум ${MAX_BATCH_SIZE} аккаунтов в пачке.`);
+        if (!validateBatchLimit(accounts)) {
             return;
         }
 
@@ -202,84 +151,83 @@ export default function AccountCheckerPage() {
         saveQueue([batch, ...batchQueue]);
         setInputAccounts('');
         setBatchNote('');
-        messageApi.success('Пачка добавлена в очередь.');
+        messageApi.success('Пачка добавлена в очередь. Запустите подключение кнопкой «Запустить» на карточке пачки.');
     };
 
     const handleRemoveBatch = (batchId) => {
         saveQueue(batchQueue.filter((item) => item.id !== batchId));
     };
 
-    const handleRunQueue = async () => {
-        const pendingBatches = batchQueue.filter((item) => item.status === 'pending');
-        if (!pendingBatches.length) {
-            messageApi.info('Нет пачек в статусе pending.');
+    const handleRunSingleBatch = async (batchId) => {
+        const nextQueue = [...batchQueueRef.current];
+        const index = nextQueue.findIndex((item) => item.id === batchId);
+        if (index < 0) {
+            return;
+        }
+        const batch = nextQueue[index];
+        if (batch.status !== 'pending') {
+            messageApi.info('Пачка уже не в ожидании (запущена, завершена или с ошибкой).');
             return;
         }
 
-        setQueueRunning(true);
-        const nextQueue = [...batchQueue];
+        setConnectingBatchId(batchId);
+        nextQueue[index] = { ...nextQueue[index], status: 'running' };
+        saveQueue([...nextQueue]);
 
-        for (const batch of pendingBatches) {
-            const index = nextQueue.findIndex((item) => item.id === batch.id);
-            if (index < 0) {
-                continue;
-            }
-
-            nextQueue[index] = {
-                ...nextQueue[index],
-                status: 'running',
-            };
-            saveQueue([...nextQueue]);
-
-            try {
-                const { data: submit } = await api.post(
-                    '/tools/{user_id}/account_checker',
-                    { accounts: batch.accounts, batch_label: batch.note || undefined }
-                );
-                if (submit.batch_id) {
-                    // Сразу пишем id батча — чтобы таймер опроса тянул elapsed_seconds, пока ждём завершения
-                    nextQueue[index] = {
-                        ...nextQueue[index],
-                        status: 'running',
-                        serverBatchId: submit.batch_id,
-                    };
-                    saveQueue([...nextQueue]);
-
-                    const final = await waitForServerBatchComplete(submit.batch_id);
-                    const sec = final.duration_seconds ?? final.elapsed_seconds;
-                    nextQueue[index] = {
-                        ...nextQueue[index],
-                        status: 'success',
-                        serverBatchId: submit.batch_id,
-                        serverDurationSeconds: final.duration_seconds ?? sec,
-                        serverPoll: final,
-                    };
-                } else {
-                    nextQueue[index] = {
-                        ...nextQueue[index],
-                        status: 'success',
-                        serverBatchId: null,
-                        serverDurationSeconds: null,
-                        noNewAccounts: true,
-                    };
-                }
-            } catch (error) {
-                console.error(error);
+        try {
+            const { data: submit } = await api.post('/tools/{user_id}/account_checker', {
+                accounts: batch.accounts,
+                batch_label: batch.note || undefined,
+            });
+            if (submit.batch_id) {
                 nextQueue[index] = {
                     ...nextQueue[index],
-                    status: 'error',
-                    detail: error?.response?.data?.detail || 'Ошибка отправки пачки',
+                    status: 'running',
+                    serverBatchId: submit.batch_id,
+                };
+                saveQueue([...nextQueue]);
+
+                const final = await waitForServerBatchComplete(submit.batch_id);
+                const sec = final.duration_seconds ?? final.elapsed_seconds;
+                nextQueue[index] = {
+                    ...nextQueue[index],
+                    status: 'success',
+                    serverBatchId: submit.batch_id,
+                    serverDurationSeconds: final.duration_seconds ?? sec,
+                    serverPoll: final,
+                };
+            } else {
+                nextQueue[index] = {
+                    ...nextQueue[index],
+                    status: 'success',
+                    serverBatchId: null,
+                    serverDurationSeconds: null,
+                    noNewAccounts: true,
                 };
             }
-
-            saveQueue([...nextQueue]);
+        } catch (error) {
+            console.error(error);
+            nextQueue[index] = {
+                ...nextQueue[index],
+                status: 'error',
+                detail: error?.response?.data?.detail || 'Ошибка отправки пачки',
+            };
         }
-
-        setQueueRunning(false);
-        messageApi.success('Очередь обработана.');
+        saveQueue([...nextQueue]);
+        setConnectingBatchId(null);
+        const result = nextQueue[index];
+        if (result.status === 'success') {
+            if (result.noNewAccounts) {
+                messageApi.success('Нет новых аккаунтов (все логины уже в базе).');
+            } else {
+                messageApi.success('Пачка подключена.');
+            }
+        } else if (result.status === 'error') {
+            messageApi.error(result.detail || 'Ошибка подключения пачки');
+        }
     };
 
-    const getBatchConnectDurationInfo = (batch, queue = batchQueue, runningFlag = queueRunning) => {
+    const getBatchConnectDurationInfo = (batch) => {
         if (batch.serverDurationSeconds != null) {
             return {
                 label: formatDurationSeconds(batch.serverDurationSeconds),
@@ -307,13 +255,7 @@ export default function AccountCheckerPage() {
             return { label: '—', sub: 'отправка запроса…' };
         }
         if (batch.status === 'pending') {
-            if (runningFlag) {
-                const hasRunning = queue.some((b) => b.status === 'running');
-                if (hasRunning) {
-                    return { label: '—', sub: 'в очереди — ждёт завершения текущей пачки' };
-                }
-            }
-            return { label: '—', sub: 'в очереди — нажмите «Запустить очередь»' };
+            return { label: '—', sub: 'в очереди — нажмите «Запустить» на этой пачке' };
         }
         if (batch.startedAt) {
             const endTs = batch.completedAt ? new Date(batch.completedAt).getTime() : Date.now();
@@ -338,14 +280,14 @@ export default function AccountCheckerPage() {
                 </div>
 
                 <Card className="h-full w-full" styles={{ body: { padding: 24 } }}>
-                    <div className="grid xl:grid-cols-2 gap-6 h-[calc(60vh-240px)]">
-                        <div className="flex flex-col">
+                    <div className="grid xl:grid-cols-2 gap-6 items-start">
+                        <div className="flex min-h-0 flex-col">
                             <Title level={5}>Добавить аккаунты (login:pass)</Title>
                             <Alert
                                 className="mb-3"
                                 type="info"
                                 showIcon
-                                message={`Напоминание: в обычном режиме не загружайте пачки больше ${MAX_BATCH_SIZE} аккаунтов.`}
+                                message={`Пачка сначала попадает в «Очередь пачек» со статусом «В ожидании»; подключение к серверу — кнопкой «Запустить» на карточке. В обычном режиме не больше ${MAX_BATCH_SIZE} аккаунтов в пачке.`}
                             />
                             <Input
                                 className="mb-3"
@@ -354,98 +296,78 @@ export default function AccountCheckerPage() {
                                 onChange={(e) => setBatchNote(e.target.value)}
                             />
                             <TextArea
-                                className="flex-1"
+                                className="min-h-[200px]"
                                 rows={10}
                                 placeholder={'login1:pass1\nlogin2:pass2'}
                                 value={inputAccounts}
                                 onChange={(e) => setInputAccounts(e.target.value)}
                             />
                             <Space className="mt-4">
-                                <Tooltip title="Добавляет текущую пачку аккаунтов в checker">
-                                    <Button
-                                        type="primary"
-                                        icon={<ReloadOutlined />}
-                                        onClick={handleCheck}
-                                        loading={loadingCheck}
-                                    >
+                                <Tooltip title="Сохранить пачку в «Очередь пачек» (статус «В ожидании»)">
+                                    <Button type="primary" icon={<PlusOutlined />} onClick={handleAddToQueue}>
                                         Добавить
-                                    </Button>
-                                </Tooltip>
-                                <Tooltip title="Смена паролей для текущей пачки login:pass">
-                                    <Button
-                                        icon={<LockOutlined />}
-                                        onClick={handleChangePasswords}
-                                        loading={loadingChange}
-                                    >
-                                        Сменить пароль
-                                    </Button>
-                                </Tooltip>
-                                <Tooltip title="Сохранить пачку для отложенной проверки">
-                                    <Button onClick={handleAddBatchToQueue}>
-                                        В очередь
                                     </Button>
                                 </Tooltip>
                             </Space>
                         </div>
 
-                        <div className="flex flex-col">
-                            <Title level={5}>Новые пароли (после смены)</Title>
-                            <TextArea
-                                className="flex-1"
-                                rows={10}
-                                readOnly
-                                placeholder="login:password"
-                                value={changedPasswords}
-                                style={{ backgroundColor: '#fffbe6', cursor: 'copy' }}
-                                onClick={(e) => e.target.select()}
-                            />
-                            <div className="mt-3">
-                                <div className="flex items-center justify-between mb-2">
-                                    <Text strong>Очередь пачек</Text>
-                                    <Button size="small" type="primary" onClick={handleRunQueue} loading={queueRunning}>
-                                        Запустить очередь
-                                    </Button>
-                                </div>
-                                <List
-                                    size="small"
-                                    bordered
-                                    locale={{ emptyText: 'Очередь пуста' }}
-                                    dataSource={batchQueue}
-                                    renderItem={(item) => {
-                                        const duration = getBatchConnectDurationInfo(item);
-                                        return (
-                                            <List.Item
-                                                actions={[
-                                                    <Text
-                                                        key={`${item.id}-status`}
-                                                        type={
-                                                            item.status === 'success'
-                                                                ? 'success'
-                                                                : item.status === 'error'
-                                                                  ? 'danger'
-                                                                  : undefined
-                                                        }
-                                                    >
-                                                        {item.status}
-                                                    </Text>,
-                                                    <Button key={`${item.id}-delete`} size="small" danger onClick={() => handleRemoveBatch(item.id)}>
-                                                        Удалить
-                                                    </Button>,
-                                                ]}
+                        <div className="flex min-h-0 min-w-0 flex-col">
+                            <Title level={5} className="!mb-2">
+                                Очередь пачек
+                            </Title>
+                            <List
+                                className="max-h-[min(480px,50vh)] overflow-y-auto"
+                                size="small"
+                                bordered
+                                locale={{ emptyText: 'Очередь пуста' }}
+                                dataSource={batchQueue}
+                                renderItem={(item) => {
+                                    const duration = getBatchConnectDurationInfo(item);
+                                    const st = batchStatusTag(item.status);
+                                    const startBtn =
+                                        item.status === 'pending' ? (
+                                            <Button
+                                                key={`${item.id}-run`}
+                                                type="primary"
+                                                size="small"
+                                                loading={connectingBatchId === item.id}
+                                                onClick={() => void handleRunSingleBatch(item.id)}
                                             >
-                                                <div className="min-w-0 space-y-1">
-                                                    <div className="truncate">{item.note || 'Без подписи'}</div>
-                                                    <Text type="secondary">{item.accounts.length} аккаунтов</Text>
-                                                    <div className="text-xs text-gray-500">
-                                                        <span className="font-mono">{duration.label}</span>
-                                                        <span> — {duration.sub}</span>
-                                                    </div>
+                                                Запустить
+                                            </Button>
+                                        ) : null;
+                                    return (
+                                        <List.Item
+                                            actions={[
+                                                <Tag key={`${item.id}-status`} color={st.color}>
+                                                    {st.label}
+                                                </Tag>,
+                                                startBtn,
+                                                <Button
+                                                    key={`${item.id}-delete`}
+                                                    size="small"
+                                                    danger
+                                                    disabled={
+                                                        connectingBatchId === item.id || item.status === 'running'
+                                                    }
+                                                    onClick={() => handleRemoveBatch(item.id)}
+                                                >
+                                                    Удалить
+                                                </Button>,
+                                            ].filter(Boolean)}
+                                        >
+                                            <div className="min-w-0 space-y-1">
+                                                <div className="truncate">{item.note || 'Без подписи'}</div>
+                                                <Text type="secondary">{item.accounts.length} аккаунтов</Text>
+                                                <div className="text-xs text-gray-500">
+                                                    <span className="font-mono">{duration.label}</span>
+                                                    <span> — {duration.sub}</span>
                                                 </div>
-                                            </List.Item>
-                                        );
-                                    }}
-                                />
-                            </div>
+                                            </div>
+                                        </List.Item>
+                                    );
+                                }}
+                            />
                         </div>
                     </div>
                     <AccountTableChecker viewMode={tableMode} onViewModeChange={setTableMode} />
