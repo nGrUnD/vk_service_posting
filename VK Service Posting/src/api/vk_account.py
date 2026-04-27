@@ -30,6 +30,52 @@ def _vk_accounts_with_decrypted_password(accounts: list[VKAccount]) -> list[VKAc
     return out
 
 
+def _vk_accounts_with_posting_status(
+        accounts: list[VKAccount],
+        workerposts,
+        groups,
+) -> list[dict]:
+    group_by_id = {group.id: group for group in groups}
+    posting_by_account_id = {}
+
+    # Выбираем наиболее релевантный workerpost на аккаунт:
+    # приоритет у активного, иначе берём самый новый по id.
+    for workerpost in workerposts:
+        selected = posting_by_account_id.get(workerpost.vk_account_id)
+        should_replace = (
+            selected is None
+            or (not selected.is_active and workerpost.is_active)
+            or workerpost.id > selected.id
+        )
+        if should_replace:
+            posting_by_account_id[workerpost.vk_account_id] = workerpost
+
+    out: list[dict] = []
+    for account in accounts:
+        row = account.model_dump()
+        workerpost = posting_by_account_id.get(account.id)
+
+        if workerpost and workerpost.is_active:
+            group = group_by_id.get(workerpost.vk_group_id)
+            row.update({
+                "posting_status": "posting",
+                "workerpost_id": workerpost.id,
+                "posting_public_url": group.vk_group_url if group else None,
+                "posting_public_name": group.name if group else None,
+            })
+        else:
+            row.update({
+                "posting_status": "idle",
+                "workerpost_id": workerpost.id if workerpost else None,
+                "posting_public_url": None,
+                "posting_public_name": None,
+            })
+
+        out.append(row)
+
+    return out
+
+
 def _build_v2_summary(
         accounts: list[VKAccount],
         proxy_count: int,
@@ -99,8 +145,26 @@ async def get_all_vk_accounts_checker_connect(
         database: DataBaseDep,
 ):
     """Возвращает все привязанные VK аккаунты пользователя"""
-    accounts = await database.vk_account.get_all_filtered(user_id=user_id, account_type=["checker", "connect"])
-    return _vk_accounts_with_decrypted_password(accounts)
+    accounts = await database.vk_account.get_all_filtered(
+        user_id=user_id,
+        account_type=["checker", "connect"],
+    )
+    accounts = _vk_accounts_with_decrypted_password(accounts)
+    account_ids = [account.id for account in accounts]
+
+    if not account_ids:
+        return []
+
+    workerposts = await database.workerpost.get_all_filtered(
+        user_id=user_id,
+        vk_account_id=account_ids,
+    )
+    group_ids = list({workerpost.vk_group_id for workerpost in workerposts if workerpost.vk_group_id})
+    groups = []
+    if group_ids:
+        groups = await database.vk_group.get_all_filtered(user_id=user_id, id=group_ids)
+
+    return _vk_accounts_with_posting_status(accounts, workerposts, groups)
 
 
 @router.get("/vk_account_backup_count", summary="Получить кол-во Запасных VK аккаунтов")

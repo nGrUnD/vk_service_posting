@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Button, Card, Input, Typography, message, Space, Alert, List, Tooltip } from 'antd';
+import React, { useEffect, useState } from 'react';
+import { Button, Card, Input, Typography, message, Space, Alert, List, Tooltip, InputNumber } from 'antd';
 import { ReloadOutlined, LockOutlined } from '@ant-design/icons';
 import api from '../api/axios';
 import AccountTableChecker from '../components/AccountTableCheckerComponent.jsx';
@@ -8,6 +8,7 @@ const { Title, Text } = Typography;
 const { TextArea } = Input;
 const MAX_BATCH_SIZE = 20;
 const QUEUE_STORAGE_KEY = 'account_checker_queue_v1';
+const DEFAULT_BATCH_CONNECT_TIME_MINUTES = 15;
 
 export default function AccountCheckerPage() {
     const [inputAccounts, setInputAccounts] = useState('');
@@ -17,6 +18,8 @@ export default function AccountCheckerPage() {
     const [loadingChange, setLoadingChange] = useState(false);
     const [queueRunning, setQueueRunning] = useState(false);
     const [tableMode, setTableMode] = useState('user');
+    const [batchConnectTimeMinutes, setBatchConnectTimeMinutes] = useState(DEFAULT_BATCH_CONNECT_TIME_MINUTES);
+    const [nowTs, setNowTs] = useState(Date.now());
     const [batchQueue, setBatchQueue] = useState(() => {
         try {
             const raw = localStorage.getItem(QUEUE_STORAGE_KEY);
@@ -27,6 +30,13 @@ export default function AccountCheckerPage() {
         }
     });
     const [messageApi, contextHolder] = message.useMessage();
+
+    useEffect(() => {
+        const timerId = setInterval(() => {
+            setNowTs(Date.now());
+        }, 1000);
+        return () => clearInterval(timerId);
+    }, []);
 
     const parseAccounts = () =>
         inputAccounts
@@ -109,6 +119,7 @@ export default function AccountCheckerPage() {
             note: batchNote.trim(),
             accounts,
             status: 'pending',
+            connectTimeLimitMinutes: Number(batchConnectTimeMinutes) || DEFAULT_BATCH_CONNECT_TIME_MINUTES,
             createdAt: new Date().toISOString(),
         };
 
@@ -138,17 +149,38 @@ export default function AccountCheckerPage() {
                 continue;
             }
 
-            nextQueue[index] = { ...nextQueue[index], status: 'running' };
+            const startedAt = new Date().toISOString();
+            const limitMinutes = Number(nextQueue[index].connectTimeLimitMinutes) || DEFAULT_BATCH_CONNECT_TIME_MINUTES;
+            const deadlineAt = new Date(Date.now() + limitMinutes * 60 * 1000).toISOString();
+            nextQueue[index] = {
+                ...nextQueue[index],
+                status: 'running',
+                startedAt,
+                deadlineAt,
+                completedAt: null,
+                timeExceeded: false,
+            };
             saveQueue([...nextQueue]);
 
             try {
                 await api.post('/tools/{user_id}/account_checker', { accounts: batch.accounts });
-                nextQueue[index] = { ...nextQueue[index], status: 'success' };
+                const completedAt = new Date().toISOString();
+                const elapsedMs = new Date(completedAt).getTime() - new Date(startedAt).getTime();
+                nextQueue[index] = {
+                    ...nextQueue[index],
+                    status: 'success',
+                    completedAt,
+                    timeExceeded: elapsedMs > limitMinutes * 60 * 1000,
+                };
             } catch (error) {
                 console.error(error);
+                const completedAt = new Date().toISOString();
+                const elapsedMs = new Date(completedAt).getTime() - new Date(startedAt).getTime();
                 nextQueue[index] = {
                     ...nextQueue[index],
                     status: 'error',
+                    completedAt,
+                    timeExceeded: elapsedMs > limitMinutes * 60 * 1000,
                     detail: error?.response?.data?.detail || 'Ошибка отправки пачки',
                 };
             }
@@ -158,6 +190,29 @@ export default function AccountCheckerPage() {
 
         setQueueRunning(false);
         messageApi.success('Очередь обработана.');
+    };
+
+    const formatDuration = (msValue) => {
+        const totalSeconds = Math.max(0, Math.floor(msValue / 1000));
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    };
+
+    const getBatchTimingInfo = (batch) => {
+        const limitMinutes = Number(batch.connectTimeLimitMinutes) || DEFAULT_BATCH_CONNECT_TIME_MINUTES;
+        const limitMs = limitMinutes * 60 * 1000;
+        const hasStarted = Boolean(batch.startedAt);
+        const endTs = batch.completedAt ? new Date(batch.completedAt).getTime() : nowTs;
+        const startTs = hasStarted ? new Date(batch.startedAt).getTime() : null;
+        const elapsedMs = startTs ? Math.max(0, endTs - startTs) : 0;
+        const timeExceeded = Boolean(batch.timeExceeded) || (hasStarted && elapsedMs > limitMs);
+
+        return {
+            limitMinutes,
+            elapsedText: hasStarted ? formatDuration(elapsedMs) : '00:00',
+            isExpired: timeExceeded,
+        };
     };
 
     return (
@@ -187,6 +242,16 @@ export default function AccountCheckerPage() {
                                 value={batchNote}
                                 onChange={(e) => setBatchNote(e.target.value)}
                             />
+                            <div className="mb-3">
+                                <Text type="secondary">Время на подключение одной пачки (мин)</Text>
+                                <InputNumber
+                                    className="w-full mt-1"
+                                    min={1}
+                                    max={240}
+                                    value={batchConnectTimeMinutes}
+                                    onChange={(value) => setBatchConnectTimeMinutes(Number(value) || DEFAULT_BATCH_CONNECT_TIME_MINUTES)}
+                                />
+                            </div>
                             <TextArea
                                 className="flex-1"
                                 rows={10}
@@ -245,32 +310,41 @@ export default function AccountCheckerPage() {
                                     bordered
                                     locale={{ emptyText: 'Очередь пуста' }}
                                     dataSource={batchQueue}
-                                    renderItem={(item) => (
-                                        <List.Item
-                                            actions={[
-                                                <Text
-                                                    key={`${item.id}-status`}
-                                                    type={
-                                                        item.status === 'success'
-                                                            ? 'success'
-                                                            : item.status === 'error'
-                                                              ? 'danger'
-                                                              : undefined
-                                                    }
-                                                >
-                                                    {item.status}
-                                                </Text>,
-                                                <Button key={`${item.id}-delete`} size="small" danger onClick={() => handleRemoveBatch(item.id)}>
-                                                    Удалить
-                                                </Button>,
-                                            ]}
-                                        >
-                                            <div className="min-w-0">
-                                                <div className="truncate">{item.note || 'Без подписи'}</div>
-                                                <Text type="secondary">{item.accounts.length} аккаунтов</Text>
-                                            </div>
-                                        </List.Item>
-                                    )}
+                                    renderItem={(item) => {
+                                        const timing = getBatchTimingInfo(item);
+                                        return (
+                                            <List.Item
+                                                actions={[
+                                                    <Text
+                                                        key={`${item.id}-status`}
+                                                        type={
+                                                            item.status === 'success'
+                                                                ? 'success'
+                                                                : item.status === 'error'
+                                                                  ? 'danger'
+                                                                  : undefined
+                                                        }
+                                                    >
+                                                        {item.status}
+                                                    </Text>,
+                                                    <Button key={`${item.id}-delete`} size="small" danger onClick={() => handleRemoveBatch(item.id)}>
+                                                        Удалить
+                                                    </Button>,
+                                                ]}
+                                            >
+                                                <div className="min-w-0 space-y-1">
+                                                    <div className="truncate">{item.note || 'Без подписи'}</div>
+                                                    <Text type="secondary">{item.accounts.length} аккаунтов</Text>
+                                                    <div className="text-xs text-gray-500">
+                                                        Лимит: {timing.limitMinutes} мин | Прошло: {timing.elapsedText}
+                                                    </div>
+                                                    <Text type={timing.isExpired ? 'danger' : 'secondary'} className="text-xs">
+                                                        {timing.isExpired ? 'Время подключения вышло' : 'Время подключения не вышло'}
+                                                    </Text>
+                                                </div>
+                                            </List.Item>
+                                        );
+                                    }}
                                 />
                             </div>
                         </div>
