@@ -95,6 +95,7 @@ def update_db_vk_account_error(database_manager, vk_account_id: int, error: str)
         if not vk_account_db:
             raise ValueError(f"VK Account {vk_account_id} not found in database")
 
+        vk_account_db.parse_status = "failure"
         vk_account_db.name = error
         session.commit()
 

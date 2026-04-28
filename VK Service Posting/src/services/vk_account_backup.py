@@ -251,7 +251,7 @@ class VKAccountBackupService:
 
             logging.info(f"{login, password, vk_group_url}")
 
-            index_proxy = 0
+            proxy = None
             if proxies:
                 index_proxy = random.randint(0, len(proxies) - 1)
                 proxy = proxies[index_proxy % len(proxies)]
@@ -275,7 +275,7 @@ class VKAccountBackupService:
                 flood_control=False,
                 parse_status="pending",
                 task_id="pending",
-                proxy_id=proxy.id,
+                proxy_id=proxy.id if proxy else None,
                 cookies="",
             )
             vk_account_db = await self.database.vk_account.add(new_data)

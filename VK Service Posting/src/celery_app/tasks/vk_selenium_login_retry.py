@@ -5,11 +5,22 @@ import random
 import time
 from typing import Any, Optional, Tuple
 
+import requests
 from sqlalchemy import select
 
 from src.models.proxy import ProxyOrm
 from src.models.vk_account import VKAccountOrm
-from src.vk_api_methods.selenium.vk_selenium_captcha import VkLoginFloodControlError, vk_login
+from src.vk_api_methods.selenium.vk_selenium_captcha import (
+    VkLoginFloodControlError,
+    normalize_proxy_url,
+    vk_login,
+)
+
+
+PROXY_CHECK_URLS = (
+    "https://vk.ru/",
+    "https://httpbin.org/ip",
+)
 
 
 def is_proxy_connection_error(error: Exception) -> bool:
@@ -34,10 +45,45 @@ def is_retryable_selenium_login_error(error: Exception) -> bool:
             "VK password form did not become available",
             "VK login form did not open",
             "VK login input did not become available",
+            "element click intercepted",
             "timeout",
             "TimeoutException",
         ]
     )
+
+
+def is_proxy_online(proxy_http: Optional[str], timeout_sec: float = 6.0) -> bool:
+    if not proxy_http:
+        return True
+
+    normalized_proxy = normalize_proxy_url(proxy_http)
+    proxies = {
+        "http": normalized_proxy,
+        "https": normalized_proxy,
+    }
+
+    for url in PROXY_CHECK_URLS:
+        try:
+            response = requests.get(url, proxies=proxies, timeout=timeout_sec)
+            if response.status_code < 500:
+                return True
+        except requests.RequestException:
+            continue
+
+    return False
+
+
+def pick_working_proxy(session, user_id: int, current_proxy: Optional[str]):
+    stmt_proxies = select(ProxyOrm).where(ProxyOrm.user_id == user_id)
+    proxies = session.execute(stmt_proxies).scalars().all()
+    candidates = [proxy for proxy in proxies if proxy.http != current_proxy]
+    random.shuffle(candidates)
+
+    for proxy in candidates:
+        if is_proxy_online(proxy.http):
+            return proxy
+
+    return None
 
 
 def vk_login_with_proxy_retry(
@@ -64,6 +110,21 @@ def vk_login_with_proxy_retry(
 
         for attempt in range(1, retries + 1):
             try:
+                if current_proxy and not is_proxy_online(current_proxy):
+                    print(
+                        f"Попытка {attempt}/{retries}: прокси {current_proxy} не прошёл проверку"
+                    )
+                    new_proxy = pick_working_proxy(session, vk_account_db.user_id, current_proxy)
+                    if not new_proxy:
+                        raise RuntimeError(
+                            f"Proxy failed and no working proxies available: {current_proxy!s}"
+                        )
+
+                    current_proxy = new_proxy.http
+                    vk_account_db.proxy_id = new_proxy.id
+                    session.commit()
+                    print(f"Выбран рабочий прокси: {current_proxy}")
+
                 curl, vk_group_sub, access_token = vk_login(
                     login, password, vk_group_url, current_proxy
                 )
@@ -75,15 +136,12 @@ def vk_login_with_proxy_retry(
                     print(
                         f"Попытка {attempt}/{retries}: сбой прокси {current_proxy}: {error!s}"
                     )
-                    stmt_proxies = select(ProxyOrm).where(ProxyOrm.http != current_proxy)
-                    proxies = session.execute(stmt_proxies).scalars().all()
-
-                    if not proxies:
+                    new_proxy = pick_working_proxy(session, vk_account_db.user_id, current_proxy)
+                    if not new_proxy:
                         raise RuntimeError(
-                            f"Proxy failed and no other proxies available: {current_proxy!s}"
+                            f"Proxy failed and no working proxies available: {current_proxy!s}"
                         ) from error
 
-                    new_proxy = random.choice(proxies)
                     current_proxy = new_proxy.http
                     vk_account_db.proxy_id = new_proxy.id
                     session.commit()
