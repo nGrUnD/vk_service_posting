@@ -27,6 +27,7 @@ const DEFAULT_BANNER_FORM = {
     banner_y: 0,
     banner_width: 100,
     banner_height: 15,
+    banner_remove_green_background: true,
 };
 
 export default function WorkflowStatusPage() {
@@ -126,6 +127,7 @@ export default function WorkflowStatusPage() {
                         banner_y: workpost.banner_y ?? DEFAULT_BANNER_FORM.banner_y,
                         banner_width: workpost.banner_width ?? DEFAULT_BANNER_FORM.banner_width,
                         banner_height: workpost.banner_height ?? DEFAULT_BANNER_FORM.banner_height,
+                        banner_remove_green_background: workpost.banner_remove_green_background ?? DEFAULT_BANNER_FORM.banner_remove_green_background,
                     },
                     groupName: vk_group.name,
                     groupUrl: vk_group.vk_group_url,
@@ -195,6 +197,7 @@ export default function WorkflowStatusPage() {
             banner_y: record.workerpost.banner_y,
             banner_width: record.workerpost.banner_width,
             banner_height: record.workerpost.banner_height,
+            banner_remove_green_background: record.workerpost.banner_remove_green_background,
         });
 
         setBannerPreviewUrl(record.workerpost.bannerVideoUrl);
@@ -248,6 +251,7 @@ export default function WorkflowStatusPage() {
                 banner_y: form.banner_y,
                 banner_width: form.banner_width,
                 banner_height: form.banner_height,
+                banner_remove_green_background: form.banner_remove_green_background,
             });
 
             if (bannerMarkedForDeletion && editingRecord.workerpost.hasBanner) {
@@ -610,7 +614,12 @@ export default function WorkflowStatusPage() {
                             />
 
                             <Space wrap>
-                                <Button onClick={() => updateForm(DEFAULT_BANNER_FORM)}>
+                                <Button onClick={() => updateForm({
+                                    banner_x: DEFAULT_BANNER_FORM.banner_x,
+                                    banner_y: DEFAULT_BANNER_FORM.banner_y,
+                                    banner_width: DEFAULT_BANNER_FORM.banner_width,
+                                    banner_height: DEFAULT_BANNER_FORM.banner_height,
+                                })}>
                                     Сбросить положение
                                 </Button>
                                 <Button
@@ -621,6 +630,16 @@ export default function WorkflowStatusPage() {
                                     Удалить баннер
                                 </Button>
                             </Space>
+
+                            {currentBannerPreview && (
+                                <div className="flex items-center justify-between">
+                                    <span>Удалить фон (зелёный):</span>
+                                    <Switch
+                                        checked={form.banner_remove_green_background}
+                                        onChange={value => updateForm({banner_remove_green_background: value})}
+                                    />
+                                </div>
+                            )}
 
                             <div className="grid grid-cols-2 gap-3">
                                 <div>

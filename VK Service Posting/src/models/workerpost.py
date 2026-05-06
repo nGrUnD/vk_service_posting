@@ -2,6 +2,7 @@ from datetime import datetime
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     Float,
     TIMESTAMP,
     ForeignKey,
@@ -33,6 +34,7 @@ class WorkerPostOrm(Base):
     banner_y: Mapped[float | None] = mapped_column(Float, nullable=True)
     banner_width: Mapped[float | None] = mapped_column(Float, nullable=True)
     banner_height: Mapped[float | None] = mapped_column(Float, nullable=True)
+    banner_remove_green_background: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
 
     last_post_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=True)

@@ -119,6 +119,7 @@ async def upload_workerpost_banner(
             banner_y=workerpost.banner_y if workerpost.banner_y is not None else DEFAULT_BANNER_Y,
             banner_width=workerpost.banner_width if workerpost.banner_width is not None else DEFAULT_BANNER_WIDTH,
             banner_height=workerpost.banner_height if workerpost.banner_height is not None else DEFAULT_BANNER_HEIGHT,
+            banner_remove_green_background=workerpost.banner_remove_green_background,
         ),
         exclude_unset=True,
         id=workerpost_id,

@@ -9,6 +9,9 @@ DEFAULT_BANNER_X = 0.0
 DEFAULT_BANNER_Y = 0.0
 DEFAULT_BANNER_WIDTH = 100.0
 DEFAULT_BANNER_HEIGHT = 15.0
+GREEN_SCREEN_COLOR = "0x00FF00"
+GREEN_SCREEN_SIMILARITY = 0.3
+GREEN_SCREEN_BLEND = 0.12
 
 
 def _get_video_size(video_path: str) -> tuple[int, int]:
@@ -34,6 +37,7 @@ def compose_clip_with_banner(
     banner_y: float | None = None,
     banner_width: float | None = None,
     banner_height: float | None = None,
+    remove_green_background: bool = True,
 ) -> str:
     clip_width, clip_height = _get_video_size(clip_path)
 
@@ -50,9 +54,21 @@ def compose_clip_with_banner(
     output_path = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4").name
     ffmpeg_exe = get_ffmpeg_exe()
 
+    banner_filters = [
+        f"scale={banner_width_px}:{banner_height_px}",
+        "setsar=1",
+    ]
+    if remove_green_background:
+        banner_filters.extend(
+            [
+                "format=rgba",
+                f"colorkey={GREEN_SCREEN_COLOR}:{GREEN_SCREEN_SIMILARITY}:{GREEN_SCREEN_BLEND}",
+            ]
+        )
+
     filter_complex = (
-        f"[1:v]scale={banner_width_px}:{banner_height_px},setsar=1[banner];"
-        f"[0:v][banner]overlay={banner_x_px}:{banner_y_px}:shortest=1[outv]"
+        f"[1:v]{','.join(banner_filters)}[banner];"
+        f"[0:v][banner]overlay={banner_x_px}:{banner_y_px}:shortest=1:format=auto[outv]"
     )
 
     command = [

@@ -26,6 +26,7 @@ class WorkerPostAdd(BaseModel):
     banner_y: Optional[float] = None
     banner_width: Optional[float] = None
     banner_height: Optional[float] = None
+    banner_remove_green_background: bool = True
     last_post_at: Optional[datetime] = None
 
     model_config = ConfigDict(strict=False, extra="forbid")
@@ -44,6 +45,7 @@ class WorkerPost(BaseModel):
     banner_y: Optional[float]
     banner_width: Optional[float]
     banner_height: Optional[float]
+    banner_remove_green_background: bool
     last_post_at: Optional[datetime]
 
     #vk_group: VKGroup
@@ -64,6 +66,7 @@ class WorkerPostUpdate(BaseModel):
     banner_y: Optional[float] = None
     banner_width: Optional[float] = None
     banner_height: Optional[float] = None
+    banner_remove_green_background: Optional[bool] = None
     last_post_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)

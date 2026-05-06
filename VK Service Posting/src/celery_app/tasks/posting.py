@@ -81,6 +81,7 @@ def posting_clip(worker_id: int, token_db: str, schedule_database_id: int, clip,
                     banner_y=workerpost.banner_y,
                     banner_width=workerpost.banner_width,
                     banner_height=workerpost.banner_height,
+                    remove_green_background=workerpost.banner_remove_green_background,
                 )
                 upload_video_path = rendered_clip_path
 
