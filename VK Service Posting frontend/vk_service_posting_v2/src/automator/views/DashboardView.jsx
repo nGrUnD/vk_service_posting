@@ -269,8 +269,8 @@ export default function DashboardView() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="rounded-3xl border border-gray-100 bg-white p-8 shadow-sm lg:col-span-2">
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-3">
+        <div className="self-start rounded-3xl border border-gray-100 bg-white p-8 shadow-sm lg:col-span-2">
           <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
             <div>
               <h3 className="text-lg font-bold text-gray-800">Детализация</h3>
@@ -316,7 +316,7 @@ export default function DashboardView() {
           )}
         </div>
 
-        <div className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm">
+        <div className="self-start rounded-3xl border border-gray-100 bg-white p-6 shadow-sm">
           <div className="mb-4 flex items-center gap-2">
             <Activity className="text-blue-500" size={20} />
             <h3 className="text-lg font-bold text-gray-800">Живой лог</h3>
