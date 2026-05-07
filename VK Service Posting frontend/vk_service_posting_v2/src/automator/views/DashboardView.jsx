@@ -52,6 +52,62 @@ function groupLabel(group) {
   return map[group] || group;
 }
 
+function LoadingValue() {
+  return <span className="inline-block h-8 w-16 animate-pulse rounded-lg bg-gray-100 align-middle" />;
+}
+
+function StatCard({ stat }) {
+  const hasError = stat.status === 'error';
+
+  return (
+    <div className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
+      <div className="mb-4 flex items-start justify-between">
+        <div className={`rounded-2xl p-3.5 ${stat.bg} ${stat.color}`}>
+          <stat.icon size={24} />
+        </div>
+        <span className={`rounded-xl px-2.5 py-1.5 text-[11px] font-black uppercase tracking-wider ${stat.bg} ${stat.color}`}>
+          {hasError ? 'ошибка' : stat.change}
+        </span>
+      </div>
+      <h4 className="mb-1 text-sm font-bold text-gray-500">{stat.label}</h4>
+      <p className="text-3xl font-black text-gray-800">
+        {stat.status === 'loading' ? <LoadingValue /> : stat.value}
+      </p>
+      {hasError && <p className="mt-2 text-xs font-semibold text-red-500">Не удалось загрузить данные</p>}
+    </div>
+  );
+}
+
+function ActivitySkeleton() {
+  return (
+    <div className="flex h-52 items-end justify-between gap-1 px-1">
+      {Array.from({ length: 24 }, (_, index) => (
+        <div
+          key={index}
+          className="min-h-[10px] flex-1 animate-pulse rounded-t-sm bg-blue-50"
+          style={{ height: `${18 + ((index * 17) % 58)}%` }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function LogSkeleton() {
+  return (
+    <ul className="max-h-[min(22rem,55vh)] space-y-4 overflow-y-auto pr-1">
+      {Array.from({ length: 5 }, (_, index) => (
+        <li key={index} className="flex gap-3 text-sm">
+          <span className="mt-1.5 h-2 w-2 shrink-0 animate-pulse rounded-full bg-blue-100" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="h-4 w-11/12 animate-pulse rounded bg-gray-100" />
+            <div className="h-3 w-1/3 animate-pulse rounded bg-gray-100" />
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export default function DashboardView() {
   const user = useAutomatorUser();
   const [messageApi, contextHolder] = message.useMessage();
@@ -61,68 +117,92 @@ export default function DashboardView() {
   const [logItems, setLogItems] = useState([]);
   const [logGroupsAvailable, setLogGroupsAvailable] = useState(['post', 'worker', 'account', 'group', 'clip', 'proxy', 'task']);
   const [selectedLogGroups, setSelectedLogGroups] = useState(['post', 'worker', 'account', 'group', 'clip', 'proxy', 'task']);
-  const [loading, setLoading] = useState(true);
+  const [summaryStatus, setSummaryStatus] = useState('loading');
+  const [clipsStatus, setClipsStatus] = useState('loading');
+  const [activityStatus, setActivityStatus] = useState('loading');
+  const [logStatus, setLogStatus] = useState('loading');
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const loadSummary = useCallback(async (isCurrent = () => true) => {
+    setSummaryStatus('loading');
     try {
-      const [sumRes, clipsRes, actRes, logRes] = await Promise.allSettled([
-        api.get(`/users/${user.id}/vk_accounts/v2_summary`),
-        api.get(`/users/${user.id}/clip_list/get_all`),
-        api.get(`/users/${user.id}/dashboard/v2/posting_activity`, { params: { hours: 24 } }),
-        api.get(`/users/${user.id}/dashboard/v2/activity_log`, { params: { limit: 25 } }),
-      ]);
-
-      if (sumRes.status === 'fulfilled') {
-        setSummary(sumRes.value.data);
-      } else {
-        setSummary(null);
-      }
-
-      if (clipsRes.status === 'fulfilled') {
-        const lists = Array.isArray(clipsRes.value.data) ? clipsRes.value.data : [];
-        setClipsTotal(lists.reduce((acc, row) => acc + (Number(row.count) || 0), 0));
-      } else {
-        setClipsTotal(0);
-      }
-
-      if (actRes.status === 'fulfilled') {
-        setBuckets(Array.isArray(actRes.value.data?.buckets) ? actRes.value.data.buckets : []);
-      } else {
-        setBuckets([]);
-      }
-
-      if (logRes.status === 'fulfilled') {
-        const apiItems = Array.isArray(logRes.value.data?.items) ? logRes.value.data.items : [];
-        const apiGroups = Array.isArray(logRes.value.data?.groups_available)
-          ? logRes.value.data.groups_available
-          : ['post', 'worker', 'account', 'group', 'clip', 'proxy', 'task'];
-        setLogItems(apiItems);
-        setLogGroupsAvailable(apiGroups);
-        setSelectedLogGroups((prev) => {
-          if (!Array.isArray(prev) || prev.length === 0) return apiGroups;
-          const keep = prev.filter((g) => apiGroups.includes(g));
-          return keep.length > 0 ? keep : apiGroups;
-        });
-      } else {
-        setLogItems([]);
-        setLogGroupsAvailable(['post', 'worker', 'account', 'group', 'clip', 'proxy', 'task']);
-      }
-
-      const failedCount = [sumRes, clipsRes, actRes, logRes].filter((res) => res.status === 'rejected').length;
-      if (failedCount > 0) {
-        messageApi.warning(`Часть данных не загрузилась (${failedCount}/4)`);
-      }
+      const { data } = await api.get(`/users/${user.id}/vk_accounts/v2_summary`);
+      if (!isCurrent()) return;
+      setSummary(data);
+      setSummaryStatus('success');
     } catch {
-      messageApi.error('Не удалось загрузить сводку');
-    } finally {
-      setLoading(false);
+      if (!isCurrent()) return;
+      setSummary(null);
+      setSummaryStatus('error');
     }
-  }, [messageApi, user.id]);
+  }, [user.id]);
+
+  const loadClipsTotal = useCallback(async (isCurrent = () => true) => {
+    setClipsStatus('loading');
+    try {
+      const { data } = await api.get(`/users/${user.id}/clip_list/get_all`);
+      if (!isCurrent()) return;
+      const lists = Array.isArray(data) ? data : [];
+      setClipsTotal(lists.reduce((acc, row) => acc + (Number(row.count) || 0), 0));
+      setClipsStatus('success');
+    } catch {
+      if (!isCurrent()) return;
+      setClipsTotal(0);
+      setClipsStatus('error');
+    }
+  }, [user.id]);
+
+  const loadPostingActivity = useCallback(async (isCurrent = () => true) => {
+    setActivityStatus('loading');
+    try {
+      const { data } = await api.get(`/users/${user.id}/dashboard/v2/posting_activity`, { params: { hours: 24 } });
+      if (!isCurrent()) return;
+      setBuckets(Array.isArray(data?.buckets) ? data.buckets : []);
+      setActivityStatus('success');
+    } catch {
+      if (!isCurrent()) return;
+      setBuckets([]);
+      setActivityStatus('error');
+    }
+  }, [user.id]);
+
+  const loadActivityLog = useCallback(async (isCurrent = () => true) => {
+    setLogStatus('loading');
+    try {
+      const { data } = await api.get(`/users/${user.id}/dashboard/v2/activity_log`, { params: { limit: 25 } });
+      if (!isCurrent()) return;
+      const apiItems = Array.isArray(data?.items) ? data.items : [];
+      const apiGroups = Array.isArray(data?.groups_available)
+        ? data.groups_available
+        : ['post', 'worker', 'account', 'group', 'clip', 'proxy', 'task'];
+      setLogItems(apiItems);
+      setLogGroupsAvailable(apiGroups);
+      setSelectedLogGroups((prev) => {
+        if (!Array.isArray(prev) || prev.length === 0) return apiGroups;
+        const keep = prev.filter((g) => apiGroups.includes(g));
+        return keep.length > 0 ? keep : apiGroups;
+      });
+      setLogStatus('success');
+    } catch {
+      if (!isCurrent()) return;
+      setLogItems([]);
+      setLogGroupsAvailable(['post', 'worker', 'account', 'group', 'clip', 'proxy', 'task']);
+      setLogStatus('error');
+    }
+  }, [user.id]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    let isMounted = true;
+    const isCurrent = () => isMounted;
+
+    loadSummary(isCurrent);
+    loadClipsTotal(isCurrent);
+    loadPostingActivity(isCurrent);
+    loadActivityLog(isCurrent);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [loadActivityLog, loadClipsTotal, loadPostingActivity, loadSummary]);
 
   const maxPosted = useMemo(() => {
     const m = Math.max(0, ...buckets.map((b) => Number(b.posted) || 0));
@@ -149,6 +229,7 @@ export default function DashboardView() {
       icon: TrendingUp,
       color: 'text-green-600',
       bg: 'bg-green-50',
+      status: summaryStatus,
     },
     {
       label: 'Активных воркеров',
@@ -157,6 +238,7 @@ export default function DashboardView() {
       icon: Activity,
       color: 'text-blue-600',
       bg: 'bg-blue-50',
+      status: summaryStatus,
     },
     {
       label: 'Клипов в базах',
@@ -165,6 +247,7 @@ export default function DashboardView() {
       icon: Database,
       color: 'text-purple-600',
       bg: 'bg-purple-50',
+      status: clipsStatus,
     },
     {
       label: 'Проблемы',
@@ -173,33 +256,16 @@ export default function DashboardView() {
       icon: AlertCircle,
       color: 'text-red-600',
       bg: 'bg-red-50',
+      status: summaryStatus,
     },
   ];
-
-  if (loading) {
-    return <p className="text-center font-medium text-gray-500">Загрузка…</p>;
-  }
 
   return (
     <div className="space-y-8">
       {contextHolder}
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => (
-          <div
-            key={stat.label}
-            className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
-          >
-            <div className="mb-4 flex items-start justify-between">
-              <div className={`rounded-2xl p-3.5 ${stat.bg} ${stat.color}`}>
-                <stat.icon size={24} />
-              </div>
-              <span className={`rounded-xl px-2.5 py-1.5 text-[11px] font-black uppercase tracking-wider ${stat.bg} ${stat.color}`}>
-                {stat.change}
-              </span>
-            </div>
-            <h4 className="mb-1 text-sm font-bold text-gray-500">{stat.label}</h4>
-            <p className="text-3xl font-black text-gray-800">{stat.value}</p>
-          </div>
+          <StatCard key={stat.label} stat={stat} />
         ))}
       </div>
 
@@ -211,35 +277,43 @@ export default function DashboardView() {
               <p className="mt-1 text-sm font-medium text-gray-500">Активность постинга (24ч), успешные публикации по часам (UTC)</p>
             </div>
           </div>
-          <div className="flex h-52 items-end justify-between gap-1 px-1">
-            {buckets.length === 0 ? (
-              <p className="m-auto text-sm text-gray-500">Нет данных активности за выбранный период</p>
-            ) : buckets.map((b, i) => {
-              const n = Number(b.posted) || 0;
-              const pct = Math.max(4, (n / maxPosted) * 100);
-              const hour = formatHourLabel(b.hour_start);
-              const nextIso = buckets[i + 1]?.hour_start;
-              const hourEnd = nextIso
-                ? formatHourLabel(nextIso)
-                : b.hour_start
-                  ? formatHourLabel(new Date(new Date(b.hour_start).getTime() + 3600000).toISOString())
-                  : '';
-              const range = hour && hourEnd ? `${hour}–${hourEnd}` : hour;
-              const tip = `${n} ${clipsWord(n)}${range ? ` · ${range}` : ''}`;
-              return (
-                <div key={`${b.hour_start}-${i}`} className="group relative flex h-full min-w-0 flex-1 flex-col justify-end">
-                  <div
-                    className="w-full min-h-[4px] cursor-default rounded-t-sm bg-blue-100 transition-colors group-hover:bg-blue-500"
-                    style={{ height: `${pct}%` }}
-                    title={tip}
-                  />
-                  <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 hidden -translate-x-1/2 rounded-lg bg-gray-900 px-2.5 py-1.5 text-center text-xs font-semibold text-white shadow-lg group-hover:block whitespace-nowrap">
-                    {tip}
+          {activityStatus === 'loading' ? (
+            <ActivitySkeleton />
+          ) : activityStatus === 'error' ? (
+            <div className="flex h-52 items-center justify-center rounded-2xl border border-dashed border-red-100 bg-red-50/40 px-4 text-center text-sm font-semibold text-red-500">
+              Не удалось загрузить активность постинга
+            </div>
+          ) : (
+            <div className="flex h-52 items-end justify-between gap-1 px-1">
+              {buckets.length === 0 ? (
+                <p className="m-auto text-sm text-gray-500">Нет данных активности за выбранный период</p>
+              ) : buckets.map((b, i) => {
+                const n = Number(b.posted) || 0;
+                const pct = Math.max(4, (n / maxPosted) * 100);
+                const hour = formatHourLabel(b.hour_start);
+                const nextIso = buckets[i + 1]?.hour_start;
+                const hourEnd = nextIso
+                  ? formatHourLabel(nextIso)
+                  : b.hour_start
+                    ? formatHourLabel(new Date(new Date(b.hour_start).getTime() + 3600000).toISOString())
+                    : '';
+                const range = hour && hourEnd ? `${hour}–${hourEnd}` : hour;
+                const tip = `${n} ${clipsWord(n)}${range ? ` · ${range}` : ''}`;
+                return (
+                  <div key={`${b.hour_start}-${i}`} className="group relative flex h-full min-w-0 flex-1 flex-col justify-end">
+                    <div
+                      className="w-full min-h-[4px] cursor-default rounded-t-sm bg-blue-100 transition-colors group-hover:bg-blue-500"
+                      style={{ height: `${pct}%` }}
+                      title={tip}
+                    />
+                    <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 hidden -translate-x-1/2 rounded-lg bg-gray-900 px-2.5 py-1.5 text-center text-xs font-semibold text-white shadow-lg group-hover:block whitespace-nowrap">
+                      {tip}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <div className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm">
@@ -270,31 +344,39 @@ export default function DashboardView() {
               );
             })}
           </div>
-          <ul className="max-h-[min(22rem,55vh)] space-y-4 overflow-y-auto pr-1">
-            {filteredLogItems.length === 0 ? (
-              <li className="text-sm text-gray-500">Нет событий по выбранным группам логов</li>
-            ) : (
-              filteredLogItems.map((item, idx) => (
-                <li key={`${item.at}-${idx}`} className="flex gap-3 text-sm">
-                  <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${logDotClass(item.status, item.group)}`} />
-                  <div className="min-w-0">
-                    <p className="font-medium text-gray-800">{logLine(item)}</p>
-                    <p className="text-xs text-gray-400">
-                      <span className="mr-2 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-gray-500">
-                        {groupLabel(item.group || 'post')}
-                      </span>
-                      {item.at
-                        ? new Date(item.at).toLocaleTimeString('ru-RU', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })
-                        : '—'}
-                    </p>
-                  </div>
-                </li>
-              ))
-            )}
-          </ul>
+          {logStatus === 'loading' ? (
+            <LogSkeleton />
+          ) : logStatus === 'error' ? (
+            <div className="rounded-2xl border border-dashed border-red-100 bg-red-50/40 px-4 py-8 text-center text-sm font-semibold text-red-500">
+              Не удалось загрузить живой лог
+            </div>
+          ) : (
+            <ul className="max-h-[min(22rem,55vh)] space-y-4 overflow-y-auto pr-1">
+              {filteredLogItems.length === 0 ? (
+                <li className="text-sm text-gray-500">Нет событий по выбранным группам логов</li>
+              ) : (
+                filteredLogItems.map((item, idx) => (
+                  <li key={`${item.at}-${idx}`} className="flex gap-3 text-sm">
+                    <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${logDotClass(item.status, item.group)}`} />
+                    <div className="min-w-0">
+                      <p className="font-medium text-gray-800">{logLine(item)}</p>
+                      <p className="text-xs text-gray-400">
+                        <span className="mr-2 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-gray-500">
+                          {groupLabel(item.group || 'post')}
+                        </span>
+                        {item.at
+                          ? new Date(item.at).toLocaleTimeString('ru-RU', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })
+                          : '—'}
+                      </p>
+                    </div>
+                  </li>
+                ))
+              )}
+            </ul>
+          )}
           <button
             type="button"
             className="mt-4 w-full rounded-2xl bg-blue-50 py-3 text-sm font-bold text-blue-600 transition-colors hover:bg-blue-100"
