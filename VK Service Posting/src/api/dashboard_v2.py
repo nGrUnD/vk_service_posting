@@ -1,6 +1,5 @@
 """Эндпоинты дашборда V2: активность постинга и лента событий."""
 from datetime import datetime, timedelta, timezone
-
 from fastapi import APIRouter, Query
 from sqlalchemy import desc, select
 
@@ -87,11 +86,19 @@ async def v2_posting_activity(
 async def v2_activity_log(
         user_id: UserIdDep,
         database: DataBaseDep,
-        limit: int = Query(25, ge=1, le=100),
+        limit: int = Query(25, ge=1, le=500),
+        hours: int | None = Query(default=None, ge=1, le=168),
         groups: list[str] | None = Query(default=None),
 ):
     base_allowed_groups = {"post", "worker", "account", "group", "clip", "proxy", "task"}
 
+    since_utc: datetime | None = None
+    if hours is not None:
+        since_utc = datetime.now(timezone.utc) - timedelta(hours=hours)
+
+    manual_where = [LiveLogOrm.user_id == user_id]
+    if since_utc is not None:
+        manual_where.append(LiveLogOrm.created_at >= since_utc)
     manual_stmt = (
         select(
             LiveLogOrm.created_at,
@@ -100,7 +107,7 @@ async def v2_activity_log(
             LiveLogOrm.logdescription,
             LiveLogOrm.id,
         )
-        .where(LiveLogOrm.user_id == user_id)
+        .where(*manual_where)
         .order_by(desc(LiveLogOrm.created_at))
         .limit(limit * 3)
     )
@@ -135,6 +142,9 @@ async def v2_activity_log(
         })
 
     # Постинг (schedule_posting)
+    post_where = [WorkerPostOrm.user_id == user_id]
+    if since_utc is not None:
+        post_where.append(SchedulePostingOrm.created_at >= since_utc)
     post_stmt = (
         select(
             SchedulePostingOrm.created_at,
@@ -145,7 +155,7 @@ async def v2_activity_log(
         .select_from(SchedulePostingOrm)
         .join(WorkerPostOrm, WorkerPostOrm.id == SchedulePostingOrm.workpost_id)
         .join(VKGroupOrm, VKGroupOrm.id == WorkerPostOrm.vk_group_id)
-        .where(WorkerPostOrm.user_id == user_id)
+        .where(*post_where)
         .order_by(desc(SchedulePostingOrm.created_at))
         .limit(limit * 3)
     )
@@ -161,6 +171,9 @@ async def v2_activity_log(
         })
 
     # Celery-задачи (парсинг аккаунтов/групп/клипов и прочее)
+    task_where = [CeleryTaskOrm.user_id == user_id]
+    if since_utc is not None:
+        task_where.append(CeleryTaskOrm.created_at >= since_utc)
     task_stmt = (
         select(
             CeleryTaskOrm.created_at,
@@ -168,7 +181,7 @@ async def v2_activity_log(
             CeleryTaskOrm.type,
             CeleryTaskOrm.task_id,
         )
-        .where(CeleryTaskOrm.user_id == user_id)
+        .where(*task_where)
         .order_by(desc(CeleryTaskOrm.created_at))
         .limit(limit * 3)
     )
@@ -184,13 +197,16 @@ async def v2_activity_log(
         })
 
     # Изменения воркеров
+    worker_where = [WorkerPostOrm.user_id == user_id]
+    if since_utc is not None:
+        worker_where.append(WorkerPostOrm.updated_at >= since_utc)
     worker_stmt = (
         select(
             WorkerPostOrm.updated_at,
             WorkerPostOrm.is_active,
             WorkerPostOrm.id,
         )
-        .where(WorkerPostOrm.user_id == user_id)
+        .where(*worker_where)
         .order_by(desc(WorkerPostOrm.updated_at))
         .limit(limit * 2)
     )
@@ -205,6 +221,9 @@ async def v2_activity_log(
         })
 
     # Изменения аккаунтов (удобно видеть свежие parse/flood события)
+    account_where = [VKAccountOrm.user_id == user_id]
+    if since_utc is not None:
+        account_where.append(VKAccountOrm.updated_at >= since_utc)
     account_stmt = (
         select(
             VKAccountOrm.updated_at,
@@ -213,7 +232,7 @@ async def v2_activity_log(
             VKAccountOrm.second_name,
             VKAccountOrm.id,
         )
-        .where(VKAccountOrm.user_id == user_id)
+        .where(*account_where)
         .order_by(desc(VKAccountOrm.updated_at))
         .limit(limit * 2)
     )
@@ -229,13 +248,16 @@ async def v2_activity_log(
         })
 
     # Прокси
+    proxy_where = [ProxyOrm.user_id == user_id]
+    if since_utc is not None:
+        proxy_where.append(ProxyOrm.updated_at >= since_utc)
     proxy_stmt = (
         select(
             ProxyOrm.updated_at,
             ProxyOrm.http,
             ProxyOrm.id,
         )
-        .where(ProxyOrm.user_id == user_id)
+        .where(*proxy_where)
         .order_by(desc(ProxyOrm.updated_at))
         .limit(limit * 2)
     )
