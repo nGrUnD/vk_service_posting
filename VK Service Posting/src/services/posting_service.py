@@ -17,6 +17,8 @@ from src.schemas.schedule_posting import SchedulePostingAdd, SchedulePostingUpda
 from src.schemas.vk_account import VKAccountUpdate
 from src.schemas.vk_clip import VKClipOut
 from src.services.auth import AuthService
+from src.models.live_log import LiveLogOrm
+from src.services.live_log import sanitize_logdescription
 import logging
 
 class PostingService:
@@ -39,6 +41,17 @@ class PostingService:
         await self.session.close()
 
     async def commit(self):
+        await self.session.commit()
+
+    async def add_live_log(self, user_id: int, logtype: str, log: str, logdescription: str | None = None):
+        self.session.add(
+            LiveLogOrm(
+                user_id=user_id,
+                logtype=logtype,
+                log=log,
+                logdescription=sanitize_logdescription(logdescription),
+            )
+        )
         await self.session.commit()
 
     def get_random_clip(self, clips: List[VKClipOut]) -> Optional[VKClipOut]:
@@ -113,6 +126,12 @@ class PostingService:
 
                 if not proxy:
                     logging.error("Не удалось найти прокси")
+                    await self.add_live_log(
+                        workpost.user_id,
+                        "schedule",
+                        "Постинг пропущен: нет прокси",
+                        f"workerpost_id={workpost.id}; account_id={vk_account.id}",
+                    )
                     continue
 
                 proxy_http = proxy.http
@@ -120,6 +139,12 @@ class PostingService:
                 random_clip = await self.vk_clip.get_random_one(clip_list_id=clip_list.id)
                 if not random_clip:
                     logging.error("Не удалось получить случайный клип")
+                    await self.add_live_log(
+                        workpost.user_id,
+                        "schedule",
+                        "Постинг пропущен: нет клипа",
+                        f"workerpost_id={workpost.id}; clip_list_id={clip_list.id}",
+                    )
                     continue
 
                 clip_data = {
@@ -170,6 +195,18 @@ class PostingService:
 
         except Exception as e:
             logging.info(e)
+            await self.session.rollback()
+            try:
+                user_id = getattr(workpost, "user_id", None) if "workpost" in locals() else None
+                if user_id is not None:
+                    await self.add_live_log(
+                        user_id,
+                        "schedule",
+                        "Ошибка планировщика постинга",
+                        f"minute={minute}; error={e}",
+                    )
+            except Exception:
+                logging.exception("Не удалось записать live-log ошибки планировщика")
 
 
         await self.session.commit()

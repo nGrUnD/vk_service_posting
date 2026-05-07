@@ -13,6 +13,7 @@ from src.schemas.vk_account import VKAccountAdd, VKAccountUpdate
 from src.celery_app.tasks.vk_account_backup import get_vk_account_cred
 from src.utils.database_manager import DataBaseManager
 from src.celery_app.tasks.vk_account_autocurl import connect_vk_account_autocurl, finish_vk_account_autocurl_followup
+from src.services.live_log import livelogadd
 
 class VKAccountLogPass:
     def __init__(self, login: str, password: str):
@@ -137,6 +138,14 @@ class VKAccountBackupService:
 
         await self.database.commit()
 
+        await livelogadd(
+            self.database,
+            user_id,
+            "account",
+            "Добавлены backup-аккаунты (log:pass)",
+            f"added={len(added_accounts_log_pass)}; skipped_existing={len(failed_accounts_log_pass)}",
+        )
+
         detail = {
             "add": added_accounts_log_pass,
             "fail": failed_accounts_log_pass,
@@ -190,6 +199,14 @@ class VKAccountBackupService:
                                             id=vk_account.id)
         await self.database.commit()
 
+        await livelogadd(
+            self.database,
+            user_id,
+            "account",
+            "Backup: добавлен по curl, запущен разбор",
+            f"account_id={vk_account.id}; task_id={task.id}",
+        )
+
         return vk_account
 
     async def create_vk_accounts_autocurl(self, user_id: int, vk_creds_str: str, vk_groups_str: str, category_id_db: int):
@@ -197,6 +214,10 @@ class VKAccountBackupService:
         vk_groups = self.parse_vk_groups(vk_groups_str)
         # Прокси
         proxies = await self.database.proxy.get_all()
+        new_queued = 0
+        followup_queued = 0
+        skipped_other_user = 0
+        skipped_existing_not_ready = 0
 
         for account, group in zip(vk_accounts_log_pass, vk_groups):
             login = account.login
@@ -210,6 +231,7 @@ class VKAccountBackupService:
                     logging.info(
                         f"{login}: логин уже в базе, но привязан к другому пользователю, пропуск"
                     )
+                    skipped_other_user += 1
                     continue
 
                 if self._can_skip_autocurl_for_existing(vk_account_db):
@@ -244,9 +266,11 @@ class VKAccountBackupService:
                             id=vk_account_db.id,
                         )
                     await self.database.commit()
+                    followup_queued += 1
                     continue
 
                 logging.info(f"{login} уже есть в базе, но сессия не готова для skip — ждите отдельного сценария")
+                skipped_existing_not_ready += 1
                 continue
 
             logging.info(f"{login, password, vk_group_url}")
@@ -287,13 +311,25 @@ class VKAccountBackupService:
                                                 id=vk_account_db.id)
 
             await self.database.commit()
+            new_queued += 1
 
+        await livelogadd(
+            self.database,
+            user_id,
+            "account",
+            "Массовый autocurl: очередь обновлена",
+            (
+                f"new={new_queued}; followup={followup_queued}; "
+                f"skipped_other_user={skipped_other_user}; skipped_not_ready={skipped_existing_not_ready}"
+            ),
+        )
 
         return "OK"
 
     async def delete_accounts(self, logins: list[str]):
         vk_accounts = await self.database.vk_account.get_all_where(VKAccountOrm.login.in_(logins))
         vk_account_ids = [vk_account.id for vk_account in vk_accounts]
+        user_id = vk_accounts[0].user_id if vk_accounts else None
 
 
         await self.database.vk_group.delete_where(VKGroupOrm.vk_admin_main_id.in_(vk_account_ids))
@@ -303,6 +339,14 @@ class VKAccountBackupService:
         await self.database.vk_account.delete_where(VKAccountOrm.login.in_(logins))
 
         await self.database.commit()
+        if user_id is not None:
+            await livelogadd(
+                self.database,
+                user_id,
+                "account",
+                "Аккаунты удалены",
+                f"count={len(vk_account_ids)}",
+            )
         return logins
 
     async def get_random_account_backup_curl(self):

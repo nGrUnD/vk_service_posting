@@ -7,6 +7,7 @@ from src.models.category import CategoryOrm
 from src.models.schedule_posting import SchedulePostingOrm
 from src.models.vk_group import VKGroupOrm
 from src.models.workerpost import WorkerPostOrm
+from src.services.live_log import livelogadd_sync
 from src.services.workerpost_banner_service import compose_clip_with_banner
 
 from src.vk_api_methods.vk_auth import get_new_token_request
@@ -105,12 +106,29 @@ def posting_clip(worker_id: int, token_db: str, schedule_database_id: int, clip,
                 vk_account.flood_control = True
                 vk_account.flood_control_time = flood_time
                 session.commit()
+                livelogadd_sync(
+                    session,
+                    workerpost.user_id,
+                    "posting",
+                    "VK flood control",
+                    (
+                        f"account_id={vk_account.id}; workerpost_id={workerpost.id}; "
+                        f"schedule_id={schedule_database_id}; until={flood_time.isoformat()}"
+                    ),
+                )
 
                 raise e
             elif hasattr(e, "code") and e.code == 5 and "user is blocked" in str(e).lower():
                 print("VK account is blocked!")
                 vk_account.account_type = "blocked" # account blocked
                 session.commit()
+                livelogadd_sync(
+                    session,
+                    workerpost.user_id,
+                    "posting",
+                    "Аккаунт заблокирован VK",
+                    f"account_id={vk_account.id}; workerpost_id={workerpost.id}; schedule_id={schedule_database_id}",
+                )
                 raise e
 
             else:
@@ -122,6 +140,16 @@ def posting_clip(worker_id: int, token_db: str, schedule_database_id: int, clip,
                 schedule_update_data.clip_id = clip_id
                 schedule_update_data.status = "success"
             session.commit()
+            livelogadd_sync(
+                session,
+                workerpost.user_id,
+                "posting",
+                "Клип опубликован",
+                (
+                    f"workerpost_id={workerpost.id}; schedule_id={schedule_database_id}; "
+                    f"clip_vk_id={clip_id}; target_group_vk_id={vk_group.vk_group_id}"
+                ),
+            )
         finally:
             if rendered_clip_path:
                 delete_file(rendered_clip_path)
@@ -134,4 +162,20 @@ def create_post(worker_id: int, token_db: str, schedule_id: int, clip: dict, pro
         posting_clip(worker_id, token_db, schedule_id, clip, proxy)
     except Exception as e:
         print(f"create_post error: {e}")
+        is_known_vk_state = hasattr(e, "code") and (
+            e.code == 9 or (e.code == 5 and "user is blocked" in str(e).lower())
+        )
+        if not is_known_vk_state:
+            with SyncSessionLocal() as session:
+                workerpost = session.execute(
+                    select(WorkerPostOrm).where(WorkerPostOrm.id == worker_id)
+                ).scalars().one_or_none()
+                if workerpost:
+                    livelogadd_sync(
+                        session,
+                        workerpost.user_id,
+                        "posting",
+                        "Ошибка публикации клипа",
+                        f"workerpost_id={worker_id}; schedule_id={schedule_id}; error={e}",
+                    )
         #async_to_sync(posting_error)(schedule_id, database_manager)

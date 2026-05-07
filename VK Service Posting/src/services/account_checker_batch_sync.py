@@ -8,6 +8,7 @@ from sqlalchemy import update
 
 from src.celery_app.celery_db import SyncSessionLocal
 from src.models.account_checker_batch import AccountCheckerBatchOrm
+from src.services.live_log import livelogadd_sync
 
 
 def mark_checker_batch_task_done_sync(batch_id: int | None) -> None:
@@ -24,10 +25,11 @@ def mark_checker_batch_task_done_sync(batch_id: int | None) -> None:
                 .returning(
                     AccountCheckerBatchOrm.completed_tasks,
                     AccountCheckerBatchOrm.total_tasks,
+                    AccountCheckerBatchOrm.user_id,
                 )
             )
             row = result.one()
-            done, total = int(row[0]), int(row[1])
+            done, total, user_id = int(row[0]), int(row[1]), int(row[2])
             if done >= total and total > 0:
                 session.execute(
                     update(AccountCheckerBatchOrm)
@@ -42,6 +44,13 @@ def mark_checker_batch_task_done_sync(batch_id: int | None) -> None:
                     batch_id,
                     done,
                     total,
+                )
+                livelogadd_sync(
+                    session,
+                    user_id,
+                    "account_checker",
+                    "Проверка аккаунтов: батч завершён",
+                    f"batch_id={batch_id}; tasks={done}/{total}",
                 )
             session.commit()
     except Exception:

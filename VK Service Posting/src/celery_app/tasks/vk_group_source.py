@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from src.models import VKAccountOrm
 from src.models.celery_task import CeleryTaskOrm
 from src.models.vk_clip import VKClipOrm
+from src.services.live_log import livelogadd_sync
 from src.vk_api_methods.vk_clip import get_all_owner_short_videos
 from src.celery_app.celery_db import SyncSessionLocal
 
@@ -43,6 +44,13 @@ def update_vk_clips_db(clips: List[dict], user_id: int, clip_list_id: int, task_
             if celery_task:
                 celery_task.status = "empty"
                 session.commit()
+                livelogadd_sync(
+                    session,
+                    user_id,
+                    "source",
+                    "Источник VK не дал новых клипов",
+                    f"task_id={task_id}; clip_list_id={clip_list_id}; vk_group_db_id={vk_group_database_id}",
+                )
             return
 
         # 2. Получаем уже существующие vk_id по этой группе
@@ -99,6 +107,16 @@ def update_vk_clips_db(clips: List[dict], user_id: int, clip_list_id: int, task_
             celery_task.status = "success"
 
         session.commit()
+        livelogadd_sync(
+            session,
+            user_id,
+            "source",
+            "Источник VK разобран",
+            (
+                f"task_id={task_id}; clip_list_id={clip_list_id}; "
+                f"vk_group_db_id={vk_group_database_id}; new_clips={len(new_clips)}"
+            ),
+        )
 
 
 def filter_clips(clips: List[Dict], min_views: int, published_after: Optional[datetime] = None) -> List[Dict]:
@@ -160,4 +178,15 @@ def parse_vk_group_clips_sync(self, vk_group_id: int, token_db: str, cookies: st
                     session.commit()
 
         update_status_failure()
+        with SyncSessionLocal() as session:
+            livelogadd_sync(
+                session,
+                user_id,
+                "source",
+                "Ошибка парсинга источника VK",
+                (
+                    f"task_id={task_id}; clip_list_id={clip_list_id}; "
+                    f"vk_group_id={vk_group_id}; error={e}"
+                ),
+            )
         raise e

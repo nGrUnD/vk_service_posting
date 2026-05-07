@@ -17,6 +17,7 @@ from src.celery_app.tasks.vk_account_parse import parse_vk_profile_main_sync
 from src.celery_app.tasks.db_update_vk_account import update_db_sync
 from src.services.vk_token_service import TokenService
 from src.utils.database_manager import DataBaseManager
+from src.services.live_log import livelogadd
 
 
 class VKAccountMainService:
@@ -106,7 +107,11 @@ class VKAccountMainService:
             exclude_unset=True,
             id=vk_account.id
         )
+
+        await livelogadd(self.database, user_id, "account", "Аккаунт Main создан", f"account_id={vk_account.id}")
+
         await self.database.commit()
+
 
         return vk_account
 
@@ -156,6 +161,14 @@ class VKAccountMainService:
             id=vk_account.id
         )
         await self.database.commit()
+
+        await livelogadd(
+            self.database,
+            user_id,
+            "account",
+            "Обновление групп Main перезапущено",
+            f"account_id={vk_account.id}; task_id={new_task_id}",
+        )
 
         return {"status": "retry_started", "task_id": new_task_id}
 

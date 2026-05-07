@@ -8,6 +8,7 @@ from src.celery_app.celery_db import SyncSessionLocal
 from src.celery_app.tasks.db_update_vk_account import _update_vk_account_db
 from src.models.proxy import ProxyOrm
 from src.models.vk_account import VKAccountOrm
+from src.services.live_log import livelogadd_sync
 from src.utils.cookiejar import cookies_to_str
 from src.vk_api_methods.vk_account import get_vk_account_data
 from src.vk_api_methods.vk_auth import get_token, get_new_token, get_new_token_request
@@ -156,6 +157,18 @@ def get_vk_account_cred(self, account_id_database: int, login: str, password: st
             raise exc
         # При ошибке обновляем статус и имя
         if self.request.retries >= self.max_retries:
+            with SyncSessionLocal() as session:
+                account = session.execute(
+                    select(VKAccountOrm).where(VKAccountOrm.id == account_id_database)
+                ).scalars().one_or_none()
+                if account:
+                    livelogadd_sync(
+                        session,
+                        account.user_id,
+                        "account",
+                        "Backup log:pass: не удалось получить сессию",
+                        f"account_id={account_id_database}; login={login[:80]}; error={exc}",
+                    )
             error_data = {
                 "parse_status": "failed",
                 "name": "failed flood_control",

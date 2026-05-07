@@ -12,3 +12,4 @@ from src.models.category import CategoryOrm
 from src.models.clip_list import ClipListOrm
 from src.models.vk_account_group import VKAccountGroupOrm
 from src.models.account_checker_batch import AccountCheckerBatchOrm
+from src.models.live_log import LiveLogOrm

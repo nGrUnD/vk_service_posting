@@ -12,6 +12,7 @@ from src.models.vk_group import VKGroupOrm
 from src.models.workerpost import WorkerPostOrm
 from src.schemas.vk_account import VKAccountUpdate
 from src.services.auth import AuthService
+from src.services.live_log import livelogadd_sync
 from src.services.vk_token_service import TokenService
 from src.utils.cookiejar import list_to_cookiejar
 from src.vk_api_methods.vk_account import get_vk_account_data
@@ -163,6 +164,7 @@ def create_workpost(
         session.add(workerpost_add)
         _mark_account_as_posting(session, account_id_database)
         session.commit()
+        return workerpost_add.id
 
 def update_celery_task_status(
     account_id_database: int,
@@ -212,7 +214,7 @@ def create_workpost_account(
         # vk_account_data
         #_update_vk_account_db(account_id_database, vk_account_parse_data['vk_account_data'], vk_token, database_manager)
 
-        create_workpost(
+        workerpost_id = create_workpost(
             user_id,
             account_id_database,
             main_account_id_database,
@@ -224,8 +226,30 @@ def create_workpost_account(
         )
 
         update_celery_task_status(account_id_database, "success", database_manager)
+        with SyncSessionLocal() as session:
+            livelogadd_sync(
+                session,
+                user_id,
+                "workerpost",
+                "VK постинг создан",
+                (
+                    f"workerpost_id={workerpost_id}; account_id={account_id_database}; "
+                    f"vk_group_id={vk_group_id_database}; category_id={category_id_database}"
+                ),
+            )
 
 
     except Exception as e:
         update_celery_task_status(account_id_database, "failed", database_manager)
+        with SyncSessionLocal() as session:
+            livelogadd_sync(
+                session,
+                user_id,
+                "workerpost",
+                "Ошибка создания VK постинга",
+                (
+                    f"account_id={account_id_database}; vk_group_id={vk_group_id_database}; "
+                    f"category_id={category_id_database}; error={e}"
+                ),
+            )
         raise e

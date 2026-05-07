@@ -17,6 +17,7 @@ from src.models.clip_list import ClipListOrm
 from src.models.vk_clip import VKClipOrm
 from src.models.workerpost import WorkerPostOrm
 from src.models.schedule_posting import SchedulePostingOrm
+from src.models.live_log import LiveLogOrm
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

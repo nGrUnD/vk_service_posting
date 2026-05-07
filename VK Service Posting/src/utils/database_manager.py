@@ -10,6 +10,7 @@ from src.repositories.vk_clip import VKClipRepository
 from src.repositories.vk_group import VKGroupRepository
 from src.repositories.workerpost import WorkerPostRepository
 from src.repositories.account_checker_batch import AccountCheckerBatchRepository
+from src.repositories.live_log import LiveLogRepository
 
 
 class DataBaseManager:
@@ -31,6 +32,7 @@ class DataBaseManager:
         self.proxy = ProxyRepository(self.session)
         self.vk_account_group = VKAccountGroupRepository(self.session)
         self.account_checker_batch = AccountCheckerBatchRepository(self.session)
+        self.live_log = LiveLogRepository(self.session)
 
         return self
 

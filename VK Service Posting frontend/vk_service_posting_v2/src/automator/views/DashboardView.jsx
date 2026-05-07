@@ -29,8 +29,16 @@ function logLine(item) {
 }
 
 function logDotClass(status, group) {
+  if (group === 'error' || status === 'error' || status === 'failure' || status === 'failed') return 'bg-red-500';
+  if (group === 'warning' || status === 'warning') return 'bg-amber-500';
+  if (group === 'info' || status === 'info') return 'bg-blue-500';
   if (group === 'proxy') return 'bg-violet-500';
   if (group === 'worker') return 'bg-cyan-500';
+  if (group === 'workerpost') return 'bg-cyan-500';
+  if (group === 'posting') return 'bg-green-500';
+  if (group === 'schedule') return 'bg-slate-500';
+  if (group === 'source') return 'bg-indigo-500';
+  if (group === 'account_checker') return 'bg-orange-500';
   if (group === 'account') return 'bg-amber-500';
   if (group === 'group') return 'bg-indigo-500';
   if (group === 'clip') return 'bg-fuchsia-500';
@@ -48,6 +56,15 @@ function groupLabel(group) {
     clip: 'Clip',
     proxy: 'Proxy',
     task: 'Task',
+    error: 'Error',
+    warning: 'Warning',
+    info: 'Info',
+    manual: 'Manual',
+    source: 'Source',
+    workerpost: 'Workerpost',
+    posting: 'Posting',
+    schedule: 'Schedule',
+    account_checker: 'Checker',
   };
   return map[group] || group;
 }
@@ -179,7 +196,9 @@ export default function DashboardView() {
       setSelectedLogGroups((prev) => {
         if (!Array.isArray(prev) || prev.length === 0) return apiGroups;
         const keep = prev.filter((g) => apiGroups.includes(g));
-        return keep.length > 0 ? keep : apiGroups;
+        const newlyAvailable = apiGroups.filter((g) => !prev.includes(g));
+        const next = [...keep, ...newlyAvailable];
+        return next.length > 0 ? next : apiGroups;
       });
       setLogStatus('success');
     } catch {
@@ -359,7 +378,12 @@ export default function DashboardView() {
                   <li key={`${item.at}-${idx}`} className="flex gap-3 text-sm">
                     <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${logDotClass(item.status, item.group)}`} />
                     <div className="min-w-0">
-                      <p className="font-medium text-gray-800">{logLine(item)}</p>
+                      <p
+                        className="font-medium text-gray-800"
+                        title={item.description || item.logdescription || logLine(item)}
+                      >
+                        {logLine(item)}
+                      </p>
                       <p className="text-xs text-gray-400">
                         <span className="mr-2 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-gray-500">
                           {groupLabel(item.group || 'post')}

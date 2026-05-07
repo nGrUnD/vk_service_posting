@@ -10,6 +10,7 @@ from sqlalchemy import select
 
 from src.models.vk_account import VKAccountOrm
 from src.celery_app.tasks.vk_account_backup_parse import parse_vk_profile_backup
+from src.services.live_log import livelogadd_sync
 from src.vk_api_methods.selenium.vk_selenium_captcha import VkLoginFloodControlError
 from src.celery_app.tasks.vk_selenium_login_retry import vk_login_with_proxy_retry
 
@@ -50,8 +51,24 @@ def vk_checker_add_account(
         )
     except VkLoginFloodControlError as e:
         update_db_vk_account_flood_failure(database_manager, vk_account_id_db, str(e))
+        with SyncSessionLocal() as session:
+            livelogadd_sync(
+                session,
+                user_id,
+                "account_checker",
+                "Checker: flood-control",
+                f"account_db_id={vk_account_id_db}; login={login[:80]}; error={e}",
+            )
     except Exception as e:
         update_db_vk_account_error(database_manager, vk_account_id_db, str(e))
+        with SyncSessionLocal() as session:
+            livelogadd_sync(
+                session,
+                user_id,
+                "account_checker",
+                "Checker: ошибка входа",
+                f"account_db_id={vk_account_id_db}; login={login[:80]}; error={e}",
+            )
         raise e
     finally:
         if batch_id is not None:

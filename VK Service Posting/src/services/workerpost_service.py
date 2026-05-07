@@ -8,6 +8,7 @@ from src.schemas.vk_account import VKAccountUpdate
 from src.schemas.vk_account_group import VKAccountGroupUpdate
 from src.schemas.workerpost import WorkerPostRequestAdd
 from src.services.auth import AuthService
+from src.services.live_log import livelogadd
 from src.utils.database_manager import DataBaseManager
 from src.celery_app.tasks.workerpost import create_workpost_account
 
@@ -126,6 +127,17 @@ class WorkerPostService:
             await self.database.commit()
 
         await self.database.commit()
+        if failed_group_ids:
+            await livelogadd(
+                self.database,
+                user_id,
+                "workerpost",
+                "Часть групп не поставлена в очередь VK постинга",
+                (
+                    f"failed_count={len(failed_group_ids)}; "
+                    f"failed_vk_group_ids={','.join(map(str, failed_group_ids[:20]))}"
+                ),
+            )
 
         detail = {
             "failed group": failed_group_ids,

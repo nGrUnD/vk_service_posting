@@ -6,6 +6,7 @@ from sqlalchemy import desc, select
 
 from src.api.dependencies import DataBaseDep, UserIdDep
 from src.models.celery_task import CeleryTaskOrm
+from src.models.live_log import LiveLogOrm
 from src.models.proxy import ProxyOrm
 from src.models.schedule_posting import SchedulePostingOrm
 from src.models.vk_account import VKAccountOrm
@@ -89,7 +90,27 @@ async def v2_activity_log(
         limit: int = Query(25, ge=1, le=100),
         groups: list[str] | None = Query(default=None),
 ):
-    allowed_groups = {"post", "worker", "account", "group", "clip", "proxy", "task"}
+    base_allowed_groups = {"post", "worker", "account", "group", "clip", "proxy", "task"}
+
+    manual_stmt = (
+        select(
+            LiveLogOrm.created_at,
+            LiveLogOrm.logtype,
+            LiveLogOrm.log,
+            LiveLogOrm.logdescription,
+            LiveLogOrm.id,
+        )
+        .where(LiveLogOrm.user_id == user_id)
+        .order_by(desc(LiveLogOrm.created_at))
+        .limit(limit * 3)
+    )
+    manual_rows = (await database.session.execute(manual_stmt)).all()
+    manual_groups = {
+        (logtype or "manual").strip().lower()
+        for _, logtype, _, _, _ in manual_rows
+        if (logtype or "").strip()
+    }
+    allowed_groups = base_allowed_groups | manual_groups
     selected_groups = {
         g.strip().lower()
         for g in (groups or [])
@@ -99,6 +120,19 @@ async def v2_activity_log(
         selected_groups = allowed_groups.copy()
 
     items = []
+
+    # Ручные live-log события из backend-кода через livelogadd(...)
+    for created_at, logtype, log, logdescription, log_id in manual_rows:
+        group = (logtype or "manual").strip().lower() or "manual"
+        items.append({
+            "at": _iso_utc(created_at),
+            "status": group,
+            "group": group,
+            "message": log,
+            "description": logdescription,
+            "logdescription": logdescription,
+            "live_log_id": log_id,
+        })
 
     # Постинг (schedule_posting)
     post_stmt = (

@@ -6,6 +6,7 @@ from src.celery_app import app  # твой celery app
 from src.schemas.vk_group import VKGroupRequestAddUrl, VKGroupAdd
 from src.services.auth import AuthService
 from src.services.celery_task import CeleryTaskService
+from src.services.live_log import livelogadd
 from src.services.vk_account_backup import VKAccountBackupService
 from src.utils.database_manager import DataBaseManager
 
@@ -39,6 +40,15 @@ class VKGroupSourceService:
         vk_link_map = dict(zip(vk_groups_ids, vk_group_urls_request.vk_links))
 
         proxies = await self.database.proxy.get_all()
+        if not proxies:
+            await livelogadd(
+                self.database,
+                user_id,
+                "source",
+                "Парсинг источников не запущен: нет прокси",
+                f"clip_list_id={vk_group_urls_request.clip_list_id}; requested={len(vk_groups_ids)}",
+            )
+            raise RuntimeError("Нет доступных прокси для парсинга источников")
         index_proxy = random.randint(0, len(proxies)-1)
 
         for vk_group_id in vk_groups_ids:
@@ -88,6 +98,13 @@ class VKGroupSourceService:
                                              vk_link))
 
         await self.database.commit()
+        await livelogadd(
+            self.database,
+            user_id,
+            "source",
+            "Парсинг источников поставлен в очередь",
+            f"clip_list_id={vk_group_urls_request.clip_list_id}; tasks={len(task_ids)}; requested={len(vk_groups_ids)}",
+        )
         return {"started_tasks": len(task_ids), "task_ids": task_ids}
 
     async def get_tasks_status(self, user_id: int, clip_list_id):

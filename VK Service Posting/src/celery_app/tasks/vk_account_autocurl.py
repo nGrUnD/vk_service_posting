@@ -12,6 +12,7 @@ from src.models import VKGroupOrm
 from src.models.vk_account import VKAccountOrm
 
 from src.celery_app.tasks.vk_account_backup_parse import parse_vk_profile_backup
+from src.services.live_log import livelogadd_sync
 from src.celery_app.tasks.vk_selenium_login_retry import vk_login_with_proxy_retry
 from src.vk_api_methods.vk_account import get_vk_group_info
 from src.vk_api_methods.vk_auth import get_new_token_request
@@ -38,6 +39,14 @@ def connect_vk_account_autocurl(user_id: int, vk_account_id: int, login: str, pa
         update_db_vk_account_end(database_manager, vk_account_id, curl, vk_group_sub, access_token)
     except Exception as e:
         update_db_vk_account_error(database_manager, vk_account_id, str(e))
+        with SyncSessionLocal() as session:
+            livelogadd_sync(
+                session,
+                user_id,
+                "account",
+                "Autocurl: ошибка входа",
+                f"account_id={vk_account_id}; error={e}",
+            )
         raise e
 
     finish_vk_account_autocurl_followup.delay(user_id, vk_account_id, vk_group_url, category_id_db, proxy_http)
@@ -47,10 +56,21 @@ def connect_vk_account_autocurl(user_id: int, vk_account_id: int, login: str, pa
 def finish_vk_account_autocurl_followup(user_id: int, vk_account_id: int, vk_group_url: str,
                                         category_id_db: int, proxy_http: str):
     database_manager = SyncSessionLocal()
-    parse_vk_profile_backup(vk_account_id, proxy_http, user_id)
-    try_add_vk_group_main(database_manager, vk_account_id, vk_group_url, proxy_http, user_id)
-    try_add_workerpost(database_manager, vk_account_id, vk_group_url, proxy_http, user_id, category_id_db)
-    print(f"Account {vk_account_id}: Workerpost добавлен!")
+    try:
+        parse_vk_profile_backup(vk_account_id, proxy_http, user_id)
+        try_add_vk_group_main(database_manager, vk_account_id, vk_group_url, proxy_http, user_id)
+        try_add_workerpost(database_manager, vk_account_id, vk_group_url, proxy_http, user_id, category_id_db)
+        print(f"Account {vk_account_id}: Workerpost добавлен!")
+    except Exception as e:
+        with SyncSessionLocal() as session:
+            livelogadd_sync(
+                session,
+                user_id,
+                "account",
+                "Autocurl: ошибка после входа",
+                f"account_id={vk_account_id}; group_url={vk_group_url}; error={e}",
+            )
+        raise
 
 
 def get_autocurl_with_proxy_retry(

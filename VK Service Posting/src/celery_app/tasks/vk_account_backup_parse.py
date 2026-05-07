@@ -10,6 +10,7 @@ from src.models.vk_group import VKGroupOrm
 from src.models.vk_account_group import VKAccountGroupOrm
 from src.services.auth import AuthService
 from src.database import Base
+from src.services.live_log import livelogadd_sync
 
 from src.vk_api_methods.vk_account import get_vk_account_data, get_vk_session_by_log_pass, \
     get_vk_account_admin_groups, get_vk_account_groups
@@ -263,9 +264,28 @@ def parse_vk_profile_backup(vk_account_id_database: int, proxy: str, user_id: in
 
         update_db_vk_account(database_manager, vk_account_id_database, vk_account_data, groups_count, account_type_end)
         update_vk_groups_database(database_manager, vk_account_id_database, user_id, groups_groups_data)
+        with SyncSessionLocal() as session:
+            livelogadd_sync(
+                session,
+                user_id,
+                "account",
+                "Профиль VK аккаунта обновлён",
+                (
+                    f"account_id={vk_account_id_database}; type={account_type_end}; "
+                    f"vk_user_id={vk_account_data['vk_account_id']}; groups={groups_count}"
+                ),
+            )
 
     except Exception as e:
         mark_vk_account_failure_by_task_id(database_manager, vk_account_id_database)
+        with SyncSessionLocal() as session:
+            livelogadd_sync(
+                session,
+                user_id,
+                "account",
+                "Ошибка разбора профиля VK аккаунта",
+                f"account_id={vk_account_id_database}; type={account_type_end}; error={e}",
+            )
         raise
 
 @app.task

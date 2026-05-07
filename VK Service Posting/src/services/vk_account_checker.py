@@ -15,6 +15,7 @@ import logging
 
 from src.schemas.account_checker_batch import AccountCheckerBatchIn
 from src.schemas.tools import AccountCheckResult, AccountChangeResult
+from src.services.live_log import livelogadd
 from src.utils.database_manager import DataBaseManager
 from src.utils.rand_user_agent import get_random_user_agent
 
@@ -113,6 +114,14 @@ class AccountChecker:
                 id=vk_account_db.id,
             )
             await self.database.commit()
+
+        await livelogadd(
+            self.database,
+            user_id,
+            "account_checker",
+            "Проверка аккаунтов: батч создан",
+            f"batch_id={batch_id}; queued={len(to_queue)}; label={label or ''}",
+        )
 
         return {"detail": "ALL OK", "batch_id": batch_id, "queued": len(to_queue)}
 

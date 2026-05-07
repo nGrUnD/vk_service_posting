@@ -5,6 +5,7 @@ from sqlalchemy.orm import aliased
 from src.api.dependencies import DataBaseDep, UserIdDep
 from src.models import VKClipOrm, ClipListOrm
 from src.schemas.clip_list import ClipListAddRequest, ClipListAdd, ClipListUpdate
+from src.services.live_log import livelogadd
 from src.services.vk_group_service import VKGroupSourceService
 
 router = APIRouter(prefix="/users/{user_id}/clip_list", tags=["Список клипов"])
@@ -94,15 +95,24 @@ async def delete(clip_list_id: int, database: DataBaseDep, user_id: UserIdDep):
     if not clip_list:
         raise HTTPException(status_code=404, detail="Список клипов не найден")
     celery_tasks = await database.celery_task.get_all_filtered(clip_list_id=clip_list_id)
+    task_count = len(celery_tasks)
     for task in celery_tasks:
         await database.celery_task.delete(id=task.id)
     await database.commit()
 
     clips = await database.vk_clip.get_all_filtered(clip_list_id=clip_list_id)
+    clip_count = len(clips)
     for clip in clips:
         await database.vk_clip.delete(id=clip.id)
     await database.commit()
 
     await database.clip_list.delete(id=clip_list_id)
     await database.commit()
+    await livelogadd(
+        database,
+        user_id,
+        "source",
+        "Список клипов удалён",
+        f"clip_list_id={clip_list_id}; clips={clip_count}; tasks={task_count}",
+    )
     return {"status": "OK"}
