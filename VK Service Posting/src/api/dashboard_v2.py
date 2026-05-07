@@ -1,4 +1,5 @@
 """Эндпоинты дашборда V2: активность постинга и лента событий."""
+import re
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Query
 from sqlalchemy import desc, select
@@ -35,6 +36,35 @@ def _task_group(task_type: str | None) -> str:
     if "clip" in task_type_l:
         return "clip"
     return "task"
+
+
+_ACTIVITY_ERR_RE = re.compile(r"fail|error|flood|ban|invalid|blocked", re.IGNORECASE)
+
+
+def _is_activity_log_error(item: dict) -> bool:
+    """Согласовано с фронтом getHistoryBadgeType: событие считается «ошибкой» для счётчика проблем."""
+    status = (item.get("status") or "").lower()
+    group = (item.get("group") or "").lower()
+
+    if group == "error" or status in ("error", "failure", "failed"):
+        return True
+    if group == "warning" or status == "warning":
+        return True
+
+    if status in ("success", "active"):
+        return False
+    if group == "post" and status == "success":
+        return False
+
+    if group == "post" and status and status not in ("starting", "success"):
+        return True
+    if group == "account":
+        if status and _ACTIVITY_ERR_RE.search(status):
+            return True
+        if status in ("success", "valid"):
+            return False
+
+    return False
 
 
 @router.get("/v2/posting_activity", summary="Почасовое число успешных постов за последние N часов")
@@ -273,10 +303,12 @@ async def v2_activity_log(
 
     filtered = [item for item in items if item.get("group") in selected_groups]
     filtered.sort(key=lambda item: item.get("at") or "", reverse=True)
+    error_count = sum(1 for item in filtered if _is_activity_log_error(item))
     filtered = filtered[:limit]
 
     return {
         "items": filtered,
         "groups_available": sorted(allowed_groups),
         "groups_selected": sorted(selected_groups),
+        "error_count": error_count,
     }

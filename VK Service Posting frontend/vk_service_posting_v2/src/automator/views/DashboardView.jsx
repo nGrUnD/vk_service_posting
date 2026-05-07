@@ -244,6 +244,7 @@ export default function DashboardView() {
   const [clipsStatus, setClipsStatus] = useState('loading');
   const [activityStatus, setActivityStatus] = useState('loading');
   const [logStatus, setLogStatus] = useState('loading');
+  const [liveLogErrorCount, setLiveLogErrorCount] = useState(0);
   const [showLogModal, setShowLogModal] = useState(false);
   const [historyItems, setHistoryItems] = useState([]);
   const [historyStatus, setHistoryStatus] = useState('idle');
@@ -305,6 +306,7 @@ export default function DashboardView() {
         ? data.groups_available
         : ['post', 'worker', 'account', 'group', 'clip', 'proxy', 'task'];
       setLogItems(apiItems);
+      setLiveLogErrorCount(Number(data?.error_count) || 0);
       setLogGroupsAvailable(apiGroups);
       setSelectedLogGroups((prev) => {
         if (!Array.isArray(prev) || prev.length === 0) return apiGroups;
@@ -317,6 +319,7 @@ export default function DashboardView() {
     } catch {
       if (!isCurrent()) return;
       setLogItems([]);
+      setLiveLogErrorCount(0);
       setLogGroupsAvailable(['post', 'worker', 'account', 'group', 'clip', 'proxy', 'task']);
       setLogStatus('error');
     }
@@ -464,12 +467,12 @@ export default function DashboardView() {
     },
     {
       label: 'Проблемы',
-      value: (Number(summary?.by_status?.failure) || 0) + (Number(summary?.flooded) || 0),
-      change: 'failure + flood',
+      value: liveLogErrorCount,
+      change: 'в ленте событий',
       icon: AlertCircle,
       color: 'text-red-600',
       bg: 'bg-red-50',
-      status: summaryStatus,
+      status: logStatus,
     },
   ];
 
