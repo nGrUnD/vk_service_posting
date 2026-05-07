@@ -64,6 +64,14 @@ def _is_activity_log_error(item: dict) -> bool:
         if status in ("success", "valid"):
             return False
 
+    if group == "posting":
+        msg = (item.get("message") or "").lower()
+        if "опубликован" in msg or "успех" in msg or "success" in msg:
+            return False
+        if "ошибка" in msg or "error" in msg or "fail" in msg or "flood" in msg:
+            return True
+        return False
+
     return False
 
 

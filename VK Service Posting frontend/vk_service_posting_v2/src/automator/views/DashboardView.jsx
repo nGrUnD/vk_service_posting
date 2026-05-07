@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { message } from 'antd';
+import { message, Tooltip } from 'antd';
 import { Activity, AlertCircle, Database, TrendingUp, Search, Download, X, Filter, ChevronRight } from 'lucide-react';
 
 import api from '../../api/axios';
@@ -106,7 +106,44 @@ function getHistoryBadgeType(item) {
     if (status === 'success' || status === 'valid') return 'success';
   }
 
+  if (group === 'posting') {
+    const msg = (item.message || '').toLowerCase();
+    if (msg.includes('ошибка') || msg.includes('error') || msg.includes('fail') || msg.includes('flood')) return 'error';
+    if (msg.includes('опубликован') || msg.includes('успех') || msg.includes('success')) return 'success';
+    return 'info';
+  }
+
   return 'info';
+}
+
+/** Точка в живом логе: учитывает тип «posting» из livelog (ошибка/успех). */
+function logDotClassFromItem(item) {
+  const t = getHistoryBadgeType(item);
+  if (t === 'error') return 'bg-red-500';
+  if (t === 'success') return 'bg-green-500';
+  return logDotClass(item.status, item.group);
+}
+
+function LogEntryTooltip({ item }) {
+  const desc = (item.description || item.logdescription || '').trim();
+  const msg = (item.message && item.message.trim()) || logLine(item);
+  const boxStyle = {
+    maxWidth: 440,
+    maxHeight: 'min(70vh, 420px)',
+    overflowY: 'auto',
+    whiteSpace: 'pre-wrap',
+    wordBreak: 'break-word',
+    fontSize: 13,
+  };
+  if (desc) {
+    return (
+      <div style={boxStyle}>
+        <div style={{ fontWeight: 600, marginBottom: 8 }}>{msg}</div>
+        <div>{desc}</div>
+      </div>
+    );
+  }
+  return <div style={boxStyle}>{msg}</div>;
 }
 
 function historyBadgeClass(badgeType) {
@@ -573,26 +610,28 @@ export default function DashboardView() {
               ) : (
                 filteredLogItems.map((item, idx) => (
                   <li key={`${item.at}-${idx}`} className="flex gap-3 text-sm">
-                    <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${logDotClass(item.status, item.group)}`} />
-                    <div className="min-w-0">
-                      <p
-                        className="font-medium text-gray-800"
-                        title={item.description || item.logdescription || logLine(item)}
-                      >
-                        {logLine(item)}
-                      </p>
-                      <p className="text-xs text-gray-400">
-                        <span className="mr-2 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-gray-500">
-                          {groupLabel(item.group || 'post')}
-                        </span>
-                        {item.at
-                          ? new Date(item.at).toLocaleTimeString('ru-RU', {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })
-                          : '—'}
-                      </p>
-                    </div>
+                    <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${logDotClassFromItem(item)}`} />
+                    <Tooltip
+                      title={<LogEntryTooltip item={item} />}
+                      placement="topLeft"
+                      mouseEnterDelay={0.15}
+                      styles={{ root: { maxWidth: 480 } }}
+                    >
+                      <div className="min-w-0 cursor-default">
+                        <p className="font-medium text-gray-800">{logLine(item)}</p>
+                        <p className="text-xs text-gray-400">
+                          <span className="mr-2 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-gray-500">
+                            {groupLabel(item.group || 'post')}
+                          </span>
+                          {item.at
+                            ? new Date(item.at).toLocaleTimeString('ru-RU', {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })
+                            : '—'}
+                        </p>
+                      </div>
+                    </Tooltip>
                   </li>
                 ))
               )}
@@ -724,29 +763,32 @@ export default function DashboardView() {
               ) : (
                 historyDisplayItems.map((item, idx) => {
                   const badgeType = getHistoryBadgeType(item);
-                  const tip = item.description || item.logdescription || logLine(item);
                   return (
-                    <div
+                    <Tooltip
                       key={`${item.at}-${historyEventId(item)}-${idx}`}
-                      className="group flex gap-4 rounded-2xl border border-transparent p-4 transition-all hover:border-gray-100 hover:bg-gray-50 sm:gap-6"
-                      title={tip}
+                      title={<LogEntryTooltip item={item} />}
+                      placement="topLeft"
+                      mouseEnterDelay={0.15}
+                      styles={{ root: { maxWidth: 480 } }}
                     >
-                      <div className="w-[4.5rem] shrink-0 font-bold text-gray-400">{formatHistoryTime(item.at)}</div>
-                      <div
-                        className={`w-24 shrink-0 rounded-lg px-2 py-0.5 text-center text-[10px] font-black uppercase tracking-tighter ${historyBadgeClass(badgeType)}`}
-                      >
-                        {historyEventId(item)}
+                      <div className="group flex cursor-default gap-4 rounded-2xl border border-transparent p-4 transition-all hover:border-gray-100 hover:bg-gray-50 sm:gap-6">
+                        <div className="w-[4.5rem] shrink-0 font-bold text-gray-400">{formatHistoryTime(item.at)}</div>
+                        <div
+                          className={`w-24 shrink-0 rounded-lg px-2 py-0.5 text-center text-[10px] font-black uppercase tracking-tighter ${historyBadgeClass(badgeType)}`}
+                        >
+                          {historyEventId(item)}
+                        </div>
+                        <div className="min-w-0 flex-1 font-semibold text-gray-700 transition-colors group-hover:text-gray-900">
+                          {logLine(item)}
+                        </div>
+                        <div className="hidden w-28 shrink-0 truncate text-right text-[10px] font-bold uppercase text-gray-400 sm:block">
+                          {historyTargetLabel(item)}
+                        </div>
+                        <div className="hidden w-6 shrink-0 justify-end opacity-0 transition-opacity group-hover:opacity-100 sm:flex">
+                          <ChevronRight size={14} className="text-gray-300" />
+                        </div>
                       </div>
-                      <div className="min-w-0 flex-1 font-semibold text-gray-700 transition-colors group-hover:text-gray-900">
-                        {logLine(item)}
-                      </div>
-                      <div className="hidden w-28 shrink-0 truncate text-right text-[10px] font-bold uppercase text-gray-400 sm:block">
-                        {historyTargetLabel(item)}
-                      </div>
-                      <div className="hidden w-6 shrink-0 justify-end opacity-0 transition-opacity group-hover:opacity-100 sm:flex">
-                        <ChevronRight size={14} className="text-gray-300" />
-                      </div>
-                    </div>
+                    </Tooltip>
                   );
                 })
               )}
