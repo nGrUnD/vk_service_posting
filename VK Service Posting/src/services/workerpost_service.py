@@ -145,12 +145,23 @@ class WorkerPostService:
 
             chosen_id = available_accounts[0].vk_account_id
             used_account_ids.add(chosen_id)
+            chosen_logpass: str | None = None
+            acc_db = await self.database.vk_account.get_one_or_none(id=chosen_id, user_id=user_id)
+            if acc_db and acc_db.login:
+                pwd = ""
+                if acc_db.encrypted_password:
+                    try:
+                        pwd = AuthService().decrypt_data(acc_db.encrypted_password)
+                    except Exception:
+                        logging.exception("preview: decrypt password failed account_id=%s", chosen_id)
+                chosen_logpass = f"{acc_db.login}:{pwd}" if pwd else f"{acc_db.login}:—"
             links_rows.append(
                 WorkerPostPreviewLinkRow(
                     link=raw,
                     vk_public_id=pid,
                     status="will_queue",
                     chosen_account_id=chosen_id,
+                    chosen_account_logpass=chosen_logpass,
                 ),
             )
 

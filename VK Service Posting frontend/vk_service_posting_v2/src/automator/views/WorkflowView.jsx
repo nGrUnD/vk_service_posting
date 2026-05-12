@@ -87,6 +87,20 @@ function pipelineLabel(parseStatus) {
   return parseStatus || '—';
 }
 
+/** Подписи статусов предпросмотра workerpost для пользователя */
+function previewRowStatusRu(status) {
+  const map = {
+    will_queue: 'Поставится в очередь создания',
+    invalid_url: 'Неверная ссылка',
+    missing_group: 'Нет паблика в сервисе',
+    no_backup: 'Нет backup для паблика',
+    no_category: 'Нет категории',
+    no_main: 'Нет главного аккаунта',
+    already_workerpost: 'Уже есть воркерпост',
+  };
+  return map[status] || status || '—';
+}
+
 export default function WorkflowView() {
   const user = useAutomatorUser();
   const [messageApi, contextHolder] = message.useMessage();
@@ -661,11 +675,24 @@ export default function WorkflowView() {
                           : 'border-gray-200 bg-white'
                   }`}
                 >
-                  <span className="font-mono text-gray-700">{row.link}</span>
-                  <span className="ml-2 font-bold text-gray-900">{row.status}</span>
-                  {row.detail ? <span className="ml-2 text-gray-500">{row.detail}</span> : null}
-                  {row.chosen_account_id != null ? (
-                    <span className="ml-2 font-mono text-gray-400">acc #{row.chosen_account_id}</span>
+                  <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                    <span className="font-mono text-gray-800">{row.link}</span>
+                    <span
+                      className={`font-bold ${
+                        row.status === 'will_queue' ? 'text-green-800' : 'text-gray-900'
+                      }`}
+                    >
+                      {previewRowStatusRu(row.status)}
+                    </span>
+                  </div>
+                  {row.detail ? <div className="mt-1 text-gray-600">{row.detail}</div> : null}
+                  {row.chosen_account_logpass ? (
+                    <div className="mt-1 font-mono text-sm text-gray-900">
+                      <span className="font-sans text-xs font-bold text-gray-500">Аккаунт: </span>
+                      {row.chosen_account_logpass}
+                    </div>
+                  ) : row.chosen_account_id != null ? (
+                    <div className="mt-1 font-mono text-xs text-gray-500">Аккаунт: #{row.chosen_account_id}</div>
                   ) : null}
                 </li>
               ))}

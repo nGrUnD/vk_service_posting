@@ -28,6 +28,7 @@ class WorkerPostPreviewLinkRow(BaseModel):
     ]
     detail: Optional[str] = None
     chosen_account_id: Optional[int] = None
+    chosen_account_logpass: Optional[str] = None
 
 
 class WorkerPostPreviewResponse(BaseModel):
