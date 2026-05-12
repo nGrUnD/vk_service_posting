@@ -32,6 +32,40 @@ def _vk_accounts_with_decrypted_password(accounts: list[VKAccount]) -> list[VKAc
     return out
 
 
+async def _enrich_checker_batch_labels(
+        database: DataBaseDep,
+        user_id: int,
+        accounts: list[VKAccount],
+) -> list[VKAccount]:
+    batch_ids = {
+        a.account_checker_batch_id
+        for a in accounts
+        if getattr(a, "account_checker_batch_id", None) is not None
+    }
+    if not batch_ids:
+        return [a.model_copy(update={"checker_batch_label": None}) for a in accounts]
+
+    batches = await database.account_checker_batch.get_all_filtered(
+        user_id=user_id,
+        id=list(batch_ids),
+    )
+    batch_label_by_id: dict[int, str] = {}
+    for b in batches:
+        if b.id is not None and b.label:
+            batch_label_by_id[b.id] = b.label
+
+    return [
+        a.model_copy(
+            update={
+                "checker_batch_label": batch_label_by_id.get(a.account_checker_batch_id)
+                if a.account_checker_batch_id
+                else None,
+            },
+        )
+        for a in accounts
+    ]
+
+
 def _vk_accounts_with_posting_status(
         accounts: list[VKAccount],
         workerposts,
@@ -128,7 +162,8 @@ async def get_all_vk_accounts(
 ):
     """Возвращает все привязанные VK аккаунты пользователя"""
     accounts = await database.vk_account.get_all_filtered(user_id=user_id)
-    return _vk_accounts_with_decrypted_password(accounts)
+    accounts = _vk_accounts_with_decrypted_password(accounts)
+    return await _enrich_checker_batch_labels(database, user_id, accounts)
 
 
 @router.get("/v2_summary", summary="Получить summary для V2 frontend")

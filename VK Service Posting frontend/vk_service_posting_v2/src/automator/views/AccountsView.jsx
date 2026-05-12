@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { message } from 'antd';
+import { message, Tooltip } from 'antd';
 import {
+  Copy,
   ExternalLink,
   KeyRound,
   Loader2,
+  Play,
   Plus,
   RefreshCcw,
   Search,
@@ -13,6 +15,45 @@ import {
 
 import api from '../../api/axios';
 import { useAutomatorUser } from '../AutomatorUserContext.jsx';
+
+/** Та же очередь, что в V1 AccountChecker (общий localStorage). */
+const QUEUE_STORAGE_KEY = 'account_checker_queue_v1';
+const MAX_BATCH_SIZE = 20;
+const BATCH_POLL_MS = 2000;
+
+function normalizeQueueFromStorage(items) {
+  if (!Array.isArray(items)) {
+    return { items: [], changed: false };
+  }
+  let changed = false;
+  const next = items.map((b) => {
+    if (b.status === 'running') {
+      changed = true;
+      return {
+        ...b,
+        status: 'error',
+        detail:
+          b.detail ||
+          'Подключение прервано (перезагрузка страницы или остановка сервиса). Удалите запись или добавьте пачку заново.',
+        serverBatchId: undefined,
+        serverPoll: undefined,
+      };
+    }
+    return b;
+  });
+  return { items: next, changed };
+}
+
+async function waitForServerBatchComplete(apiInstance, userId, batchId) {
+  if (!batchId) return null;
+  for (;;) {
+    const { data } = await apiInstance.get(`/tools/${userId}/account_checker/batch/${batchId}`);
+    if (data?.status === 'completed') {
+      return data;
+    }
+    await new Promise((r) => setTimeout(r, BATCH_POLL_MS));
+  }
+}
 
 function parseLoginsFromCreds(creds) {
   const logins = [];
@@ -28,6 +69,53 @@ function statusBadgeClass(parseStatus) {
   if (parseStatus === 'success') return 'bg-green-100 text-green-800 border-green-200';
   if (parseStatus === 'failure') return 'bg-red-100 text-red-800 border-red-200';
   return 'bg-amber-100 text-amber-900 border-amber-200';
+}
+
+function batchStripeClass(batchId) {
+  if (batchId == null || batchId === undefined) return '';
+  const idx = Math.abs(Number(batchId)) % 4;
+  const stripe = [
+    'border-l-[5px] border-l-sky-500 bg-sky-50/50',
+    'border-l-[5px] border-l-violet-500 bg-violet-50/50',
+    'border-l-[5px] border-l-amber-500 bg-amber-50/50',
+    'border-l-[5px] border-l-emerald-500 bg-emerald-50/50',
+  ];
+  return stripe[idx];
+}
+
+function loginPassLine(account) {
+  const login = (account.login || '').trim();
+  const password = (account.password || '').trim();
+  if (login && password) return `${login}:${password}`;
+  if (login) return login;
+  return '—';
+}
+
+function vkFullName(account) {
+  const s = [account.name, account.second_name].filter(Boolean).join(' ').trim();
+  return s || 'Имя и фамилия VK ещё не подтянулись';
+}
+
+function formatDuration(msValue) {
+  const totalSeconds = Math.max(0, Math.floor(msValue / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
+function formatDurationSeconds(sec) {
+  if (sec == null || Number.isNaN(Number(sec))) return '—';
+  return formatDuration(Number(sec) * 1000);
+}
+
+function batchStatusMeta(status) {
+  const map = {
+    pending: { label: 'В ожидании', color: 'bg-amber-100 text-amber-900' },
+    running: { label: 'На подключении', color: 'bg-blue-100 text-blue-900' },
+    success: { label: 'Готово', color: 'bg-green-100 text-green-900' },
+    error: { label: 'Ошибка', color: 'bg-red-100 text-red-900' },
+  };
+  return map[status] || { label: String(status), color: 'bg-gray-100 text-gray-800' };
 }
 
 export default function AccountsView() {
@@ -55,6 +143,31 @@ export default function AccountsView() {
 
   const [changingPwId, setChangingPwId] = useState(null);
 
+  const [checkerInputAccounts, setCheckerInputAccounts] = useState('');
+  const [batchNote, setBatchNote] = useState('');
+  const [connectingBatchId, setConnectingBatchId] = useState(null);
+  const [batchQueue, setBatchQueue] = useState(() => {
+    try {
+      const raw = localStorage.getItem(QUEUE_STORAGE_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      const { items, changed } = normalizeQueueFromStorage(parsed);
+      if (changed) {
+        try {
+          localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(items));
+        } catch {
+          /* ignore */
+        }
+      }
+      return items;
+    } catch {
+      return [];
+    }
+  });
+  const batchQueueRef = useRef(batchQueue);
+  useEffect(() => {
+    batchQueueRef.current = batchQueue;
+  }, [batchQueue]);
+
   const loadAccounts = useCallback(
     async (silent = false) => {
       if (!silent) setLoading(true);
@@ -78,6 +191,34 @@ export default function AccountsView() {
   }, [loadAccounts]);
 
   useEffect(() => {
+    const tick = async () => {
+      const q = batchQueueRef.current;
+      const toPoll = q.filter((b) => b.status === 'running' && b.serverBatchId);
+      if (!toPoll.length) return;
+      for (const b of toPoll) {
+        try {
+          const { data } = await api.get(`/tools/${user.id}/account_checker/batch/${b.serverBatchId}`);
+          if (!data) continue;
+          setBatchQueue((prev) => {
+            const next = prev.map((item) => (item.id === b.id ? { ...item, serverPoll: data } : item));
+            try {
+              localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(next));
+            } catch {
+              /* ignore */
+            }
+            return next;
+          });
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    };
+    void tick();
+    const id = setInterval(tick, BATCH_POLL_MS);
+    return () => clearInterval(id);
+  }, [user.id]);
+
+  useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
@@ -96,7 +237,15 @@ export default function AccountsView() {
     const q = search.trim().toLowerCase();
     const list = q
       ? accounts.filter((a) =>
-          [a.name, a.second_name, a.login, String(a.vk_account_id), a.account_type]
+          [
+            a.name,
+            a.second_name,
+            a.login,
+            a.password,
+            String(a.vk_account_id),
+            a.account_type,
+            a.checker_batch_label,
+          ]
             .filter(Boolean)
             .join(' ')
             .toLowerCase()
@@ -180,6 +329,150 @@ export default function AccountsView() {
     return () => clearInterval(id);
   }, [importPolling, watchedIds, autoChangePassword, loadAccounts, messageApi, user.id]);
 
+  const saveBatchQueue = useCallback((nextQueue) => {
+    setBatchQueue(nextQueue);
+    try {
+      localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(nextQueue));
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const parseCheckerAccounts = () =>
+    checkerInputAccounts
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+  const validateBatchLimit = (accLines) => {
+    if (accLines.length > MAX_BATCH_SIZE) {
+      messageApi.warning(`Максимум ${MAX_BATCH_SIZE} аккаунтов в одной пачке.`);
+      return false;
+    }
+    return true;
+  };
+
+  const handleAddCheckerBatch = () => {
+    const accLines = parseCheckerAccounts();
+    if (!accLines.length) {
+      messageApi.warning('Нельзя добавить пустую пачку.');
+      return;
+    }
+    if (!validateBatchLimit(accLines)) return;
+    const batch = {
+      id: Date.now(),
+      note: batchNote.trim(),
+      accounts: accLines,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+    };
+    saveBatchQueue([batch, ...batchQueue]);
+    setCheckerInputAccounts('');
+    setBatchNote('');
+    messageApi.success('Пачка в очереди. Запустите кнопкой «Запустить» на карточке.');
+  };
+
+  const handleRemoveCheckerBatch = (batchId) => {
+    saveBatchQueue(batchQueue.filter((item) => item.id !== batchId));
+  };
+
+  const handleRunCheckerBatch = async (batchId) => {
+    const nextQueue = [...batchQueueRef.current];
+    const index = nextQueue.findIndex((item) => item.id === batchId);
+    if (index < 0) return;
+    const batch = nextQueue[index];
+    if (batch.status !== 'pending') {
+      messageApi.info('Пачка уже не в ожидании.');
+      return;
+    }
+    setConnectingBatchId(batchId);
+    nextQueue[index] = { ...nextQueue[index], status: 'running' };
+    saveBatchQueue([...nextQueue]);
+    try {
+      const { data: submit } = await api.post(`/tools/${user.id}/account_checker`, {
+        accounts: batch.accounts,
+        batch_label: batch.note || undefined,
+      });
+      if (submit.batch_id) {
+        nextQueue[index] = {
+          ...nextQueue[index],
+          status: 'running',
+          serverBatchId: submit.batch_id,
+        };
+        saveBatchQueue([...nextQueue]);
+        const final = await waitForServerBatchComplete(api, user.id, submit.batch_id);
+        const sec = final.duration_seconds ?? final.elapsed_seconds;
+        nextQueue[index] = {
+          ...nextQueue[index],
+          status: 'success',
+          serverBatchId: submit.batch_id,
+          serverDurationSeconds: final.duration_seconds ?? sec,
+          serverPoll: final,
+        };
+      } else {
+        nextQueue[index] = {
+          ...nextQueue[index],
+          status: 'success',
+          serverBatchId: null,
+          serverDurationSeconds: null,
+          noNewAccounts: true,
+        };
+      }
+    } catch (error) {
+      console.error(error);
+      nextQueue[index] = {
+        ...nextQueue[index],
+        status: 'error',
+        detail: error?.response?.data?.detail || 'Ошибка отправки пачки',
+      };
+    }
+    saveBatchQueue([...nextQueue]);
+    setConnectingBatchId(null);
+    const result = nextQueue[index];
+    if (result.status === 'success') {
+      if (result.noNewAccounts) messageApi.success('Нет новых аккаунтов (все логины уже в базе).');
+      else messageApi.success('Пачка подключена.');
+      await loadAccounts(true);
+    } else if (result.status === 'error') {
+      messageApi.error(result.detail || 'Ошибка подключения пачки');
+    }
+  };
+
+  const getBatchDurationInfo = (batch) => {
+    if (batch.status === 'error' && batch.detail) {
+      return { label: '—', sub: batch.detail };
+    }
+    if (batch.serverDurationSeconds != null) {
+      return {
+        label: formatDurationSeconds(batch.serverDurationSeconds),
+        sub: 'фон (сервер): от приёма до готовности',
+      };
+    }
+    if (batch.status === 'success' && batch.noNewAccounts) {
+      return { label: '—', sub: 'все логины уже в базе' };
+    }
+    if (batch.status === 'running') {
+      const sec =
+        batch.serverPoll?.elapsed_seconds != null
+          ? batch.serverPoll.elapsed_seconds
+          : batch.serverPoll?.duration_seconds;
+      if (sec != null && !Number.isNaN(Number(sec))) {
+        return {
+          label: formatDurationSeconds(sec),
+          sub: 'время с момента приёма пачки (сервер)',
+        };
+      }
+      if (batch.serverBatchId) {
+        return { label: '00:00', sub: 'подключение на сервере…' };
+      }
+      return { label: '—', sub: 'отправка запроса…' };
+    }
+    if (batch.status === 'pending') {
+      return { label: '—', sub: 'нажмите «Запустить»' };
+    }
+    return { label: '—', sub: '—' };
+  };
+
   const handleBulkCreate = async () => {
     if (!bulkCreds.trim()) {
       messageApi.warning('Вставьте список log:pass');
@@ -246,6 +539,18 @@ export default function AccountsView() {
     } finally {
       setChangingPwId(null);
     }
+  };
+
+  const copyLoginPass = (account) => {
+    const t = loginPassLine(account);
+    if (!t || t === '—') {
+      messageApi.warning('Нечего копировать');
+      return;
+    }
+    navigator.clipboard.writeText(t).then(
+      () => messageApi.success('log:pass скопирован'),
+      () => messageApi.error('Не удалось скопировать'),
+    );
   };
 
   const handleCheck = async (id) => {
@@ -350,6 +655,98 @@ export default function AccountsView() {
         </div>
       </section>
 
+      <section className="rounded-3xl border border-gray-100 bg-white p-8 shadow-sm">
+        <h3 className="mb-2 text-lg font-black text-gray-800">Account Checker — очередь пачек</h3>
+        <p className="mb-6 text-sm text-gray-500">
+          Как в V1: подпись пачки, список log:pass, сначала «Добавить» (очередь в браузере), затем «Запустить» на
+          карточке. Очередь хранится в localStorage (<code className="rounded bg-gray-100 px-1 text-xs">account_checker_queue_v1</code>) — общая с первой версией интерфейса.
+        </p>
+        <div className="grid gap-8 xl:grid-cols-2">
+          <div className="space-y-3">
+            <label className="block text-xs font-black uppercase tracking-widest text-gray-400">
+              Подпись пачки (заметка)
+            </label>
+            <input
+              type="text"
+              className="w-full rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-blue-100"
+              placeholder="Например: клиент А, 12.05"
+              value={batchNote}
+              onChange={(e) => setBatchNote(e.target.value)}
+            />
+            <label className="block text-xs font-black uppercase tracking-widest text-gray-400">
+              Аккаунты login:pass (до {MAX_BATCH_SIZE} строк)
+            </label>
+            <textarea
+              className="h-44 w-full resize-none rounded-2xl border border-gray-100 bg-gray-50 p-4 font-mono text-sm outline-none focus:ring-4 focus:ring-blue-100"
+              placeholder={'login1:pass1\nlogin2:pass2'}
+              value={checkerInputAccounts}
+              onChange={(e) => setCheckerInputAccounts(e.target.value)}
+            />
+            <button
+              type="button"
+              onClick={handleAddCheckerBatch}
+              className="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-bold text-white shadow-md hover:bg-blue-700"
+            >
+              <Plus size={16} />
+              Добавить в очередь
+            </button>
+          </div>
+          <div>
+            <h4 className="mb-3 text-sm font-black uppercase tracking-widest text-gray-400">Очередь пачек</h4>
+            <div className="max-h-[min(420px,50vh)] space-y-2 overflow-y-auto rounded-2xl border border-gray-100 bg-gray-50/50 p-3">
+              {!batchQueue.length && (
+                <p className="py-8 text-center text-sm text-gray-400">Очередь пуста</p>
+              )}
+              {batchQueue.map((item) => {
+                const dur = getBatchDurationInfo(item);
+                const st = batchStatusMeta(item.status);
+                return (
+                  <div
+                    key={item.id}
+                    className="flex flex-col gap-2 rounded-xl border border-gray-100 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate font-bold text-gray-900">{item.note || 'Без подписи'}</div>
+                      <div className="text-xs text-gray-500">{item.accounts?.length ?? 0} аккаунтов</div>
+                      <div className="mt-1 text-xs text-gray-500">
+                        <span className="font-mono">{dur.label}</span>
+                        <span> — {dur.sub}</span>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={`rounded-lg px-2 py-1 text-xs font-bold ${st.color}`}>{st.label}</span>
+                      {item.status === 'pending' && (
+                        <button
+                          type="button"
+                          disabled={connectingBatchId === item.id}
+                          onClick={() => void handleRunCheckerBatch(item.id)}
+                          className="inline-flex items-center gap-1 rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-60"
+                        >
+                          {connectingBatchId === item.id ? (
+                            <Loader2 size={14} className="animate-spin" />
+                          ) : (
+                            <Play size={14} />
+                          )}
+                          Запустить
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        disabled={connectingBatchId === item.id}
+                        onClick={() => handleRemoveCheckerBatch(item.id)}
+                        className="rounded-xl border border-red-100 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                      >
+                        Удалить
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section className="rounded-3xl border border-dashed border-indigo-200 bg-indigo-50/40 p-6 shadow-sm">
         <h3 className="mb-2 text-lg font-black text-indigo-950">Парный импорт (log:pass + паблик, как в V1)</h3>
         <p className="mb-4 text-sm text-indigo-900/80">
@@ -397,127 +794,153 @@ export default function AccountsView() {
         </div>
       </section>
 
-      <div className="w-full flex flex-col overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
-          <div className="z-10 flex flex-wrap items-center justify-between gap-4 border-b border-gray-100 bg-white p-8">
-            <span className="text-lg font-black text-gray-800">
-              Всего аккаунтов: {loading ? '…' : accounts.length}
-            </span>
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={() => loadAccounts()}
-                className="inline-flex items-center gap-2 rounded-2xl border border-gray-200 bg-white px-4 py-2.5 text-xs font-bold text-gray-700 transition-all hover:bg-gray-50"
-              >
-                <RefreshCcw size={14} />
-                Обновить список
-              </button>
-              <div className="relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                <input
-                  type="text"
-                  placeholder="Поиск…"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="w-64 min-w-[12rem] rounded-2xl border border-gray-100 bg-gray-50 py-3 pl-11 pr-4 text-sm font-medium outline-none transition-all focus:ring-4 focus:ring-blue-100"
-                />
-              </div>
+      <div className="flex w-full flex-col overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
+        <div className="z-10 flex flex-wrap items-center justify-between gap-4 border-b border-gray-100 bg-white p-8">
+          <span className="text-lg font-black text-gray-800">
+            Всего аккаунтов: {loading ? '…' : accounts.length}
+          </span>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => loadAccounts()}
+              className="inline-flex items-center gap-2 rounded-2xl border border-gray-200 bg-white px-4 py-2.5 text-xs font-bold text-gray-700 transition-all hover:bg-gray-50"
+            >
+              <RefreshCcw size={14} />
+              Обновить список
+            </button>
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+              <input
+                type="text"
+                placeholder="Поиск…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-64 min-w-[12rem] rounded-2xl border border-gray-100 bg-gray-50 py-3 pl-11 pr-4 text-sm font-medium outline-none transition-all focus:ring-4 focus:ring-blue-100"
+              />
             </div>
           </div>
-          <div className="max-h-[640px] flex-1 divide-y divide-gray-100 overflow-y-auto">
-            {filtered.map((a) => (
-              <div
-                key={a.id}
-                className="flex flex-col gap-3 p-5 px-8 transition-colors hover:bg-gray-50/50 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="flex min-w-0 items-center gap-5">
-                  <img
-                    src={a.avatar_url || 'https://placehold.co/48x48/f3f4f6/6b7280?text=VK'}
-                    alt=""
-                    className="h-12 w-12 rounded-2xl object-cover"
-                  />
-                  <div className="min-w-0">
-                    <p className="mb-0.5 truncate text-sm font-bold text-gray-800">
-                      {[a.name, a.second_name].filter(Boolean).join(' ') || `id ${a.id}`}
-                    </p>
-                    <p className="text-xs font-medium text-gray-500">
-                      {a.login ? `${a.login} • ` : ''}
-                      тип: <span className="font-bold text-blue-600">{a.account_type}</span>
-                      {a.proxy_id ? ` • proxy #${a.proxy_id}` : ''}
-                    </p>
-                    <div className="mt-1 flex flex-wrap items-center gap-2">
-                      <span
-                        className={`rounded-lg border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${statusBadgeClass(a.parse_status)}`}
-                      >
-                        {a.parse_status || '—'}
+        </div>
+        <div className="max-h-[640px] flex-1 divide-y divide-gray-100 overflow-y-auto">
+          {filtered.map((a) => (
+            <div
+              key={a.id}
+              className={`flex flex-col gap-3 p-5 px-8 transition-colors hover:bg-gray-50/50 sm:flex-row sm:items-center sm:justify-between ${batchStripeClass(a.account_checker_batch_id)}`}
+            >
+              <div className="flex min-w-0 flex-1 items-center gap-5">
+                <img
+                  src={a.avatar_url || 'https://placehold.co/48x48/f3f4f6/6b7280?text=VK'}
+                  alt=""
+                  className="h-12 w-12 shrink-0 rounded-2xl object-cover"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Tooltip title={vkFullName(a)} placement="topLeft">
+                      <span className="cursor-default font-mono text-sm font-bold tracking-tight text-gray-900 select-all">
+                        {loginPassLine(a)}
                       </span>
-                      {a.task_id ? (
-                        <span className="font-mono text-[10px] text-gray-400" title="Celery task id">
-                          task {String(a.task_id).slice(0, 12)}…
-                        </span>
-                      ) : null}
-                    </div>
-                    {a.vk_account_url && (
-                      <a
-                        href={a.vk_account_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mt-1 inline-flex items-center gap-1 text-xs font-bold text-blue-600"
-                      >
-                        Открыть VK <ExternalLink size={12} />
-                      </a>
-                    )}
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {a.account_type === 'backup' && a.parse_status === 'success' && (
+                    </Tooltip>
                     <button
                       type="button"
-                      disabled={changingPwId === a.id}
-                      onClick={() => handleChangePasswordOne(a.id)}
-                      className="rounded-xl bg-violet-50 px-3 py-2 text-xs font-bold text-violet-800 transition-all hover:bg-violet-100 disabled:opacity-50"
-                      title="Сменить пароль на сервере (старый пароль из БД)"
+                      onClick={() => copyLoginPass(a)}
+                      className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-blue-600"
+                      title="Копировать log:pass"
+                      aria-label="Копировать log:pass"
                     >
-                      {changingPwId === a.id ? (
-                        '…'
-                      ) : (
-                        <>
-                          <KeyRound size={14} className="mr-1 inline" />
-                          Сменить пароль
-                        </>
-                      )}
+                      <Copy size={16} />
                     </button>
+                  </div>
+                  <p className="mt-1 text-xs font-medium text-gray-500">
+                    тип: <span className="font-bold text-blue-600">{a.account_type}</span>
+                    {a.proxy_id ? ` • proxy #${a.proxy_id}` : ''}
+                    {a.checker_batch_label ? (
+                      <>
+                        {' '}
+                        • пачка:{' '}
+                        <span className="font-bold text-indigo-700" title={a.checker_batch_label}>
+                          {a.checker_batch_label}
+                        </span>
+                      </>
+                    ) : null}
+                  </p>
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                    <span
+                      className={`rounded-lg border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${statusBadgeClass(a.parse_status)}`}
+                    >
+                      {a.parse_status || '—'}
+                    </span>
+                    {a.checker_batch_label ? (
+                      <span className="max-w-[14rem] truncate rounded-md bg-indigo-100 px-2 py-0.5 text-[10px] font-bold text-indigo-900">
+                        {a.checker_batch_label}
+                      </span>
+                    ) : null}
+                    {a.task_id ? (
+                      <span className="font-mono text-[10px] text-gray-400" title="Celery task id">
+                        task {String(a.task_id).slice(0, 12)}…
+                      </span>
+                    ) : null}
+                  </div>
+                  {a.vk_account_url && (
+                    <a
+                      href={a.vk_account_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-1 inline-flex items-center gap-1 text-xs font-bold text-blue-600"
+                    >
+                      Открыть VK <ExternalLink size={12} />
+                    </a>
                   )}
-                  <button
-                    type="button"
-                    disabled={checkingId === a.id}
-                    onClick={() => handleCheck(a.id)}
-                    className="rounded-xl bg-gray-50 px-4 py-2 text-xs font-bold text-gray-600 transition-all hover:bg-gray-200 disabled:opacity-50"
-                  >
-                    {checkingId === a.id ? '…' : 'Проверить curl'}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={reconnectId === a.id}
-                    onClick={() => handleReconnect(a.id)}
-                    className="rounded-xl bg-blue-50 px-4 py-2 text-xs font-bold text-blue-700 transition-all hover:bg-blue-100 disabled:opacity-50"
-                  >
-                    {reconnectId === a.id ? '…' : 'Переподключить'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(a.id)}
-                    className="rounded-xl p-2 text-gray-300 transition-all hover:bg-red-50 hover:text-red-500"
-                    aria-label="Удалить"
-                  >
-                    <Trash2 size={18} />
-                  </button>
                 </div>
               </div>
-            ))}
-            {!loading && !filtered.length && (
-              <div className="p-12 text-center text-sm text-gray-500">Нет аккаунтов по фильтру.</div>
-            )}
-          </div>
+              <div className="flex flex-wrap gap-2">
+                {a.account_type === 'backup' && a.parse_status === 'success' && (
+                  <button
+                    type="button"
+                    disabled={changingPwId === a.id}
+                    onClick={() => handleChangePasswordOne(a.id)}
+                    className="rounded-xl bg-violet-50 px-3 py-2 text-xs font-bold text-violet-800 transition-all hover:bg-violet-100 disabled:opacity-50"
+                    title="Сменить пароль на сервере (старый пароль из БД)"
+                  >
+                    {changingPwId === a.id ? (
+                      '…'
+                    ) : (
+                      <>
+                        <KeyRound size={14} className="mr-1 inline" />
+                        Сменить пароль
+                      </>
+                    )}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  disabled={checkingId === a.id}
+                  onClick={() => handleCheck(a.id)}
+                  className="rounded-xl bg-gray-50 px-4 py-2 text-xs font-bold text-gray-600 transition-all hover:bg-gray-200 disabled:opacity-50"
+                >
+                  {checkingId === a.id ? '…' : 'Проверить curl'}
+                </button>
+                <button
+                  type="button"
+                  disabled={reconnectId === a.id}
+                  onClick={() => handleReconnect(a.id)}
+                  className="rounded-xl bg-blue-50 px-4 py-2 text-xs font-bold text-blue-700 transition-all hover:bg-blue-100 disabled:opacity-50"
+                >
+                  {reconnectId === a.id ? '…' : 'Переподключить'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(a.id)}
+                  className="rounded-xl p-2 text-gray-300 transition-all hover:bg-red-50 hover:text-red-500"
+                  aria-label="Удалить"
+                >
+                  <Trash2 size={18} />
+                </button>
+              </div>
+            </div>
+          ))}
+          {!loading && !filtered.length && (
+            <div className="p-12 text-center text-sm text-gray-500">Нет аккаунтов по фильтру.</div>
+          )}
+        </div>
       </div>
     </div>
   );
