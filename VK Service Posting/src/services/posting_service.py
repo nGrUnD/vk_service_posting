@@ -85,7 +85,6 @@ class PostingService:
     async def check_and_schedule(self, minute: int):
         logging.info(minute)
         workposts = await self.workpost_repo.get_all()
-        self.delete_all_mp4_files()
         try:
             for workpost in workposts:
                 # print(workpost)

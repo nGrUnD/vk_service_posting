@@ -1,5 +1,6 @@
 import os
 import re
+import tempfile
 import time
 from typing import Dict, Optional
 
@@ -37,7 +38,53 @@ def get_clip_info(owner_id: int, video_id: int, access_token: str, proxy: str) -
     return result
 
 #!===================  Скачивание клипа
-def download_clip_by_url(url: str, owner_id: int, clip_id: int, out_dir=".") -> str:
+def download_clip_by_direct_url(
+    url: str,
+    proxy: str | None,
+    owner_id: int,
+    clip_id: int,
+    out_dir: str | None = None,
+) -> str:
+    """
+    Скачивание по прямому URL из поля vk_clip.files (обходит yt-dlp и ошибки вида
+    «This clip was deleted and is unavailable», если файл ещё доступен по CDN).
+    """
+    base_dir = out_dir or tempfile.gettempdir()
+    os.makedirs(base_dir, exist_ok=True)
+    safe = f"vk_direct_{owner_id}_{clip_id}_{os.getpid()}_{int(time.time() * 1000)}"
+    ext = ".mp4"
+    low = url.lower()
+    if ".webm" in low.split("?", 1)[0]:
+        ext = ".webm"
+    path = os.path.join(base_dir, safe + ext)
+
+    proxies = None
+    if proxy:
+        proxies = {"http": proxy, "https": proxy}
+
+    session = requests.Session()
+    if proxies:
+        session.proxies.update(proxies)
+    session.headers.setdefault("User-Agent", "Mozilla/5.0 (compatible; VKPosting/1.0)")
+
+    with session.get(url, stream=True, timeout=120) as r:
+        r.raise_for_status()
+        with open(path, "wb") as f:
+            for chunk in r.iter_content(chunk_size=1024 * 256):
+                if chunk:
+                    f.write(chunk)
+    if not os.path.exists(path) or os.path.getsize(path) < 1024:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+        raise RuntimeError("Пустой или слишком маленький ответ при скачивании по прямому URL")
+    return path
+
+
+def download_clip_by_url(url: str, owner_id: int, clip_id: int, out_dir=None) -> str:
+    if out_dir is None:
+        out_dir = tempfile.gettempdir()
     downloaded_file = None
     filename_template = f"{out_dir}/{owner_id}-{clip_id}.%(ext)s"
 
@@ -65,7 +112,7 @@ def download_vk_clip(files: dict[str, str],
                      vk_group_id: int,
                      vk_clip_id: int,
                      proxy: str,
-                     save_dir: str = ".",
+                     save_dir: str | None = None,
                      filename: str = None) -> str:
     """
     Скачивает клип по прямому URL.
@@ -109,8 +156,8 @@ def download_vk_clip(files: dict[str, str],
         # иначе просто первый ключ
         return next(iter(files), None)
 
-    # например, -12345 для паблика
-    # Генерируем имя файла, если не задано
+    if save_dir is None:
+        save_dir = tempfile.gettempdir()
 
     quality = best_quality_key(files)
 

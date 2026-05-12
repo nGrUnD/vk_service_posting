@@ -94,14 +94,17 @@ export default function AccountsView() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return accounts;
-    return accounts.filter((a) =>
-      [a.name, a.second_name, a.login, String(a.vk_account_id), a.account_type]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
-        .includes(q),
-    );
+    const list = q
+      ? accounts.filter((a) =>
+          [a.name, a.second_name, a.login, String(a.vk_account_id), a.account_type]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase()
+            .includes(q),
+        )
+      : [...accounts];
+    list.sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0));
+    return list;
   }, [accounts, search]);
 
   const pendingWatchCount = useMemo(() => {

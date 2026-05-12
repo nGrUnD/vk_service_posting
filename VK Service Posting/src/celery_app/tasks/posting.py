@@ -11,7 +11,12 @@ from src.services.live_log import livelogadd_sync
 from src.services.workerpost_banner_service import compose_clip_with_banner
 
 from src.vk_api_methods.vk_auth import get_new_token_request
-from src.vk_api_methods.vk_posting import upload_short_video, download_clip_by_url, delete_file
+from src.vk_api_methods.vk_posting import (
+    upload_short_video,
+    download_clip_by_url,
+    download_clip_by_direct_url,
+    delete_file,
+)
 from src.celery_app.celery_db import SyncSessionLocal
 
 
@@ -62,18 +67,27 @@ def posting_clip(worker_id: int, token_db: str, schedule_database_id: int, clip,
         #files = new_clip_data_files['files']
 
         clip_url = f"https://vk.com/video{vk_clip_owner_id}_{clip_id}"
-
-        #token = get_token(login, password, proxy)
+        files_field = clip.get("files") or ""
 
         cookie_db = vk_account.cookies
-        #cookie = list_to_cookiejar(cookie_db)
         print(f"VK Account Name: {vk_account.name}")
         token = get_new_token_request(token_db, cookie_db, proxy)
 
-        clip_filename = download_clip_by_url(clip_url, vk_clip_owner_id, clip_id)
-        upload_video_path = clip_filename
+        clip_filename = None
         rendered_clip_path = None
+        upload_video_path = None
         try:
+            if isinstance(files_field, str) and files_field.strip().lower().startswith(("http://", "https://")):
+                try:
+                    clip_filename = download_clip_by_direct_url(
+                        files_field.strip(), proxy, vk_clip_owner_id, clip_id
+                    )
+                except Exception as direct_err:
+                    print(f"Direct URL download failed, fallback vk page / yt-dlp: {direct_err}")
+            if not clip_filename:
+                clip_filename = download_clip_by_url(clip_url, vk_clip_owner_id, clip_id)
+            upload_video_path = clip_filename
+
             if workerpost.banner_video_path:
                 rendered_clip_path = compose_clip_with_banner(
                     clip_path=clip_filename,
@@ -97,8 +111,7 @@ def posting_clip(worker_id: int, token_db: str, schedule_database_id: int, clip,
             vk_account.account_type = "posting"
         except Exception as e:
             if schedule_update_data:
-                session.delete(schedule_update_data)
-                session.commit()
+                schedule_update_data.status = "failed"
 
             if hasattr(e, "code") and e.code == 9:
                 print("VK Flood control error!")
@@ -132,6 +145,7 @@ def posting_clip(worker_id: int, token_db: str, schedule_database_id: int, clip,
                 raise e
 
             else:
+                session.commit()
                 raise e
         else:
             if workerpost:
