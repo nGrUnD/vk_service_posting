@@ -526,7 +526,7 @@ async def check_vk_account_curl(
         await database.vk_account.edit(VKAccountUpdate(token=token), exclude_unset=True, id=account.id)
         await database.commit()
 
-    return {"ok": True, "detail": "curl и токен живые (users.get + groups.get)"}
+    return {"ok": True, "detail": "curl и токен в порядке"}
 
 
 @router.post("/{vk_account_id}/reconnect_curl", summary="Переподключить cURL через vk_login (log:pass)")
