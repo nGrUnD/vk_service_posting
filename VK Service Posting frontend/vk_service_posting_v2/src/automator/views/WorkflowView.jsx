@@ -1,9 +1,36 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { message, Switch } from 'antd';
-import { ExternalLink, Loader2, PlayCircle, Plus, Settings, Trash2 } from 'lucide-react';
+import {
+  Button,
+  Divider,
+  Input,
+  InputNumber,
+  Modal,
+  Select,
+  Space,
+  Switch,
+  Tooltip,
+  Typography,
+  message,
+} from 'antd';
+
+import { Copy, ExternalLink, Loader2, PlayCircle, Plus, Settings, Trash2 } from 'lucide-react';
 
 import api from '../../api/axios';
 import { useAutomatorUser } from '../AutomatorUserContext.jsx';
+
+const { Title, Text } = Typography;
+
+const DEFAULT_BANNER_FORM = {
+  banner_x: 0,
+  banner_y: 0,
+  banner_width: 100,
+  banner_height: 15,
+  banner_remove_green_background: true,
+};
+
+function getApiBaseUrl() {
+  return (api.defaults.baseURL || '/api').replace(/\/$/, '');
+}
 
 function getV1Url() {
   return import.meta.env.VITE_V1_URL || `${window.location.protocol}//${window.location.hostname}/`;
@@ -77,21 +104,64 @@ export default function WorkflowView() {
   const [updatingWorkerpostId, setUpdatingWorkerpostId] = useState(null);
   const [deletingWorkerpostId, setDeletingWorkerpostId] = useState(null);
 
+  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
+  const [editingRecord, setEditingRecord] = useState(null);
+  const [clipLists, setClipLists] = useState([]);
+  const [loadingClips, setLoadingClips] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [bannerFile, setBannerFile] = useState(null);
+  const [bannerPreviewUrl, setBannerPreviewUrl] = useState(null);
+  const [bannerMarkedForDeletion, setBannerMarkedForDeletion] = useState(false);
+  const [modalForm, setModalForm] = useState({
+    name: '',
+    description: '',
+    repost_enabled: false,
+    daily_limit: 0,
+    hourly_limit: 0,
+    clip_list_id: null,
+    ...DEFAULT_BANNER_FORM,
+  });
+
   const load = useCallback(
     async (opts = { silent: false }) => {
       if (!opts.silent) setLoading(true);
       let tableData = [];
       try {
+        const apiBase = getApiBaseUrl();
         const response = await api.get(`/users/${user.id}/workerpost/all`);
         tableData = (Array.isArray(response.data) ? response.data : []).map((item) => {
-          const { workpost, vk_group, vk_account, category, clip_list } = item;
+          const { workpost, vk_group, vk_account, category, clip_list, account_data } = item;
           const accountUrl = vk_account?.vk_account_url;
+          const ad = account_data;
+          const accountLoginPass =
+            ad?.login != null && String(ad.login).length
+              ? ad?.password != null && String(ad.password).length
+                ? `${ad.login}:${ad.password}`
+                : `${ad.login}:••••`
+              : '—';
+          const bannerVideoUrl = workpost?.banner_video_path
+            ? `${apiBase}/users/${user.id}/workerpost/${workpost.id}/banner`
+            : null;
           return {
             id: workpost.id,
             groupName: vk_group?.name,
             groupUrl: vk_group?.vk_group_url,
             accountName: `${vk_account?.name ?? ''} ${vk_account?.second_name ?? ''}`.trim(),
             accountUrl: isVkAccountUrl(accountUrl) ? accountUrl : null,
+            accountLoginPass,
+            categoryId: category?.id,
+            workerpost: {
+              id: workpost.id,
+              isActive: workpost?.is_active,
+              bannerVideoUrl,
+              hasBanner: Boolean(workpost?.banner_video_path),
+              banner_x: workpost.banner_x ?? DEFAULT_BANNER_FORM.banner_x,
+              banner_y: workpost.banner_y ?? DEFAULT_BANNER_FORM.banner_y,
+              banner_width: workpost.banner_width ?? DEFAULT_BANNER_FORM.banner_width,
+              banner_height: workpost.banner_height ?? DEFAULT_BANNER_FORM.banner_height,
+              banner_remove_green_background:
+                workpost.banner_remove_green_background ?? DEFAULT_BANNER_FORM.banner_remove_green_background,
+            },
             category: category?.name,
             hourly: category?.hourly_limit,
             active: workpost?.is_active,
@@ -126,6 +196,24 @@ export default function WorkflowView() {
         if (!cancelled) setCategories(Array.isArray(data) ? data : []);
       } catch {
         if (!cancelled) setCategories([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoadingClips(true);
+      try {
+        const { data } = await api.get(`/users/${user.id}/clip_list/get_all`);
+        if (!cancelled) setClipLists(Array.isArray(data) ? data : []);
+      } catch {
+        if (!cancelled) setClipLists([]);
+      } finally {
+        if (!cancelled) setLoadingClips(false);
       }
     })();
     return () => {
@@ -214,7 +302,17 @@ export default function WorkflowView() {
       setUpdatingWorkerpostId(rowId);
       try {
         await api.put(`/users/${user.id}/workerpost/${rowId}`, { is_active: nextActive });
-        setRows((prev) => prev.map((r) => (r.id === rowId ? { ...r, active: nextActive } : r)));
+        setRows((prev) =>
+          prev.map((r) =>
+            r.id === rowId
+              ? {
+                  ...r,
+                  active: nextActive,
+                  workerpost: r.workerpost ? { ...r.workerpost, isActive: nextActive } : r.workerpost,
+                }
+              : r,
+          ),
+        );
         messageApi.success(nextActive ? 'Воркерпост включён' : 'Воркерпост на паузе');
       } catch {
         messageApi.error('Не удалось обновить статус воркерпоста');
@@ -241,6 +339,147 @@ export default function WorkflowView() {
     },
     [load, messageApi, user.id],
   );
+
+  const cleanupLocalBannerPreview = useCallback(() => {
+    setBannerPreviewUrl((prev) => {
+      if (prev?.startsWith('blob:')) {
+        URL.revokeObjectURL(prev);
+      }
+      return null;
+    });
+  }, []);
+
+  const closeSettingsModal = useCallback(() => {
+    cleanupLocalBannerPreview();
+    setSettingsModalOpen(false);
+    setEditingRecord(null);
+    setBannerFile(null);
+    setBannerMarkedForDeletion(false);
+  }, [cleanupLocalBannerPreview]);
+
+  const openSettingsModal = useCallback(
+    (row) => {
+      if (row.categoryId == null) {
+        messageApi.warning('Нет категории для этой строки — обновите список.');
+        return;
+      }
+      const fullCategory = categories.find((c) => c.id === row.categoryId);
+      setEditingRecord({
+        id: row.id,
+        category: { id: row.categoryId },
+        workerpost: row.workerpost,
+      });
+      setBannerFile(null);
+      setBannerMarkedForDeletion(false);
+      cleanupLocalBannerPreview();
+      setModalForm({
+        name: fullCategory?.name ?? '',
+        description: fullCategory?.description ?? '',
+        repost_enabled: fullCategory?.repost_enabled ?? false,
+        daily_limit: fullCategory?.daily_limit ?? 0,
+        hourly_limit: fullCategory?.hourly_limit ?? 0,
+        clip_list_id: fullCategory?.clip_list_id ?? null,
+        banner_x: row.workerpost.banner_x,
+        banner_y: row.workerpost.banner_y,
+        banner_width: row.workerpost.banner_width,
+        banner_height: row.workerpost.banner_height,
+        banner_remove_green_background: row.workerpost.banner_remove_green_background,
+      });
+      setBannerPreviewUrl(row.workerpost.bannerVideoUrl);
+      setSettingsModalOpen(true);
+    },
+    [categories, cleanupLocalBannerPreview, messageApi],
+  );
+
+  const updateModalForm = useCallback((patch) => {
+    setModalForm((prev) => ({ ...prev, ...patch }));
+  }, []);
+
+  const handleBannerChange = (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (file.type && !file.type.startsWith('video/')) {
+      messageApi.error('Нужно выбрать видеофайл');
+      return;
+    }
+    cleanupLocalBannerPreview();
+    setBannerFile(file);
+    setBannerMarkedForDeletion(false);
+    setBannerPreviewUrl(URL.createObjectURL(file));
+  };
+
+  const handleBannerDeleteClick = () => {
+    cleanupLocalBannerPreview();
+    setBannerFile(null);
+    setBannerMarkedForDeletion(true);
+  };
+
+  const copyToClipboard = useCallback(
+    async (text, successMsg = 'Скопировано') => {
+      if (!text || text === '—') return;
+      try {
+        await navigator.clipboard.writeText(text);
+        messageApi.success(successMsg);
+      } catch {
+        messageApi.error('Не удалось скопировать');
+      }
+    },
+    [messageApi],
+  );
+
+  const handleSaveSettings = useCallback(async () => {
+    if (!editingRecord?.category?.id || !editingRecord?.workerpost?.id) return;
+    setSavingSettings(true);
+    try {
+      await api.put(`/users/${user.id}/categories/edit/${editingRecord.category.id}`, {
+        name: modalForm.name,
+        description: modalForm.description,
+        repost_enabled: modalForm.repost_enabled ?? false,
+        daily_limit: modalForm.daily_limit ?? 0,
+        hourly_limit: modalForm.hourly_limit ?? 0,
+        clip_list_id: modalForm.clip_list_id,
+        is_active: true,
+      });
+
+      await api.put(`/users/${user.id}/workerpost/${editingRecord.workerpost.id}`, {
+        banner_x: modalForm.banner_x,
+        banner_y: modalForm.banner_y,
+        banner_width: modalForm.banner_width,
+        banner_height: modalForm.banner_height,
+        banner_remove_green_background: modalForm.banner_remove_green_background,
+      });
+
+      if (bannerMarkedForDeletion && editingRecord.workerpost.hasBanner) {
+        await api.delete(`/users/${user.id}/workerpost/${editingRecord.workerpost.id}/banner`);
+      }
+
+      if (bannerFile) {
+        const payload = new FormData();
+        payload.append('banner_file', bannerFile);
+        await api.post(`/users/${user.id}/workerpost/${editingRecord.workerpost.id}/banner`, payload, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+      }
+
+      messageApi.success('Настройки workerpost обновлены');
+      closeSettingsModal();
+      await load({ silent: true });
+    } catch (e) {
+      messageApi.error(e.response?.data?.detail || 'Ошибка при сохранении настроек');
+    } finally {
+      setSavingSettings(false);
+    }
+  }, [
+    bannerFile,
+    bannerMarkedForDeletion,
+    closeSettingsModal,
+    editingRecord,
+    load,
+    messageApi,
+    modalForm,
+    user.id,
+  ]);
 
   const activeCount = useMemo(() => rows.filter((r) => r.active).length, [rows]);
 
@@ -269,6 +508,8 @@ export default function WorkflowView() {
     if (page > pageCount) setPage(pageCount);
   }, [page, pageCount]);
 
+  const currentBannerPreview = bannerMarkedForDeletion ? null : bannerPreviewUrl;
+
   return (
     <div className="space-y-6">
       {contextHolder}
@@ -276,8 +517,8 @@ export default function WorkflowView() {
       <section className="rounded-3xl border border-amber-100 bg-amber-50/80 p-6 shadow-sm">
         <h3 className="mb-2 text-lg font-black text-amber-900">Редактирование баннеров и клипов</h3>
         <p className="text-sm font-medium text-amber-800">
-          Полный конструктор (баннеры, категории, списки клипов) пока в V1. Ниже — создание воркерпостов по ссылкам и
-          живой список из API.
+          Детальные настройки строки (категория, описание, репост, баннер) — в модалке «Настройки» в таблице ниже. Здесь
+          же можно открыть полный экран V1.
         </p>
         <button
           type="button"
@@ -425,9 +666,9 @@ export default function WorkflowView() {
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <label className="block min-w-0 flex-1 text-xs font-bold uppercase tracking-widest text-gray-400">
               Фильтр по названию паблика
-              <input
-                type="text"
-                className="mt-1 w-full rounded-xl border border-gray-100 bg-gray-50 px-4 py-2.5 text-sm font-medium text-gray-800 outline-none focus:ring-2 focus:ring-blue-100"
+              <textarea
+                rows={3}
+                className="mt-1 w-full resize-y rounded-xl border border-gray-100 bg-gray-50 px-4 py-2.5 text-sm font-medium text-gray-800 outline-none focus:ring-2 focus:ring-blue-100"
                 placeholder="Несколько слов через запятую или с новой строки"
                 value={tableSearch}
                 onChange={(e) => setTableSearch(e.target.value)}
@@ -475,7 +716,7 @@ export default function WorkflowView() {
                           href={row.groupUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="flex items-center gap-1.5 font-bold text-blue-600 hover:underline"
+                          className="inline-flex items-center gap-1.5 font-bold text-blue-600 hover:underline"
                         >
                           {row.groupName}{' '}
                           <ExternalLink size={12} className="opacity-0 transition-opacity group-hover:opacity-100" />
@@ -483,21 +724,40 @@ export default function WorkflowView() {
                       ) : (
                         <span className="font-bold text-gray-800">{row.groupName}</span>
                       )}
+                      {row.groupUrl ? (
+                        <div className="mt-1 flex max-w-[18rem] items-center gap-1">
+                          <span className="min-w-0 flex-1 truncate font-mono text-[10px] text-gray-500" title={row.groupUrl}>
+                            {row.groupUrl}
+                          </span>
+                          <button
+                            type="button"
+                            title="Копировать ссылку на паблик"
+                            onClick={() => void copyToClipboard(row.groupUrl, 'Ссылка скопирована')}
+                            className="shrink-0 rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                          >
+                            <Copy size={14} />
+                          </button>
+                        </div>
+                      ) : null}
                       <div className="mt-0.5 font-mono text-[10px] text-gray-400">#{row.id}</div>
                     </td>
                     <td className="px-6 py-5">
-                      {row.accountUrl ? (
-                        <a
-                          href={row.accountUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="font-semibold text-blue-600 hover:underline"
-                        >
-                          {row.accountName || '—'}
-                        </a>
-                      ) : (
-                        <span className="font-semibold text-gray-800">{row.accountName || '—'}</span>
-                      )}
+                      <Tooltip title={row.accountName?.trim() ? row.accountName : undefined}>
+                        <div className="flex max-w-[14rem] items-center gap-1.5">
+                          <span className="min-w-0 flex-1 truncate font-mono text-xs text-gray-800" title={row.accountLoginPass}>
+                            {row.accountLoginPass}
+                          </span>
+                          <button
+                            type="button"
+                            title="Копировать логин:пароль"
+                            disabled={row.accountLoginPass === '—'}
+                            onClick={() => void copyToClipboard(row.accountLoginPass)}
+                            className="shrink-0 rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-30"
+                          >
+                            <Copy size={14} />
+                          </button>
+                        </div>
+                      </Tooltip>
                     </td>
                     <td className="px-6 py-5">
                       <span className="rounded-lg bg-gray-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-500">
@@ -541,8 +801,8 @@ export default function WorkflowView() {
                       <div className="flex justify-end gap-2">
                         <button
                           type="button"
-                          title="Настройки в V1 (статус рабочего процесса)"
-                          onClick={() => window.open(getV1WorkflowStatusUrl(), '_blank')}
+                          title="Настройки workerpost"
+                          onClick={() => openSettingsModal(row)}
                           className="rounded-xl p-2.5 text-gray-400 transition-all hover:bg-blue-50 hover:text-blue-600"
                         >
                           <Settings size={18} />
@@ -615,6 +875,229 @@ export default function WorkflowView() {
           </div>
         ) : null}
       </section>
+
+      <Modal
+        open={settingsModalOpen}
+        onCancel={closeSettingsModal}
+        title={editingRecord ? `Настройки workerpost #${editingRecord.id}` : 'Настройки workerpost'}
+        width={900}
+        destroyOnClose
+        footer={[
+          <Button key="cancel" onClick={closeSettingsModal}>
+            Отмена
+          </Button>,
+          <Button key="save" type="primary" loading={savingSettings} onClick={() => void handleSaveSettings()}>
+            Сохранить
+          </Button>,
+        ]}
+      >
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          <div className="flex flex-col gap-4">
+            <Title level={5} style={{ margin: 0 }}>
+              Категория
+            </Title>
+
+            <Input
+              placeholder="Название"
+              value={modalForm.name}
+              onChange={(e) => updateModalForm({ name: e.target.value })}
+            />
+
+            <Input.TextArea
+              placeholder="Описание"
+              value={modalForm.description}
+              onChange={(e) => updateModalForm({ description: e.target.value })}
+              rows={4}
+            />
+
+            <div className="flex items-center justify-between">
+              <span>Репост:</span>
+              <Switch
+                checked={modalForm.repost_enabled}
+                onChange={(value) => updateModalForm({ repost_enabled: value })}
+              />
+            </div>
+
+            <Select
+              className="min-w-0 w-full"
+              placeholder="Список клипов"
+              value={modalForm.clip_list_id}
+              onChange={(value) => updateModalForm({ clip_list_id: value })}
+              allowClear
+              loading={loadingClips}
+              options={clipLists.map((item) => ({
+                label: item.name,
+                value: item.id,
+              }))}
+            />
+
+            <Divider style={{ margin: '8px 0' }} />
+
+            <Title level={5} style={{ margin: 0 }}>
+              Видео-баннер
+            </Title>
+            <Text type="secondary">Координаты и размер задаются в процентах от итогового видео.</Text>
+
+            <input type="file" accept="video/*,.mp4,.mov,.webm,.m4v" onChange={handleBannerChange} />
+
+            <Space wrap>
+              <Button
+                onClick={() =>
+                  updateModalForm({
+                    banner_x: DEFAULT_BANNER_FORM.banner_x,
+                    banner_y: DEFAULT_BANNER_FORM.banner_y,
+                    banner_width: DEFAULT_BANNER_FORM.banner_width,
+                    banner_height: DEFAULT_BANNER_FORM.banner_height,
+                  })
+                }
+              >
+                Сбросить положение
+              </Button>
+              <Button
+                danger
+                onClick={handleBannerDeleteClick}
+                disabled={!currentBannerPreview && !editingRecord?.workerpost?.hasBanner}
+              >
+                Удалить баннер
+              </Button>
+            </Space>
+
+            {currentBannerPreview ? (
+              <div className="flex items-center justify-between">
+                <span>Удалить фон (зелёный):</span>
+                <Switch
+                  checked={modalForm.banner_remove_green_background}
+                  onChange={(value) => updateModalForm({ banner_remove_green_background: value })}
+                />
+              </div>
+            ) : null}
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Text>X (%)</Text>
+                <InputNumber
+                  min={0}
+                  max={100}
+                  step={0.5}
+                  value={modalForm.banner_x}
+                  onChange={(value) => updateModalForm({ banner_x: value ?? 0 })}
+                  style={{ width: '100%' }}
+                />
+              </div>
+              <div>
+                <Text>Y (%)</Text>
+                <InputNumber
+                  min={0}
+                  max={100}
+                  step={0.5}
+                  value={modalForm.banner_y}
+                  onChange={(value) => updateModalForm({ banner_y: value ?? 0 })}
+                  style={{ width: '100%' }}
+                />
+              </div>
+              <div>
+                <Text>Ширина (%)</Text>
+                <InputNumber
+                  min={1}
+                  max={100}
+                  step={0.5}
+                  value={modalForm.banner_width}
+                  onChange={(value) => updateModalForm({ banner_width: value ?? 1 })}
+                  style={{ width: '100%' }}
+                />
+              </div>
+              <div>
+                <Text>Высота (%)</Text>
+                <InputNumber
+                  min={1}
+                  max={100}
+                  step={0.5}
+                  value={modalForm.banner_height}
+                  onChange={(value) => updateModalForm({ banner_height: value ?? 1 })}
+                  style={{ width: '100%' }}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <Title level={5} style={{ margin: 0 }}>
+              Превью
+            </Title>
+            <Text type="secondary">Макет показывает пример положения баннера на вертикальном клипе.</Text>
+
+            <div
+              style={{
+                position: 'relative',
+                width: 320,
+                height: 568,
+                margin: '0 auto',
+                borderRadius: 20,
+                overflow: 'hidden',
+                background: 'linear-gradient(180deg, #1f2937 0%, #111827 100%)',
+                border: '1px solid #d9d9d9',
+              }}
+            >
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'rgba(255,255,255,0.65)',
+                  fontSize: 18,
+                  letterSpacing: 1,
+                  textTransform: 'uppercase',
+                }}
+              >
+                Preview clip
+              </div>
+
+              {currentBannerPreview ? (
+                <video
+                  key={currentBannerPreview}
+                  src={currentBannerPreview}
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  style={{
+                    position: 'absolute',
+                    left: `${modalForm.banner_x}%`,
+                    top: `${modalForm.banner_y}%`,
+                    width: `${modalForm.banner_width}%`,
+                    height: `${modalForm.banner_height}%`,
+                    objectFit: 'fill',
+                    borderRadius: 8,
+                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.25)',
+                  }}
+                />
+              ) : (
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: `${modalForm.banner_x}%`,
+                    top: `${modalForm.banner_y}%`,
+                    width: `${modalForm.banner_width}%`,
+                    height: `${modalForm.banner_height}%`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    border: '1px dashed rgba(255,255,255,0.5)',
+                    color: 'rgba(255,255,255,0.8)',
+                    fontSize: 12,
+                    textAlign: 'center',
+                    background: 'rgba(255,255,255,0.08)',
+                  }}
+                >
+                  Баннер не загружен
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
