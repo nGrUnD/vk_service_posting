@@ -150,7 +150,7 @@ export default function AccountsView() {
 
   const [checkerInputAccounts, setCheckerInputAccounts] = useState('');
   const [batchNote, setBatchNote] = useState('');
-  /** После успешного прогона пачки (AccountChecker / Selenium) — сменить пароль на сервере. */
+  /** После успешного прогона пачки — сменить пароль на сервере. */
   const [batchAutoChangePassword, setBatchAutoChangePassword] = useState(false);
   const [connectingBatchId, setConnectingBatchId] = useState(null);
   const [batchQueue, setBatchQueue] = useState(() => {
@@ -299,6 +299,7 @@ export default function AccountsView() {
           [
             a.name,
             a.second_name,
+            loginPassLine(a),
             a.login,
             a.password,
             String(a.vk_account_id),
@@ -578,7 +579,7 @@ export default function AccountsView() {
     passwordChangedRef.current = new Set();
     try {
       await api.post(`/users/${user.id}/vk_accounts/create_accounts`, { creds: bulkCreds.trim() });
-      messageApi.success('Аккаунты поставлены в очередь Selenium');
+      messageApi.success('Аккаунты поставлены в очередь импорта');
       const list = await loadAccounts(true);
       const logins = new Set(parseLoginsFromCreds(bulkCreds));
       const ids = list.filter((a) => a.login && logins.has(String(a.login).trim())).map((a) => a.id);
@@ -702,11 +703,8 @@ export default function AccountsView() {
       <section className="rounded-3xl border border-gray-100 bg-white p-8 shadow-sm">
         <h3 className="mb-2 text-lg font-black text-gray-800">Очередь пачек</h3>
         <p className="mb-4 text-sm text-gray-500">
-          Основной способ добавления по log:pass: вход через Selenium (<span className="font-mono">vk_login</span>), тот
-          же сценарий, что и в AccountChecker (V1). Подпись пачки, список log:pass, сначала «Добавить» (очередь в
-          браузере), затем «Запустить» на карточке. Очередь в localStorage (
-          <code className="rounded bg-gray-100 px-1 text-xs">account_checker_queue_v1</code>) — общая с первой
-          версией интерфейса.
+          Импорт по login:password пачками: подпись, список строк, «Добавить в очередь», затем «Запустить» на карточке.
+          Очередь хранится в браузере и совпадает с интерфейсом V1.
         </p>
         <div className="grid gap-8 xl:grid-cols-2">
           <div className="space-y-3">
@@ -739,8 +737,8 @@ export default function AccountsView() {
               <span>
                 <span className="font-bold text-gray-900">Авто-смена пароля после пачки</span>
                 <span className="mt-1 block text-xs font-medium text-gray-500">
-                  После успешного подключения пачки сменить пароль на сервере для аккаунтов со статусом success (по
-                  API, без ручного копирования).
+                  После успешной пачки сменить пароль на сервере для аккаунтов со статусом success, без ручного
+                  копирования.
                 </span>
               </span>
             </label>
@@ -820,12 +818,11 @@ export default function AccountsView() {
           <section className="rounded-3xl border border-gray-100 bg-white p-8 shadow-sm">
             <h3 className="mb-2 flex items-center gap-2 text-xl font-black text-gray-800">
               <Server size={22} className="text-blue-600" />
-              Импорт log:pass (очередь Selenium)
+              Импорт log:pass
             </h3>
             <p className="mb-6 text-sm font-medium text-gray-500">
-              Массовый импорт backup-аккаунтов: запись в БД и вход через Selenium (
-              <span className="font-mono">vk_login</span>), как у пачек AccountChecker (не через устаревший вход
-              vk_api по паролю). Новые пароли на сервере — копировать не нужно.
+              Список backup-аккаунтов в формате login:password (по строке). Дальше — то же подключение, что у пачек
+              выше. При включённой опции пароль после успешного входа обновится на сервере сам.
             </p>
             <div className="flex flex-col gap-6 lg:flex-row">
               <div className="min-w-0 flex-1">
@@ -850,8 +847,7 @@ export default function AccountsView() {
                   <span>
                     <span className="font-bold text-gray-900">Авто-смена пароля</span>
                     <span className="mt-1 block text-xs font-medium text-gray-500">
-                      После успешного входа (parse_status=success) пароль меняется на сервере по API, без ручного
-                      копирования.
+                      После успешного входа пароль обновится на сервере, без ручного копирования.
                     </span>
                   </span>
                 </label>
@@ -938,7 +934,7 @@ export default function AccountsView() {
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
               <input
                 type="text"
-                placeholder="Поиск…"
+                placeholder="Имя, login, пароль или login:pass…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-64 min-w-[12rem] rounded-2xl border border-gray-100 bg-gray-50 py-3 pl-11 pr-4 text-sm font-medium outline-none transition-all focus:ring-4 focus:ring-blue-100"

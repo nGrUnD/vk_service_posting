@@ -53,6 +53,7 @@ class WorkerPostService:
         invalid_url = 0
         missing_group = 0
         no_backup = 0
+        already_workerpost = 0
 
         for raw in request_add.vk_groups_links:
             link = raw.strip() if isinstance(raw, str) else ""
@@ -106,6 +107,22 @@ class WorkerPostService:
                 missing_group += 1
                 continue
 
+            existing_wp = await self.database.workerpost.get_one_or_none(
+                user_id=user_id,
+                vk_group_id=vk_group_database.id,
+            )
+            if existing_wp:
+                links_rows.append(
+                    WorkerPostPreviewLinkRow(
+                        link=raw,
+                        vk_public_id=pid,
+                        status="already_workerpost",
+                        detail=f"Паблик уже в списке воркерпостов (workerpost #{existing_wp.id})",
+                    ),
+                )
+                already_workerpost += 1
+                continue
+
             vk_account_groups_db = await self.database.vk_account_group.get_all_filtered(
                 vk_group_id=vk_group_database.id,
                 role="backup",
@@ -149,6 +166,7 @@ class WorkerPostService:
             invalid_url=invalid_url,
             no_main_account=no_main,
             no_category=no_category,
+            already_workerpost=already_workerpost,
         )
 
     async def create_workerpost(self, user_id: int, request_add: WorkerPostRequestAdd):
@@ -168,12 +186,26 @@ class WorkerPostService:
         for vk_group_id in vk_groups_ids:
             category_database = await self.database.category.get_one_or_none(id=request_add.category_id)
 
-            vk_group_database = await self.database.vk_group.get_one_or_none(vk_group_id=vk_group_id)
+            vk_group_database = await self.database.vk_group.get_one_or_none(
+                vk_group_id=vk_group_id,
+                user_id=user_id,
+            )
             if not vk_group_database:
                 logging.info(f"vk group id нет у main account: {vk_group_id}")
                 failed_group_ids.append(vk_group_id)
                 #await self.database.vk_account_cred.delete(id=current_cred.id)
                 #await self.database.commit()
+                continue
+
+            existing_wp = await self.database.workerpost.get_one_or_none(
+                user_id=user_id,
+                vk_group_id=vk_group_database.id,
+            )
+            if existing_wp:
+                logging.info(
+                    f"workerpost уже существует для vk_group_id={vk_group_id}, workerpost_id={existing_wp.id}",
+                )
+                failed_group_ids.append(vk_group_id)
                 continue
 
             vk_account_groups_db = await self.database.vk_account_group.get_all_filtered(vk_group_id=vk_group_database.id, role="backup")

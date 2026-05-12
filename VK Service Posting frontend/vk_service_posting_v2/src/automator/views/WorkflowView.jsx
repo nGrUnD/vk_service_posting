@@ -614,13 +614,22 @@ export default function WorkflowView() {
               {preview.no_category ? (
                 <span className="rounded-lg bg-rose-100 px-2 py-1 text-rose-900">Категория недоступна</span>
               ) : null}
+              {preview.already_workerpost ? (
+                <span className="rounded-lg bg-rose-100 px-2 py-1 text-rose-900">
+                  Уже воркерпост: {preview.already_workerpost}
+                </span>
+              ) : null}
             </div>
             <ul className="max-h-48 space-y-2 overflow-y-auto text-xs">
               {(preview.links || []).map((row, idx) => (
                 <li
                   key={`${row.link}-${idx}`}
                   className={`rounded-lg border px-3 py-2 ${
-                    row.status === 'will_queue' ? 'border-green-200 bg-green-50/50' : 'border-gray-200 bg-white'
+                    row.status === 'will_queue'
+                      ? 'border-green-200 bg-green-50/50'
+                      : row.status === 'already_workerpost'
+                        ? 'border-rose-200 bg-rose-50/60'
+                        : 'border-gray-200 bg-white'
                   }`}
                 >
                   <span className="font-mono text-gray-700">{row.link}</span>

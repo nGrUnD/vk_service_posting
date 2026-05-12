@@ -17,7 +17,15 @@ class WorkerPostRequestAdd(BaseModel):
 class WorkerPostPreviewLinkRow(BaseModel):
     link: str
     vk_public_id: Optional[int] = None
-    status: Literal["will_queue", "invalid_url", "missing_group", "no_backup", "no_category", "no_main"]
+    status: Literal[
+        "will_queue",
+        "invalid_url",
+        "missing_group",
+        "no_backup",
+        "no_category",
+        "no_main",
+        "already_workerpost",
+    ]
     detail: Optional[str] = None
     chosen_account_id: Optional[int] = None
 
@@ -31,6 +39,7 @@ class WorkerPostPreviewResponse(BaseModel):
     invalid_url: int = 0
     no_main_account: bool = False
     no_category: bool = False
+    already_workerpost: int = 0
 
 
 class WorkerPostAdd(BaseModel):
