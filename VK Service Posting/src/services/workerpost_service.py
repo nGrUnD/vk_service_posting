@@ -267,6 +267,7 @@ class WorkerPostService:
 
     async def get_workpost_all(self, user_id):
         workposts = await self.database.workerpost.get_all_filtered(user_id=user_id)
+        workposts = sorted(workposts, key=lambda wp: wp.id, reverse=True)
         workposts_info = []
         for workpost in workposts:
             vk_group = await self.database.vk_group.get_one_or_none(id=workpost.vk_group_id)
