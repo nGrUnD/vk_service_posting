@@ -852,15 +852,6 @@ export default function AccountsView() {
                   <p className="mt-1 text-xs font-medium text-gray-500">
                     тип: <span className="font-bold text-blue-600">{a.account_type}</span>
                     {a.proxy_id ? ` • proxy #${a.proxy_id}` : ''}
-                    {a.checker_batch_label ? (
-                      <>
-                        {' '}
-                        • пачка:{' '}
-                        <span className="font-bold text-indigo-700" title={a.checker_batch_label}>
-                          {a.checker_batch_label}
-                        </span>
-                      </>
-                    ) : null}
                   </p>
                   <div className="mt-1 flex flex-wrap items-center gap-2">
                     <span
@@ -871,11 +862,6 @@ export default function AccountsView() {
                     {a.checker_batch_label ? (
                       <span className="max-w-[14rem] truncate rounded-md bg-indigo-100 px-2 py-0.5 text-[10px] font-bold text-indigo-900">
                         {a.checker_batch_label}
-                      </span>
-                    ) : null}
-                    {a.task_id ? (
-                      <span className="font-mono text-[10px] text-gray-400" title="Celery task id">
-                        task {String(a.task_id).slice(0, 12)}…
                       </span>
                     ) : null}
                   </div>
