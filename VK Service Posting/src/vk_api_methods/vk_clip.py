@@ -3,8 +3,6 @@ from typing import List, Dict, Any
 import requests
 import time
 
-from pycparser.ply.yacc import token
-
 from src.services.vk_token_service import TokenService
 from src.utils.cookiejar import list_to_cookiejar
 from vk_api import vk_api
@@ -17,6 +15,8 @@ def is_token_expired(access_token: str, proxy: str = None) -> bool:
     Проверка валидности токена VK.
     Делает запрос к методу users.get — если ошибка 5 (User authorization failed), значит токен протух.
     """
+    if not access_token:
+        return True
     proxy_response = None
     if proxy is not None:
         proxy_response = {
@@ -182,14 +182,14 @@ def get_all_owner_short_videos(owner_id: int,
 
     #token = get_token(login, password, proxy)
     #cookie = list_to_cookiejar(cookie_db)
-    token = get_new_token_request(token_db, cookie_db, proxy)
+    token = get_new_token_request(token_db, cookie_db, proxy) or token_db
 
     while True:
         #print(total_count)
 
         if is_token_expired(token, proxy):
             print("Токену пизда пришла")
-            token = get_new_token_request(token_db, cookie_db, proxy)
+            token = get_new_token_request(token_db, cookie_db, proxy) or token_db
             #token = get_token(login, password, proxy)
 
         resp = vk_api_get_owner_short_videos(

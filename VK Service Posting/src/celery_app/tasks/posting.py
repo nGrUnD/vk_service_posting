@@ -71,7 +71,8 @@ def posting_clip(worker_id: int, token_db: str, schedule_database_id: int, clip,
 
         cookie_db = vk_account.cookies
         print(f"VK Account Name: {vk_account.name}")
-        token = get_new_token_request(token_db, cookie_db, proxy)
+        # Как в check_curl: web_token может вернуть unauthorized при устаревших cookie, но токен из БД ещё живёт для API.
+        token = get_new_token_request(token_db, cookie_db, proxy) or token_db
 
         clip_filename = None
         rendered_clip_path = None
