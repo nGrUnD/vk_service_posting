@@ -145,6 +145,8 @@ export default function AccountsView() {
 
   const [checkerInputAccounts, setCheckerInputAccounts] = useState('');
   const [batchNote, setBatchNote] = useState('');
+  /** После успешного прогона пачки (AccountChecker / Selenium) — сменить пароль на сервере. */
+  const [batchAutoChangePassword, setBatchAutoChangePassword] = useState(false);
   const [connectingBatchId, setConnectingBatchId] = useState(null);
   const [batchQueue, setBatchQueue] = useState(() => {
     try {
@@ -388,12 +390,15 @@ export default function AccountsView() {
     setConnectingBatchId(batchId);
     nextQueue[index] = { ...nextQueue[index], status: 'running' };
     saveBatchQueue([...nextQueue]);
+    const runBatchPw = batchAutoChangePassword;
+    let serverBatchIdForPw = null;
     try {
       const { data: submit } = await api.post(`/tools/${user.id}/account_checker`, {
         accounts: batch.accounts,
         batch_label: batch.note || undefined,
       });
       if (submit.batch_id) {
+        serverBatchIdForPw = submit.batch_id;
         nextQueue[index] = {
           ...nextQueue[index],
           status: 'running',
@@ -430,9 +435,43 @@ export default function AccountsView() {
     setConnectingBatchId(null);
     const result = nextQueue[index];
     if (result.status === 'success') {
-      if (result.noNewAccounts) messageApi.success('Нет новых аккаунтов (все логины уже в базе).');
-      else messageApi.success('Пачка подключена.');
-      await loadAccounts(true);
+      if (result.noNewAccounts) {
+        messageApi.success('Нет новых аккаунтов (все логины уже в базе).');
+        await loadAccounts(true);
+      } else {
+        let list = await loadAccounts(true);
+        let pwToast = false;
+        if (runBatchPw && serverBatchIdForPw != null) {
+          const bid = Number(serverBatchIdForPw);
+          const ids = list
+            .filter(
+              (a) =>
+                Number(a.account_checker_batch_id) === bid &&
+                String(a.parse_status).toLowerCase() === 'success',
+            )
+            .map((a) => a.id);
+          if (ids.length) {
+            try {
+              const { data } = await api.post(`/users/${user.id}/vk_accounts/change_passwords_by_ids`, {
+                vk_account_ids: ids,
+              });
+              for (const r of data?.results || []) {
+                if (!r.ok)
+                  messageApi.warning(
+                    `Смена пароля #${r.vk_account_id}${r.login ? ` (${r.login})` : ''}: ${r.detail || 'ошибка'}`,
+                  );
+              }
+              pwToast = true;
+            } catch (e) {
+              messageApi.error(e.response?.data?.detail || 'Ошибка авто-смены пароля для пачки');
+            }
+            await loadAccounts(true);
+          }
+        }
+        messageApi.success(
+          pwToast ? 'Пачка подключена. Пароли сменены на сервере (где удалось).' : 'Пачка подключена.',
+        );
+      }
     } else if (result.status === 'error') {
       messageApi.error(result.detail || 'Ошибка подключения пачки');
     }
@@ -604,62 +643,13 @@ export default function AccountsView() {
       {contextHolder}
 
       <section className="rounded-3xl border border-gray-100 bg-white p-8 shadow-sm">
-        <h3 className="mb-2 flex items-center gap-2 text-xl font-black text-gray-800">
-          <Server size={22} className="text-blue-600" />
-          Импорт log:pass (очередь Selenium)
-        </h3>
-        <p className="mb-6 text-sm font-medium text-gray-500">
-          Аккаунты попадают в БД и обрабатываются в фоне. Новые пароли хранятся на сервере — копировать их не нужно.
-        </p>
-        <div className="flex flex-col gap-6 lg:flex-row">
-          <div className="min-w-0 flex-1">
-            <label className="mb-2 block text-xs font-black uppercase tracking-widest text-gray-400">
-              Список (логин:пароль, по строке)
-            </label>
-            <textarea
-              className="h-40 w-full resize-none rounded-2xl border border-gray-100 bg-gray-50 p-4 font-mono text-sm text-gray-800 outline-none focus:ring-4 focus:ring-blue-100"
-              placeholder={'79001234567:password\n79007654321:password'}
-              value={bulkCreds}
-              onChange={(e) => setBulkCreds(e.target.value)}
-            />
-          </div>
-          <div className="flex w-full shrink-0 flex-col justify-end gap-4 rounded-2xl border border-gray-100 bg-gray-50/80 p-6 lg:w-80">
-            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
-              <input
-                type="checkbox"
-                className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                checked={autoChangePassword}
-                onChange={(e) => setAutoChangePassword(e.target.checked)}
-              />
-              <span>
-                <span className="font-bold text-gray-900">Авто-смена пароля</span>
-                <span className="mt-1 block text-xs font-medium text-gray-500">
-                  После успешного входа (parse_status=success) пароль меняется на сервере по API, без ручного
-                  копирования.
-                </span>
-              </span>
-            </label>
-            <button
-              type="button"
-              disabled={bulkSubmitting}
-              onClick={handleBulkCreate}
-              className="flex items-center justify-center gap-2 rounded-2xl bg-blue-600 py-4 font-bold text-white shadow-lg shadow-blue-100 transition-all hover:bg-blue-700 disabled:opacity-60"
-            >
-              {bulkSubmitting ? <Loader2 size={18} className="animate-spin" /> : <Plus size={18} />}
-              Поставить в очередь
-            </button>
-            {queueLabel && (
-              <p className="text-center text-xs font-semibold text-amber-800">{queueLabel}</p>
-            )}
-          </div>
-        </div>
-      </section>
-
-      <section className="rounded-3xl border border-gray-100 bg-white p-8 shadow-sm">
-        <h3 className="mb-2 text-lg font-black text-gray-800">Account Checker — очередь пачек</h3>
-        <p className="mb-6 text-sm text-gray-500">
-          Как в V1: подпись пачки, список log:pass, сначала «Добавить» (очередь в браузере), затем «Запустить» на
-          карточке. Очередь хранится в localStorage (<code className="rounded bg-gray-100 px-1 text-xs">account_checker_queue_v1</code>) — общая с первой версией интерфейса.
+        <h3 className="mb-2 text-lg font-black text-gray-800">Очередь пачек</h3>
+        <p className="mb-4 text-sm text-gray-500">
+          Основной способ добавления по log:pass: вход через Selenium (<span className="font-mono">vk_login</span>), тот
+          же сценарий, что и в AccountChecker (V1). Подпись пачки, список log:pass, сначала «Добавить» (очередь в
+          браузере), затем «Запустить» на карточке. Очередь в localStorage (
+          <code className="rounded bg-gray-100 px-1 text-xs">account_checker_queue_v1</code>) — общая с первой
+          версией интерфейса.
         </p>
         <div className="grid gap-8 xl:grid-cols-2">
           <div className="space-y-3">
@@ -682,6 +672,21 @@ export default function AccountsView() {
               value={checkerInputAccounts}
               onChange={(e) => setCheckerInputAccounts(e.target.value)}
             />
+            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-gray-100 bg-gray-50/80 p-4">
+              <input
+                type="checkbox"
+                className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                checked={batchAutoChangePassword}
+                onChange={(e) => setBatchAutoChangePassword(e.target.checked)}
+              />
+              <span>
+                <span className="font-bold text-gray-900">Авто-смена пароля после пачки</span>
+                <span className="mt-1 block text-xs font-medium text-gray-500">
+                  После успешного подключения пачки сменить пароль на сервере для аккаунтов со статусом success (по
+                  API, без ручного копирования).
+                </span>
+              </span>
+            </label>
             <button
               type="button"
               onClick={handleAddCheckerBatch}
@@ -747,52 +752,116 @@ export default function AccountsView() {
         </div>
       </section>
 
-      <section className="rounded-3xl border border-dashed border-indigo-200 bg-indigo-50/40 p-6 shadow-sm">
-        <h3 className="mb-2 text-lg font-black text-indigo-950">Парный импорт (log:pass + паблик, как в V1)</h3>
-        <p className="mb-4 text-sm text-indigo-900/80">
-          Если паблики ещё не привязаны к backup-аккаунтам, используйте zip: одна строка log:pass на одну строку
-          ссылки.
-        </p>
-        <div className="grid gap-4 md:grid-cols-2">
-          <textarea
-            className="h-32 w-full resize-none rounded-xl border border-indigo-100 bg-white p-3 font-mono text-xs"
-            placeholder="log:pass по строкам"
-            value={autocurlCreds}
-            onChange={(e) => setAutocurlCreds(e.target.value)}
-          />
-          <textarea
-            className="h-32 w-full resize-none rounded-xl border border-indigo-100 bg-white p-3 font-mono text-xs"
-            placeholder="https://vk.com/public… по строкам"
-            value={autocurlGroups}
-            onChange={(e) => setAutocurlGroups(e.target.value)}
-          />
+      <details className="group rounded-3xl border border-gray-200 bg-gray-50/60 shadow-sm open:bg-white">
+        <summary className="cursor-pointer list-none px-6 py-4 text-sm font-black text-gray-700 marker:content-none [&::-webkit-details-marker]:hidden">
+          <span className="inline-flex items-center gap-2">
+            Дополнительные способы добавления аккаунтов
+            <span className="text-xs font-bold text-gray-400">(развернуть)</span>
+          </span>
+        </summary>
+        <div className="space-y-8 border-t border-gray-200 px-6 pb-8 pt-2">
+          <section className="rounded-3xl border border-gray-100 bg-white p-8 shadow-sm">
+            <h3 className="mb-2 flex items-center gap-2 text-xl font-black text-gray-800">
+              <Server size={22} className="text-blue-600" />
+              Импорт log:pass (очередь Selenium)
+            </h3>
+            <p className="mb-6 text-sm font-medium text-gray-500">
+              Массовый импорт backup-аккаунтов: запись в БД и вход через Selenium (
+              <span className="font-mono">vk_login</span>), как у пачек AccountChecker (не через устаревший вход
+              vk_api по паролю). Новые пароли на сервере — копировать не нужно.
+            </p>
+            <div className="flex flex-col gap-6 lg:flex-row">
+              <div className="min-w-0 flex-1">
+                <label className="mb-2 block text-xs font-black uppercase tracking-widest text-gray-400">
+                  Список (логин:пароль, по строке)
+                </label>
+                <textarea
+                  className="h-40 w-full resize-none rounded-2xl border border-gray-100 bg-gray-50 p-4 font-mono text-sm text-gray-800 outline-none focus:ring-4 focus:ring-blue-100"
+                  placeholder={'79001234567:password\n79007654321:password'}
+                  value={bulkCreds}
+                  onChange={(e) => setBulkCreds(e.target.value)}
+                />
+              </div>
+              <div className="flex w-full shrink-0 flex-col justify-end gap-4 rounded-2xl border border-gray-100 bg-gray-50/80 p-6 lg:w-80">
+                <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
+                  <input
+                    type="checkbox"
+                    className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    checked={autoChangePassword}
+                    onChange={(e) => setAutoChangePassword(e.target.checked)}
+                  />
+                  <span>
+                    <span className="font-bold text-gray-900">Авто-смена пароля</span>
+                    <span className="mt-1 block text-xs font-medium text-gray-500">
+                      После успешного входа (parse_status=success) пароль меняется на сервере по API, без ручного
+                      копирования.
+                    </span>
+                  </span>
+                </label>
+                <button
+                  type="button"
+                  disabled={bulkSubmitting}
+                  onClick={handleBulkCreate}
+                  className="flex items-center justify-center gap-2 rounded-2xl bg-blue-600 py-4 font-bold text-white shadow-lg shadow-blue-100 transition-all hover:bg-blue-700 disabled:opacity-60"
+                >
+                  {bulkSubmitting ? <Loader2 size={18} className="animate-spin" /> : <Plus size={18} />}
+                  Поставить в очередь
+                </button>
+                {queueLabel && (
+                  <p className="text-center text-xs font-semibold text-amber-800">{queueLabel}</p>
+                )}
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-3xl border border-dashed border-indigo-200 bg-indigo-50/40 p-6 shadow-sm">
+            <h3 className="mb-2 text-lg font-black text-indigo-950">Парный импорт (log:pass + паблик, как в V1)</h3>
+            <p className="mb-4 text-sm text-indigo-900/80">
+              Если паблики ещё не привязаны к backup-аккаунтам, используйте zip: одна строка log:pass на одну строку
+              ссылки.
+            </p>
+            <div className="grid gap-4 md:grid-cols-2">
+              <textarea
+                className="h-32 w-full resize-none rounded-xl border border-indigo-100 bg-white p-3 font-mono text-xs"
+                placeholder="log:pass по строкам"
+                value={autocurlCreds}
+                onChange={(e) => setAutocurlCreds(e.target.value)}
+              />
+              <textarea
+                className="h-32 w-full resize-none rounded-xl border border-indigo-100 bg-white p-3 font-mono text-xs"
+                placeholder="https://vk.com/public… по строкам"
+                value={autocurlGroups}
+                onChange={(e) => setAutocurlGroups(e.target.value)}
+              />
+            </div>
+            <div className="mt-4 flex flex-wrap items-end gap-3">
+              <div>
+                <label className="mb-1 block text-xs font-bold text-indigo-900">Категория</label>
+                <select
+                  className="min-w-[200px] rounded-xl border border-indigo-100 bg-white px-3 py-2 text-sm"
+                  value={autocurlCategoryId}
+                  onChange={(e) => setAutocurlCategoryId(e.target.value)}
+                >
+                  <option value="">—</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} (#{c.id})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button
+                type="button"
+                disabled={autocurlSubmitting}
+                onClick={handleAutocurl}
+                className="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-60"
+              >
+                {autocurlSubmitting ? 'Отправка…' : 'Запустить autocurl'}
+              </button>
+            </div>
+          </section>
         </div>
-        <div className="mt-4 flex flex-wrap items-end gap-3">
-          <div>
-            <label className="mb-1 block text-xs font-bold text-indigo-900">Категория</label>
-            <select
-              className="min-w-[200px] rounded-xl border border-indigo-100 bg-white px-3 py-2 text-sm"
-              value={autocurlCategoryId}
-              onChange={(e) => setAutocurlCategoryId(e.target.value)}
-            >
-              <option value="">—</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} (#{c.id})
-                </option>
-              ))}
-            </select>
-          </div>
-          <button
-            type="button"
-            disabled={autocurlSubmitting}
-            onClick={handleAutocurl}
-            className="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-60"
-          >
-            {autocurlSubmitting ? 'Отправка…' : 'Запустить autocurl'}
-          </button>
-        </div>
-      </section>
+      </details>
 
       <div className="flex w-full flex-col overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
         <div className="z-10 flex flex-wrap items-center justify-between gap-4 border-b border-gray-100 bg-white p-8">

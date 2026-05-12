@@ -10,7 +10,7 @@ from src.models.vk_group import VKGroupOrm
 from src.schemas.celery_task import CeleryTaskAdd
 from src.services.auth import AuthService
 from src.schemas.vk_account import VKAccountAdd, VKAccountUpdate
-from src.celery_app.tasks.vk_account_backup import get_vk_account_cred
+from src.celery_app.tasks.vk_checker_add_account import vk_checker_add_account
 from src.utils.database_manager import DataBaseManager
 from src.celery_app.tasks.vk_account_autocurl import connect_vk_account_autocurl, finish_vk_account_autocurl_followup
 from src.services.live_log import livelogadd
@@ -117,7 +117,15 @@ class VKAccountBackupService:
 
             password = AuthService().decrypt_data(vk_account_db.encrypted_password)
 
-            task = get_vk_account_cred.delay(vk_account_db.id, account_log_pass.login, password, proxy_http)
+            task = vk_checker_add_account.delay(
+                user_id,
+                vk_account_db.id,
+                account_log_pass.login,
+                password,
+                proxy_http,
+                "backup",
+                None,
+            )
 
             proxy_db = await self.database.proxy.get_one_or_none(http=proxy_http)
             await self.database.vk_account.edit(
