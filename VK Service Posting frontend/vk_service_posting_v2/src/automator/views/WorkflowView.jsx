@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Button,
   Divider,
@@ -538,7 +539,9 @@ export default function WorkflowView() {
           Новые воркерпосты (только ссылки + категория)
         </h3>
         <p className="mb-6 text-sm text-gray-500">
-          Для каждой ссылки нужен паблик в сервисе и backup-аккаунт, уже привязанный к этому паблику. Сначала нажмите
+          Паблик должен уже быть в сервисе у главного тех. аккаунта. Отдельно нужен{' '}
+          <strong className="font-semibold text-gray-700">backup-аккаунт, привязанный к этому паблику</strong> в базе
+          (после импорта и успешного разбора групп или через парный импорт на странице «Аккаунты ВК»). Сначала
           «Предпросмотр».
         </p>
         <div className="flex flex-col gap-6 lg:flex-row">
@@ -620,6 +623,30 @@ export default function WorkflowView() {
                 </span>
               ) : null}
             </div>
+            {preview.no_backup_linked ? (
+              <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50/90 p-4 text-sm text-amber-950">
+                <p className="font-black text-amber-950">Нет backup для паблика — что сделать</p>
+                <p className="mt-2 font-medium leading-relaxed text-amber-900/95">
+                  Сервис не нашёл ни одного backup-аккаунта, <strong className="font-semibold">уже связанного с этим
+                  пабликом</strong> (запись в базе после импорта и разбора). Пока связи нет — воркерпост не создать.
+                </p>
+                <ol className="mt-3 list-decimal space-y-2 pl-5 font-medium leading-relaxed text-amber-900/95">
+                  <li>
+                    Импортируйте backup (log:pass) в{' '}
+                    <Link to="/accounts" className="font-bold text-blue-700 underline hover:text-blue-900">
+                      Аккаунты ВК
+                    </Link>
+                    , дождитесь успешного подключения. У аккаунта в ВК должна быть подписка на этот паблик — тогда при
+                    разборе групп появится привязка «паблик ↔ backup».
+                  </li>
+                  <li>
+                    Либо в том же разделе, блок «Дополнительные способы» →{' '}
+                    <strong className="font-semibold">парный импорт</strong> (log:pass и ссылка на паблик по строкам)
+                    — если паблик ещё не привязан к backup.
+                  </li>
+                </ol>
+              </div>
+            ) : null}
             <ul className="max-h-48 space-y-2 overflow-y-auto text-xs">
               {(preview.links || []).map((row, idx) => (
                 <li
@@ -629,7 +656,9 @@ export default function WorkflowView() {
                       ? 'border-green-200 bg-green-50/50'
                       : row.status === 'already_workerpost'
                         ? 'border-rose-200 bg-rose-50/60'
-                        : 'border-gray-200 bg-white'
+                        : row.status === 'no_backup'
+                          ? 'border-amber-200 bg-amber-50/40'
+                          : 'border-gray-200 bg-white'
                   }`}
                 >
                   <span className="font-mono text-gray-700">{row.link}</span>
@@ -664,17 +693,17 @@ export default function WorkflowView() {
       <section className="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
         <div className="flex flex-col gap-4 border-b border-gray-100 p-6 sm:p-8">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h3 className="text-lg font-bold text-gray-800">Список воркеров</h3>
+            <h3 className="text-xl font-black text-gray-800">Список воркеров</h3>
             <button
               type="button"
               onClick={() => load()}
-              className="rounded-xl border border-gray-200 px-4 py-2 text-xs font-bold text-gray-600 hover:bg-gray-50"
+              className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50"
             >
               Обновить
             </button>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <label className="block min-w-0 flex-1 text-xs font-bold uppercase tracking-widest text-gray-400">
+            <label className="block min-w-0 flex-1 text-xs font-bold uppercase tracking-wide text-gray-600">
               Фильтр по названию паблика
               <textarea
                 rows={3}
@@ -684,7 +713,7 @@ export default function WorkflowView() {
                 onChange={(e) => setTableSearch(e.target.value)}
               />
             </label>
-            <label className="flex shrink-0 items-center gap-2 text-xs font-bold text-gray-500">
+            <label className="flex shrink-0 items-center gap-2 text-xs font-bold text-gray-600">
               На странице
               <select
                 className="rounded-lg border border-gray-200 bg-white px-2 py-2 text-sm font-bold"
@@ -703,7 +732,7 @@ export default function WorkflowView() {
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left">
-            <thead className="bg-gray-50 text-[10px] font-black uppercase tracking-widest text-gray-400">
+            <thead className="bg-gray-100/90 text-xs font-bold uppercase tracking-wide text-gray-700">
               <tr>
                 <th className="px-8 py-5">ID / Группа</th>
                 <th className="px-6 py-5">Аккаунт</th>
@@ -715,7 +744,7 @@ export default function WorkflowView() {
                 <th className="px-8 py-5 text-right">Действия</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100 text-sm">
+            <tbody className="divide-y divide-gray-100 text-sm text-gray-800">
               {paginatedRows.map((row) => {
                 const lastPost = formatLastPostRu(row.lastPostAt);
                 return (
@@ -726,35 +755,35 @@ export default function WorkflowView() {
                           href={row.groupUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex items-center gap-1.5 font-bold text-blue-600 hover:underline"
+                          className="inline-flex items-center gap-1.5 text-sm font-bold text-blue-700 hover:underline"
                         >
                           {row.groupName}{' '}
-                          <ExternalLink size={12} className="opacity-0 transition-opacity group-hover:opacity-100" />
+                          <ExternalLink size={14} className="opacity-0 transition-opacity group-hover:opacity-100" />
                         </a>
                       ) : (
-                        <span className="font-bold text-gray-800">{row.groupName}</span>
+                        <span className="text-sm font-bold text-gray-900">{row.groupName}</span>
                       )}
                       {row.groupUrl ? (
                         <div className="mt-1 flex max-w-[18rem] items-center gap-1">
-                          <span className="min-w-0 flex-1 truncate font-mono text-[10px] text-gray-500" title={row.groupUrl}>
+                          <span className="min-w-0 flex-1 truncate font-mono text-xs text-gray-600" title={row.groupUrl}>
                             {row.groupUrl}
                           </span>
                           <button
                             type="button"
                             title="Копировать ссылку на паблик"
                             onClick={() => void copyToClipboard(row.groupUrl, 'Ссылка скопирована')}
-                            className="shrink-0 rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                            className="shrink-0 rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800"
                           >
                             <Copy size={14} />
                           </button>
                         </div>
                       ) : null}
-                      <div className="mt-0.5 font-mono text-[10px] text-gray-400">#{row.id}</div>
+                      <div className="mt-0.5 font-mono text-xs font-medium text-gray-600">#{row.id}</div>
                     </td>
                     <td className="px-6 py-5">
                       <Tooltip title={row.accountName?.trim() ? row.accountName : undefined}>
-                        <div className="flex max-w-[14rem] items-center gap-1.5">
-                          <span className="min-w-0 flex-1 truncate font-mono text-xs text-gray-800" title={row.accountLoginPass}>
+                        <div className="flex max-w-[18rem] items-center gap-1.5">
+                          <span className="min-w-0 flex-1 truncate font-mono text-sm text-gray-900" title={row.accountLoginPass}>
                             {row.accountLoginPass}
                           </span>
                           <button
@@ -762,7 +791,7 @@ export default function WorkflowView() {
                             title="Копировать логин:пароль"
                             disabled={row.accountLoginPass === '—'}
                             onClick={() => void copyToClipboard(row.accountLoginPass)}
-                            className="shrink-0 rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-30"
+                            className="shrink-0 rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800 disabled:opacity-30"
                           >
                             <Copy size={14} />
                           </button>
@@ -770,15 +799,15 @@ export default function WorkflowView() {
                       </Tooltip>
                     </td>
                     <td className="px-6 py-5">
-                      <span className="rounded-lg bg-gray-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                      <span className="rounded-lg bg-gray-100 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-gray-700">
                         {row.category || '—'}
                       </span>
                     </td>
-                    <td className="px-6 py-5 font-mono font-bold text-gray-600">{row.hourly ?? '—'}</td>
+                    <td className="px-6 py-5 font-mono text-sm font-bold text-gray-900">{row.hourly ?? '—'}</td>
                     <td className="px-6 py-5">
-                      <span className="text-xs font-bold text-slate-700">{pipelineLabel(row.parseStatus)}</span>
+                      <span className="text-sm font-bold text-slate-800">{pipelineLabel(row.parseStatus)}</span>
                     </td>
-                    <td className="max-w-[12rem] px-6 py-5 text-xs leading-relaxed text-gray-700">
+                    <td className="max-w-[14rem] px-6 py-5 text-sm leading-relaxed text-gray-800">
                       <div>
                         {lastPost ? (
                           <span className={lastPost.stale ? 'font-semibold text-red-600' : 'text-gray-800'}>
@@ -795,7 +824,7 @@ export default function WorkflowView() {
                           <span className="font-bold text-green-700">Аккаунт: активен</span>
                         )}
                       </div>
-                      <div className="mt-1 text-gray-500">Флудконтроль: {row.floodControl ? 'Да' : 'Нет'}</div>
+                      <div className="mt-1 text-gray-600">Флудконтроль: {row.floodControl ? 'Да' : 'Нет'}</div>
                     </td>
                     <td className="px-6 py-5">
                       <Switch
@@ -813,7 +842,7 @@ export default function WorkflowView() {
                           type="button"
                           title="Настройки workerpost"
                           onClick={() => openSettingsModal(row)}
-                          className="rounded-xl p-2.5 text-gray-400 transition-all hover:bg-blue-50 hover:text-blue-600"
+                          className="rounded-xl p-2.5 text-gray-500 transition-all hover:bg-blue-50 hover:text-blue-600"
                         >
                           <Settings size={18} />
                         </button>
@@ -822,7 +851,7 @@ export default function WorkflowView() {
                           disabled={deletingWorkerpostId === row.id}
                           title="Удалить воркерпост"
                           onClick={() => void handleDeleteWorkerpost(row.id)}
-                          className="rounded-xl p-2.5 text-gray-400 transition-all hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
+                          className="rounded-xl p-2.5 text-gray-500 transition-all hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
                         >
                           {deletingWorkerpostId === row.id ? (
                             <Loader2 size={18} className="animate-spin" />
@@ -853,7 +882,7 @@ export default function WorkflowView() {
           </table>
         </div>
         {!loading && filteredRows.length > 0 ? (
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 px-6 py-4 text-xs text-gray-600 sm:px-8">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 px-6 py-4 text-sm text-gray-700 sm:px-8">
             <span>
               Показано{' '}
               {filteredRows.length === 0
@@ -947,7 +976,6 @@ export default function WorkflowView() {
               Видео-баннер
             </Title>
             <Text type="secondary">Координаты и размер задаются в процентах от итогового видео.</Text>
-
             <div className="flex flex-wrap items-center gap-3">
               <input
                 ref={bannerFileInputRef}

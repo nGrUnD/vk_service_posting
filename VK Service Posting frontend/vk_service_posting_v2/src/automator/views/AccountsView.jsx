@@ -123,6 +123,14 @@ function batchStatusMeta(status) {
   return map[status] || { label: String(status), color: 'bg-gray-100 text-gray-800' };
 }
 
+/** Типы с паролем в БД: смена через API (как backup), включая Account Checker (checker / connect). */
+const ACCOUNT_TYPES_WITH_PASSWORD_CHANGE = new Set(['backup', 'checker', 'connect', 'posting']);
+
+function canShowChangePasswordButton(account) {
+  if (account?.parse_status !== 'success') return false;
+  return ACCOUNT_TYPES_WITH_PASSWORD_CHANGE.has(String(account.account_type || '').toLowerCase());
+}
+
 export default function AccountsView() {
   const user = useAutomatorUser();
   const [messageApi, contextHolder] = message.useMessage();
@@ -1000,7 +1008,7 @@ export default function AccountsView() {
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
-                {a.account_type === 'backup' && a.parse_status === 'success' && (
+                {canShowChangePasswordButton(a) && (
                   <button
                     type="button"
                     disabled={changingPwId === a.id}
