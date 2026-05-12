@@ -6,30 +6,150 @@ from typing import List
 from src.schemas.celery_task import CeleryTaskAdd, CeleryTaskUpdate
 from src.schemas.vk_account import VKAccountUpdate
 from src.schemas.vk_account_group import VKAccountGroupUpdate
-from src.schemas.workerpost import WorkerPostRequestAdd
+from src.schemas.workerpost import (
+    WorkerPostPreviewLinkRow,
+    WorkerPostPreviewResponse,
+    WorkerPostRequestAdd,
+)
 from src.services.auth import AuthService
 from src.services.live_log import livelogadd
 from src.utils.database_manager import DataBaseManager
 from src.celery_app.tasks.workerpost import create_workpost_account
+
+def extract_vk_public_id_from_link(link: str) -> int | None:
+    vk_id_regex = re.compile(r"(?:https?://)?vk\.com/(?:club|public)(\d+)")
+    m = vk_id_regex.match(link.strip())
+    return int(m.group(1)) if m else None
+
 
 def extract_vk_ids(links: List[str]) -> List[int]:
     """
     Принимает список ссылок на паблики ВК.
     Возвращает список числовых VK ID.
     """
-    vk_id_regex = re.compile(r"(?:https?://)?vk\.com/(?:club|public)(\d+)")
-    result = []
-
+    result: List[int] = []
     for link in links:
-        match = vk_id_regex.match(link.strip())
-        if match:
-            result.append(int(match.group(1)))
-
+        pid = extract_vk_public_id_from_link(link)
+        if pid is not None:
+            result.append(pid)
     return result
 
 class WorkerPostService:
     def __init__(self, database: DataBaseManager):
         self.database = database
+
+    async def preview_create_workerpost(self, user_id: int, request_add: WorkerPostRequestAdd) -> WorkerPostPreviewResponse:
+        category_database = await self.database.category.get_one_or_none(id=request_add.category_id)
+        no_category = (
+            category_database is None
+            or getattr(category_database, "user_id", None) != user_id
+        )
+
+        main_vk_account_database = await self.database.vk_account.get_one_or_none(account_type="main", user_id=user_id)
+        no_main = main_vk_account_database is None
+
+        links_rows: list[WorkerPostPreviewLinkRow] = []
+        used_account_ids: set[int] = set()
+        invalid_url = 0
+        missing_group = 0
+        no_backup = 0
+
+        for raw in request_add.vk_groups_links:
+            link = raw.strip() if isinstance(raw, str) else ""
+            if not link:
+                continue
+            pid = extract_vk_public_id_from_link(link)
+            if pid is None:
+                links_rows.append(
+                    WorkerPostPreviewLinkRow(
+                        link=raw,
+                        status="invalid_url",
+                        detail="Ожидается ссылка вида https://vk.com/club123 или https://vk.com/public123",
+                    ),
+                )
+                invalid_url += 1
+                continue
+            if no_category:
+                links_rows.append(
+                    WorkerPostPreviewLinkRow(
+                        link=raw,
+                        vk_public_id=pid,
+                        status="no_category",
+                        detail="Категория не найдена или чужая",
+                    ),
+                )
+                continue
+            if no_main:
+                links_rows.append(
+                    WorkerPostPreviewLinkRow(
+                        link=raw,
+                        vk_public_id=pid,
+                        status="no_main",
+                        detail="Не подключён главный тех. аккаунт",
+                    ),
+                )
+                continue
+
+            vk_group_database = await self.database.vk_group.get_one_or_none(
+                vk_group_id=pid,
+                user_id=user_id,
+            )
+            if not vk_group_database:
+                links_rows.append(
+                    WorkerPostPreviewLinkRow(
+                        link=raw,
+                        vk_public_id=pid,
+                        status="missing_group",
+                        detail="Паблик не найден в сервисе (должен быть у главного аккаунта)",
+                    ),
+                )
+                missing_group += 1
+                continue
+
+            vk_account_groups_db = await self.database.vk_account_group.get_all_filtered(
+                vk_group_id=vk_group_database.id,
+                role="backup",
+            )
+            available_accounts = [
+                acc for acc in vk_account_groups_db
+                if acc.vk_account_id not in used_account_ids
+            ]
+            if not available_accounts:
+                links_rows.append(
+                    WorkerPostPreviewLinkRow(
+                        link=raw,
+                        vk_public_id=pid,
+                        status="no_backup",
+                        detail="Нет backup-аккаунта, привязанного к этому паблику",
+                    ),
+                )
+                no_backup += 1
+                continue
+
+            chosen_id = available_accounts[0].vk_account_id
+            used_account_ids.add(chosen_id)
+            links_rows.append(
+                WorkerPostPreviewLinkRow(
+                    link=raw,
+                    vk_public_id=pid,
+                    status="will_queue",
+                    chosen_account_id=chosen_id,
+                ),
+            )
+
+        will_queue = sum(1 for r in links_rows if r.status == "will_queue")
+        will_fail = len(links_rows) - will_queue
+
+        return WorkerPostPreviewResponse(
+            links=links_rows,
+            will_queue=will_queue,
+            will_fail=will_fail,
+            missing_group_in_admin=missing_group,
+            no_backup_linked=no_backup,
+            invalid_url=invalid_url,
+            no_main_account=no_main,
+            no_category=no_category,
+        )
 
     async def create_workerpost(self, user_id: int, request_add: WorkerPostRequestAdd):
         #vk_accounts_log_pass = VKAccountLogPass.parse_creds(request_add.creds)

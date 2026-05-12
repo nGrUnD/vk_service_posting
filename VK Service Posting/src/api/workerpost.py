@@ -6,7 +6,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 
 from src.api.dependencies import DataBaseDep, UserIdDep
-from src.schemas.workerpost import WorkerPostRequestAdd, WorkerPostUpdate
+from src.schemas.workerpost import WorkerPostRequestAdd, WorkerPostUpdate, WorkerPostPreviewResponse
 from src.services.workerpost_banner_service import (
     DEFAULT_BANNER_HEIGHT,
     DEFAULT_BANNER_WIDTH,
@@ -46,6 +46,26 @@ async def get_all_workerpost(
         database: DataBaseDep,
 ):
     return await WorkerPostService(database).get_workpost_all(user_id)
+
+
+@router.post(
+    "/preview_create",
+    response_model=WorkerPostPreviewResponse,
+    summary="Предпросмотр создания воркерпостов по ссылкам",
+)
+async def preview_create_workerpost(
+        user_id: UserIdDep,
+        database: DataBaseDep,
+        workerpost_request: WorkerPostRequestAdd,
+):
+    user = await database.user.get_one_or_none(id=user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Пользователь не найден",
+        )
+    return await WorkerPostService(database).preview_create_workerpost(user_id, workerpost_request)
+
 
 @router.get("/{workerpost_id}", summary="Получить конкретный VK постинг")
 async def get_workerpost(

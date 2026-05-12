@@ -6,7 +6,9 @@ from sqlalchemy import update
 from src.api.dependencies import DataBaseDep, UserIdDep
 from src.models.vk_group import VKGroupOrm
 from src.schemas.vk_account import VKAccount, VKAccountAddCURL, VKAccountUpdate, DeleteVKAccountsLoginsRequest
-from src.schemas.vk_account_cred import VKCredsRequestAdd, VKAccountCredRequestAutoCurlAdd
+from src.schemas.vk_account_cred import VKCredsRequestAdd, VKAccountCredRequestAutoCurlAdd, ChangePasswordsByIdsRequest
+from src.schemas.tools import ChangePasswordsByIdsResponse
+from src.services.vk_account_checker import AccountChecker
 from src.services.auth import AuthService
 from src.services.vk_account_backup import VKAccountBackupService
 from src.services.vk_account_main import VKAccountMainService
@@ -354,6 +356,26 @@ async def create_vk_accounts(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
+
+
+@router.post(
+    "/change_passwords_by_ids",
+    response_model=ChangePasswordsByIdsResponse,
+    summary="Сменить пароль по id аккаунта (старый пароль читается из БД)",
+)
+async def change_passwords_by_ids(
+        user_id: UserIdDep,
+        database: DataBaseDep,
+        body: ChangePasswordsByIdsRequest,
+):
+    if not body.vk_account_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="vk_account_ids пуст",
+        )
+    checker = AccountChecker(database)
+    results = await checker.change_passwords_by_ids(body.vk_account_ids, user_id)
+    return ChangePasswordsByIdsResponse(results=results)
 
 
 @router.post(

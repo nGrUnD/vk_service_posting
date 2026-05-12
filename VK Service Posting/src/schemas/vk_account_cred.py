@@ -12,3 +12,7 @@ class VKAccountCredRequestAutoCurlAdd(BaseModel):
     creds: str
     groups: str
     category_id: int
+
+
+class ChangePasswordsByIdsRequest(BaseModel):
+    vk_account_ids: list[int]

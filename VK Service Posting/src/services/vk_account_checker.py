@@ -14,7 +14,7 @@ from vk_api.vk_api import vk_api
 import logging
 
 from src.schemas.account_checker_batch import AccountCheckerBatchIn
-from src.schemas.tools import AccountCheckResult, AccountChangeResult
+from src.schemas.tools import AccountCheckResult, AccountChangeResult, ChangePasswordByIdItem
 from src.services.live_log import livelogadd
 from src.utils.database_manager import DataBaseManager
 from src.utils.rand_user_agent import get_random_user_agent
@@ -254,3 +254,91 @@ class AccountChecker:
         # запуск параллельно
         results = await asyncio.gather(*tasks)
         return results
+
+    async def change_passwords_by_ids(self, vk_account_ids: list[int], user_id: int) -> list[ChangePasswordByIdItem]:
+        semaphore = asyncio.Semaphore(self.concurrency_limit)
+        ordered: list[int] = []
+        seen: set[int] = set()
+        for aid in vk_account_ids:
+            if aid not in seen:
+                seen.add(aid)
+                ordered.append(aid)
+        tasks = [self._change_password_one_by_account_id(aid, user_id, semaphore) for aid in ordered]
+        return list(await asyncio.gather(*tasks))
+
+    async def _change_password_one_by_account_id(
+        self,
+        account_id: int,
+        user_id: int,
+        semaphore: asyncio.Semaphore,
+    ) -> ChangePasswordByIdItem:
+        try:
+            async with DataBaseManager(self.database.session_factory) as db:
+                acc = await db.vk_account.get_one_or_none(id=account_id, user_id=user_id)
+                if not acc:
+                    return ChangePasswordByIdItem(
+                        vk_account_id=account_id, ok=False, login=None, detail="Аккаунт не найден",
+                    )
+                if not acc.login:
+                    return ChangePasswordByIdItem(
+                        vk_account_id=account_id, ok=False, login=None, detail="Нет логина",
+                    )
+                if not acc.encrypted_password:
+                    return ChangePasswordByIdItem(
+                        vk_account_id=account_id, ok=False, login=acc.login, detail="Нет пароля в БД",
+                    )
+                if acc.parse_status != "success":
+                    return ChangePasswordByIdItem(
+                        vk_account_id=account_id,
+                        ok=False,
+                        login=acc.login,
+                        detail=f"Нужен parse_status=success, сейчас: {acc.parse_status}",
+                    )
+                proxy_http = None
+                if acc.proxy_id:
+                    proxy_db = await db.proxy.get_one_or_none(id=acc.proxy_id)
+                    proxy_http = proxy_db.http if proxy_db else None
+                login = acc.login
+                old_password = AuthService().decrypt_data(acc.encrypted_password)
+                token = acc.token or ""
+                cookies = acc.cookies or ""
+                row_id = acc.id
+
+            async with semaphore:
+                loop = asyncio.get_running_loop()
+                new_password, new_token, new_cookies = await loop.run_in_executor(
+                    None,
+                    partial(
+                        self._change_password_sync,
+                        login,
+                        old_password,
+                        proxy_http,
+                        token,
+                        cookies,
+                    ),
+                )
+
+            encrypted_password = AuthService().encrypt_data(new_password)
+            async with DataBaseManager(self.database.session_factory) as db:
+                if new_cookies:
+                    await db.vk_account.edit(
+                        VKAccountUpdate(
+                            encrypted_password=encrypted_password,
+                            token=new_token,
+                            cookies=new_cookies,
+                        ),
+                        exclude_unset=True,
+                        id=row_id,
+                    )
+                else:
+                    await db.vk_account.edit(
+                        VKAccountUpdate(encrypted_password=encrypted_password, token=new_token),
+                        exclude_unset=True,
+                        id=row_id,
+                    )
+                await db.commit()
+
+            return ChangePasswordByIdItem(vk_account_id=account_id, ok=True, login=login, detail=None)
+        except Exception as e:
+            logging.exception("change_passwords_by_ids account_id=%s", account_id)
+            return ChangePasswordByIdItem(vk_account_id=account_id, ok=False, login=None, detail=str(e))

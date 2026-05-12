@@ -28,3 +28,14 @@ class AccountChangeResult(BaseModel):
 
 class AccountChangeResponse(BaseModel):
     new_accounts: List[AccountChangeResult]
+
+
+class ChangePasswordByIdItem(BaseModel):
+    vk_account_id: int
+    ok: bool
+    login: Optional[str] = None
+    detail: Optional[str] = None
+
+
+class ChangePasswordsByIdsResponse(BaseModel):
+    results: List[ChangePasswordByIdItem]

@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict
 
@@ -12,6 +12,25 @@ class WorkerPostRequestAdd(BaseModel):
     #creds: str
     vk_groups_links: list[str]
     category_id: int
+
+
+class WorkerPostPreviewLinkRow(BaseModel):
+    link: str
+    vk_public_id: Optional[int] = None
+    status: Literal["will_queue", "invalid_url", "missing_group", "no_backup", "no_category", "no_main"]
+    detail: Optional[str] = None
+    chosen_account_id: Optional[int] = None
+
+
+class WorkerPostPreviewResponse(BaseModel):
+    links: list[WorkerPostPreviewLinkRow]
+    will_queue: int = 0
+    will_fail: int = 0
+    missing_group_in_admin: int = 0
+    no_backup_linked: int = 0
+    invalid_url: int = 0
+    no_main_account: bool = False
+    no_category: bool = False
 
 
 class WorkerPostAdd(BaseModel):
