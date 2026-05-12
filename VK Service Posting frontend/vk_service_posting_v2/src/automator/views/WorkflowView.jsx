@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Button,
   Divider,
@@ -121,6 +121,7 @@ export default function WorkflowView() {
     clip_list_id: null,
     ...DEFAULT_BANNER_FORM,
   });
+  const bannerFileInputRef = useRef(null);
 
   const load = useCallback(
     async (opts = { silent: false }) => {
@@ -938,7 +939,22 @@ export default function WorkflowView() {
             </Title>
             <Text type="secondary">Координаты и размер задаются в процентах от итогового видео.</Text>
 
-            <input type="file" accept="video/*,.mp4,.mov,.webm,.m4v" onChange={handleBannerChange} />
+            <div className="flex flex-wrap items-center gap-3">
+              <input
+                ref={bannerFileInputRef}
+                type="file"
+                accept="video/*,.mp4,.mov,.webm,.m4v"
+                className="sr-only"
+                tabIndex={-1}
+                onChange={handleBannerChange}
+              />
+              <Button type="default" onClick={() => bannerFileInputRef.current?.click()} aria-label="Выбрать видеофайл баннера">
+                Выберите файл
+              </Button>
+              <Text type="secondary" className="text-sm">
+                {bannerFile?.name || 'Файл не выбран'}
+              </Text>
+            </div>
 
             <Space wrap>
               <Button
