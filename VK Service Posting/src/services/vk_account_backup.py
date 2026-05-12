@@ -10,6 +10,7 @@ from src.models.vk_group import VKGroupOrm
 from src.schemas.celery_task import CeleryTaskAdd
 from src.services.auth import AuthService
 from src.schemas.vk_account import VKAccountAdd, VKAccountUpdate
+from src.celery_app.revoke_tasks import revoke_celery_task_ids
 from src.celery_app.tasks.vk_checker_add_account import vk_checker_add_account
 from src.utils.database_manager import DataBaseManager
 from src.celery_app.tasks.vk_account_autocurl import connect_vk_account_autocurl, finish_vk_account_autocurl_followup
@@ -339,9 +340,14 @@ class VKAccountBackupService:
         vk_account_ids = [vk_account.id for vk_account in vk_accounts]
         user_id = vk_accounts[0].user_id if vk_accounts else None
 
+        if vk_account_ids:
+            celery_rows = await self.database.celery_task.get_all_filtered(vk_account_id=vk_account_ids)
+            revoke_celery_task_ids(
+                [a.task_id for a in vk_accounts] + [t.task_id for t in celery_rows],
+            )
 
-        await self.database.vk_group.delete_where(VKGroupOrm.vk_admin_main_id.in_(vk_account_ids))
-        await self.database.celery_task.delete_where(CeleryTaskOrm.vk_account_id.in_(vk_account_ids))
+            await self.database.vk_group.delete_where(VKGroupOrm.vk_admin_main_id.in_(vk_account_ids))
+            await self.database.celery_task.delete_where(CeleryTaskOrm.vk_account_id.in_(vk_account_ids))
 
         # Удаляем связанные аккаунты
         await self.database.vk_account.delete_where(VKAccountOrm.login.in_(logins))

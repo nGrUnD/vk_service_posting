@@ -10,23 +10,19 @@ const MAX_BATCH_SIZE = 20;
 const QUEUE_STORAGE_KEY = 'account_checker_queue_v1';
 const BATCH_POLL_MS = 2000;
 
-/** После перезагрузки страницы пачки в running в localStorage уже не догоняют await — помечаем как прерванные. */
+/** После перезагрузки не помечаем running как ошибку — только «зависший» running без serverBatchId сбрасываем в pending. */
 function normalizeQueueFromStorage(items) {
     if (!Array.isArray(items)) {
         return { items: [], changed: false };
     }
     let changed = false;
     const next = items.map((b) => {
-        if (b.status === 'running') {
+        if (b.status === 'running' && !b.serverBatchId) {
             changed = true;
             return {
                 ...b,
-                status: 'error',
-                detail:
-                    b.detail ||
-                    'Подключение прервано (перезагрузка страницы или остановка сервиса). Удалите запись или добавьте пачку заново.',
-                serverBatchId: undefined,
-                serverPoll: undefined,
+                status: 'pending',
+                detail: undefined,
             };
         }
         return b;

@@ -21,27 +21,32 @@ const QUEUE_STORAGE_KEY = 'account_checker_queue_v1';
 const MAX_BATCH_SIZE = 20;
 const BATCH_POLL_MS = 2000;
 
+/** После перезагрузки: не помечаем пачку ошибкой — опрос к API продолжится. «Прервано» только при сбое опроса (см. tick). */
 function normalizeQueueFromStorage(items) {
   if (!Array.isArray(items)) {
     return { items: [], changed: false };
   }
   let changed = false;
   const next = items.map((b) => {
-    if (b.status === 'running') {
+    if (b.status === 'running' && !b.serverBatchId) {
       changed = true;
       return {
         ...b,
-        status: 'error',
-        detail:
-          b.detail ||
-          'Подключение прервано (перезагрузка страницы или остановка сервиса). Удалите запись или добавьте пачку заново.',
-        serverBatchId: undefined,
-        serverPoll: undefined,
+        status: 'pending',
+        detail: undefined,
       };
     }
     return b;
   });
   return { items: next, changed };
+}
+
+function isBatchPollServiceUnreachable(error) {
+  if (!error?.response) {
+    return error?.code === 'ERR_NETWORK' || error?.message === 'Network Error';
+  }
+  const s = error.response.status;
+  return s === 502 || s === 503 || s === 504;
 }
 
 async function waitForServerBatchComplete(apiInstance, userId, batchId) {
@@ -193,6 +198,9 @@ export default function AccountsView() {
   }, [loadAccounts]);
 
   useEffect(() => {
+    const SERVICE_DOWN_DETAIL =
+      'Подключение прервано: сервер недоступен или сервис остановлен. Удалите запись или добавьте пачку заново.';
+
     const tick = async () => {
       const q = batchQueueRef.current;
       const toPoll = q.filter((b) => b.status === 'running' && b.serverBatchId);
@@ -201,24 +209,73 @@ export default function AccountsView() {
         try {
           const { data } = await api.get(`/tools/${user.id}/account_checker/batch/${b.serverBatchId}`);
           if (!data) continue;
-          setBatchQueue((prev) => {
-            const next = prev.map((item) => (item.id === b.id ? { ...item, serverPoll: data } : item));
-            try {
-              localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(next));
-            } catch {
-              /* ignore */
-            }
-            return next;
-          });
+          if (data.status === 'completed') {
+            const sec = data.duration_seconds ?? data.elapsed_seconds;
+            setBatchQueue((prev) => {
+              const next = prev.map((item) => {
+                if (item.id !== b.id || item.status !== 'running') return item;
+                return {
+                  ...item,
+                  status: 'success',
+                  serverDurationSeconds: data.duration_seconds ?? sec,
+                  serverPoll: data,
+                };
+              });
+              try {
+                localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(next));
+              } catch {
+                /* ignore */
+              }
+              return next;
+            });
+            void loadAccounts(true);
+          } else {
+            setBatchQueue((prev) => {
+              const next = prev.map((item) => (item.id === b.id ? { ...item, serverPoll: data } : item));
+              try {
+                localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(next));
+              } catch {
+                /* ignore */
+              }
+              return next;
+            });
+          }
         } catch (e) {
           console.error(e);
+          const status = e.response?.status;
+          let detail = null;
+          if (status === 404) {
+            detail = 'Батч не найден на сервере. Удалите запись из очереди.';
+          } else if (isBatchPollServiceUnreachable(e)) {
+            detail = SERVICE_DOWN_DETAIL;
+          }
+          if (detail) {
+            setBatchQueue((prev) => {
+              const next = prev.map((item) =>
+                item.id === b.id
+                  ? {
+                      ...item,
+                      status: 'error',
+                      detail,
+                      serverPoll: undefined,
+                    }
+                  : item,
+              );
+              try {
+                localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(next));
+              } catch {
+                /* ignore */
+              }
+              return next;
+            });
+          }
         }
       }
     };
     void tick();
     const id = setInterval(tick, BATCH_POLL_MS);
     return () => clearInterval(id);
-  }, [user.id]);
+  }, [user.id, loadAccounts]);
 
   useEffect(() => {
     let cancelled = false;

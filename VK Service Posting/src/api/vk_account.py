@@ -14,6 +14,7 @@ from src.services.vk_account_backup import VKAccountBackupService
 from src.services.vk_account_main import VKAccountMainService
 from typing import List
 from src.schemas.vk_account import VKAccountOut
+from src.celery_app.revoke_tasks import revoke_celery_task_ids
 from src.celery_app.tasks import vk_checker_add_account
 from src.vk_api_methods.vk_account import get_vk_account_data
 from src.vk_api_methods.vk_auth import get_new_token_request
@@ -576,6 +577,13 @@ async def delete_vk_account(
         database: DataBaseDep,
 ):
     """Удаляет привязанный VK аккаунт и связанные данные"""
+    account = await database.vk_account.get_one_or_none(id=vk_account_id, user_id=user_id)
+    if not account:
+        raise HTTPException(status_code=404, detail="VK аккаунт не найден")
+
+    celery_tasks_db = await database.celery_task.get_all_filtered(vk_account_id=vk_account_id)
+    revoke_celery_task_ids([account.task_id, *(t.task_id for t in celery_tasks_db)])
+
     await database.session.execute(
         update(VKGroupOrm)
         .where(VKGroupOrm.vk_admin_main_id == vk_account_id)
@@ -587,7 +595,6 @@ async def delete_vk_account(
         .values(vk_admin_poster_id=None)
     )
 
-    celery_tasks_db = await database.celery_task.get_all_filtered(vk_account_id=vk_account_id)
     for task in celery_tasks_db:
         await database.celery_task.delete(id=task.id)
 

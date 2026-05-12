@@ -6,6 +6,7 @@ from fastapi import HTTPException
 from sqlalchemy import update, or_
 
 from src.celery_app import app as celery_app
+from src.celery_app.revoke_tasks import revoke_celery_task_ids
 from src.celery_app.tasks import parse_vk_group_sync, vk_account_main_update_groups
 from src.celery_app.tasks.db_update_vk_account_group import update_db_group_async
 from src.models.celery_task import CeleryTaskOrm
@@ -178,6 +179,8 @@ class VKAccountMainService:
             .where(VKGroupOrm.vk_admin_main_id == db_vk_account.id)
             .values(vk_admin_main_id=None)
         )
+        celery_rows = await self.database.celery_task.get_all_filtered(vk_account_id=db_vk_account.id)
+        revoke_celery_task_ids([db_vk_account.task_id, *(t.task_id for t in celery_rows)])
         await self.database.celery_task.delete_where(CeleryTaskOrm.vk_account_id == db_vk_account.id)
 
         # Удаляем связанные аккаунты
