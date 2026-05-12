@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { message } from 'antd';
+import { message, Switch } from 'antd';
 import { ExternalLink, Loader2, PlayCircle, Plus, Settings, Trash2 } from 'lucide-react';
 
 import api from '../../api/axios';
@@ -7,6 +7,42 @@ import { useAutomatorUser } from '../AutomatorUserContext.jsx';
 
 function getV1Url() {
   return import.meta.env.VITE_V1_URL || `${window.location.protocol}//${window.location.hostname}/`;
+}
+
+function getV1WorkflowStatusUrl() {
+  return `${getV1Url().replace(/\/$/, '')}/dashboard/workflow-status`;
+}
+
+function isVkAccountUrl(url) {
+  if (!url || typeof url !== 'string') return false;
+  const t = url.trim();
+  if (!t || t === 'pending') return false;
+  return /^https?:\/\//i.test(t);
+}
+
+/** Формат даты/времени как в V1 WorkflowStatusPage */
+function formatLastPostRu(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  const s = d
+    .toLocaleString('ru-RU', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+    .replace(',', ' -');
+  const diffHours = (Date.now() - d.getTime()) / 3600000;
+  return { text: s, stale: diffHours > 4 };
+}
+
+function parseFilterKeywords(text) {
+  return text
+    .split(/[\n,]+/)
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
 }
 
 function parseLinksText(text) {
@@ -18,7 +54,7 @@ function parseLinksText(text) {
 
 function pipelineLabel(parseStatus) {
   if (parseStatus === 'success') return 'Готово';
-  if (parseStatus === 'failure') return 'Ошибка';
+  if (parseStatus === 'failure' || parseStatus === 'failed') return 'Ошибка';
   if (parseStatus === 'pending') return 'Selenium / API…';
   return parseStatus || '—';
 }
@@ -35,6 +71,11 @@ export default function WorkflowView() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
   const [postCreatePoll, setPostCreatePoll] = useState(0);
+  const [tableSearch, setTableSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const [updatingWorkerpostId, setUpdatingWorkerpostId] = useState(null);
+  const [deletingWorkerpostId, setDeletingWorkerpostId] = useState(null);
 
   const load = useCallback(
     async (opts = { silent: false }) => {
@@ -44,17 +85,22 @@ export default function WorkflowView() {
         const response = await api.get(`/users/${user.id}/workerpost/all`);
         tableData = (Array.isArray(response.data) ? response.data : []).map((item) => {
           const { workpost, vk_group, vk_account, category, clip_list } = item;
+          const accountUrl = vk_account?.vk_account_url;
           return {
             id: workpost.id,
             groupName: vk_group?.name,
             groupUrl: vk_group?.vk_group_url,
             accountName: `${vk_account?.name ?? ''} ${vk_account?.second_name ?? ''}`.trim(),
+            accountUrl: isVkAccountUrl(accountUrl) ? accountUrl : null,
             category: category?.name,
             hourly: category?.hourly_limit,
             active: workpost?.is_active,
             clipList: clip_list?.name,
-            parseStatus: workpost?.parse_status,
-            taskId: workpost?.task_id,
+            parseStatus: vk_account?.parse_status,
+            lastPostAt: workpost?.last_post_at ?? null,
+            accountType: vk_account?.account_type ?? null,
+            floodControl: Boolean(vk_account?.flood_control),
+            floodControlTime: vk_account?.flood_control_time ?? null,
           };
         });
         setRows(tableData);
@@ -163,7 +209,65 @@ export default function WorkflowView() {
     return () => clearInterval(id);
   }, [postCreatePoll, load, messageApi]);
 
-  const activeCount = rows.filter((r) => r.active).length;
+  const handleToggleActive = useCallback(
+    async (rowId, nextActive) => {
+      setUpdatingWorkerpostId(rowId);
+      try {
+        await api.put(`/users/${user.id}/workerpost/${rowId}`, { is_active: nextActive });
+        setRows((prev) => prev.map((r) => (r.id === rowId ? { ...r, active: nextActive } : r)));
+        messageApi.success(nextActive ? 'Воркерпост включён' : 'Воркерпост на паузе');
+      } catch {
+        messageApi.error('Не удалось обновить статус воркерпоста');
+      } finally {
+        setUpdatingWorkerpostId(null);
+      }
+    },
+    [messageApi, user.id],
+  );
+
+  const handleDeleteWorkerpost = useCallback(
+    async (rowId) => {
+      if (!window.confirm('Удалить воркерпост? Аккаунт вернётся в backup по связке с пабликом.')) return;
+      setDeletingWorkerpostId(rowId);
+      try {
+        await api.delete(`/users/${user.id}/workerpost/${rowId}`);
+        messageApi.success('Воркерпост удалён');
+        await load({ silent: true });
+      } catch (e) {
+        messageApi.error(e.response?.data?.detail || 'Ошибка удаления');
+      } finally {
+        setDeletingWorkerpostId(null);
+      }
+    },
+    [load, messageApi, user.id],
+  );
+
+  const activeCount = useMemo(() => rows.filter((r) => r.active).length, [rows]);
+
+  const filterKeywords = useMemo(() => parseFilterKeywords(tableSearch), [tableSearch]);
+
+  const filteredRows = useMemo(() => {
+    if (!filterKeywords.length) return rows;
+    return rows.filter((r) => filterKeywords.some((kw) => String(r.groupName || '').toLowerCase().includes(kw)));
+  }, [rows, filterKeywords]);
+
+  const pageCount = useMemo(
+    () => Math.max(1, Math.ceil(filteredRows.length / pageSize) || 1),
+    [filteredRows.length, pageSize],
+  );
+
+  const paginatedRows = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filteredRows.slice(start, start + pageSize);
+  }, [filteredRows, page, pageSize]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [tableSearch]);
+
+  useEffect(() => {
+    if (page > pageCount) setPage(pageCount);
+  }, [page, pageCount]);
 
   return (
     <div className="space-y-6">
@@ -177,9 +281,7 @@ export default function WorkflowView() {
         </p>
         <button
           type="button"
-          onClick={() =>
-            window.open(`${getV1Url().replace(/\/$/, '')}/dashboard/workflow-status`, '_blank')
-          }
+          onClick={() => window.open(getV1WorkflowStatusUrl(), '_blank')}
           className="mt-4 rounded-2xl bg-amber-600 px-5 py-3 text-sm font-bold text-white shadow-md hover:bg-amber-700"
         >
           Открыть V1: статус рабочего процесса
@@ -299,20 +401,54 @@ export default function WorkflowView() {
         ) : (
           <p className="text-sm text-gray-500">
             Активных: <span className="font-bold text-gray-800">{activeCount}</span> из {rows.length}
+            {filterKeywords.length > 0 && filteredRows.length !== rows.length ? (
+              <span className="ml-2 text-gray-400">
+                (по фильтру: {filteredRows.length} строк)
+              </span>
+            ) : null}
           </p>
         )}
       </section>
 
       <section className="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 p-8">
-          <h3 className="text-lg font-bold text-gray-800">Список воркеров</h3>
-          <button
-            type="button"
-            onClick={() => load()}
-            className="rounded-xl border border-gray-200 px-4 py-2 text-xs font-bold text-gray-600 hover:bg-gray-50"
-          >
-            Обновить
-          </button>
+        <div className="flex flex-col gap-4 border-b border-gray-100 p-6 sm:p-8">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h3 className="text-lg font-bold text-gray-800">Список воркеров</h3>
+            <button
+              type="button"
+              onClick={() => load()}
+              className="rounded-xl border border-gray-200 px-4 py-2 text-xs font-bold text-gray-600 hover:bg-gray-50"
+            >
+              Обновить
+            </button>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <label className="block min-w-0 flex-1 text-xs font-bold uppercase tracking-widest text-gray-400">
+              Фильтр по названию паблика
+              <input
+                type="text"
+                className="mt-1 w-full rounded-xl border border-gray-100 bg-gray-50 px-4 py-2.5 text-sm font-medium text-gray-800 outline-none focus:ring-2 focus:ring-blue-100"
+                placeholder="Несколько слов через запятую или с новой строки"
+                value={tableSearch}
+                onChange={(e) => setTableSearch(e.target.value)}
+              />
+            </label>
+            <label className="flex shrink-0 items-center gap-2 text-xs font-bold text-gray-500">
+              На странице
+              <select
+                className="rounded-lg border border-gray-200 bg-white px-2 py-2 text-sm font-bold"
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setPage(1);
+                }}
+              >
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </label>
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left">
@@ -321,84 +457,163 @@ export default function WorkflowView() {
                 <th className="px-8 py-5">ID / Группа</th>
                 <th className="px-6 py-5">Аккаунт</th>
                 <th className="px-6 py-5">Категория</th>
-                <th className="px-6 py-5">Посты (ч)</th>
+                <th className="px-6 py-5">Лимит клипов/ч</th>
                 <th className="px-6 py-5">Пайплайн</th>
-                <th className="px-6 py-5">Статус</th>
+                <th className="px-6 py-5">Состояние</th>
+                <th className="px-6 py-5">Постинг</th>
                 <th className="px-8 py-5 text-right">Действия</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 text-sm">
-              {rows.map((row) => (
-                <tr key={row.id} className="group transition-colors hover:bg-gray-50/50">
-                  <td className="px-8 py-5">
-                    {row.groupUrl ? (
-                      <a
-                        href={row.groupUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex items-center gap-1.5 font-bold text-blue-600 hover:underline"
-                      >
-                        {row.groupName}{' '}
-                        <ExternalLink size={12} className="opacity-0 transition-opacity group-hover:opacity-100" />
-                      </a>
-                    ) : (
-                      <span className="font-bold text-gray-800">{row.groupName}</span>
-                    )}
-                    <div className="mt-0.5 font-mono text-[10px] text-gray-400">#{row.id}</div>
-                  </td>
-                  <td className="px-6 py-5 font-semibold text-gray-800">{row.accountName || '—'}</td>
-                  <td className="px-6 py-5">
-                    <span className="rounded-lg bg-gray-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                      {row.category || '—'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-5 font-mono font-bold text-gray-600">{row.hourly ?? '—'}</td>
-                  <td className="px-6 py-5">
-                    <span className="text-xs font-bold text-slate-700">{pipelineLabel(row.parseStatus)}</span>
-                    {row.taskId ? (
-                      <div className="mt-0.5 font-mono text-[10px] text-gray-400">
-                        task {String(row.taskId).slice(0, 14)}…
+              {paginatedRows.map((row) => {
+                const lastPost = formatLastPostRu(row.lastPostAt);
+                return (
+                  <tr key={row.id} className="group transition-colors hover:bg-gray-50/50">
+                    <td className="px-8 py-5">
+                      {row.groupUrl ? (
+                        <a
+                          href={row.groupUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center gap-1.5 font-bold text-blue-600 hover:underline"
+                        >
+                          {row.groupName}{' '}
+                          <ExternalLink size={12} className="opacity-0 transition-opacity group-hover:opacity-100" />
+                        </a>
+                      ) : (
+                        <span className="font-bold text-gray-800">{row.groupName}</span>
+                      )}
+                      <div className="mt-0.5 font-mono text-[10px] text-gray-400">#{row.id}</div>
+                    </td>
+                    <td className="px-6 py-5">
+                      {row.accountUrl ? (
+                        <a
+                          href={row.accountUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="font-semibold text-blue-600 hover:underline"
+                        >
+                          {row.accountName || '—'}
+                        </a>
+                      ) : (
+                        <span className="font-semibold text-gray-800">{row.accountName || '—'}</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-5">
+                      <span className="rounded-lg bg-gray-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                        {row.category || '—'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-5 font-mono font-bold text-gray-600">{row.hourly ?? '—'}</td>
+                    <td className="px-6 py-5">
+                      <span className="text-xs font-bold text-slate-700">{pipelineLabel(row.parseStatus)}</span>
+                    </td>
+                    <td className="max-w-[12rem] px-6 py-5 text-xs leading-relaxed text-gray-700">
+                      <div>
+                        {lastPost ? (
+                          <span className={lastPost.stale ? 'font-semibold text-red-600' : 'text-gray-800'}>
+                            Постинг: {lastPost.text}
+                          </span>
+                        ) : (
+                          <span className="font-semibold text-red-600">Постинг: нет данных</span>
+                        )}
                       </div>
-                    ) : null}
-                  </td>
-                  <td className="px-6 py-5">
-                    {row.active ? (
-                      <span className="flex items-center gap-2 text-xs font-bold text-green-600">
-                        <span className="h-2 w-2 animate-pulse rounded-full bg-green-600" /> В работе
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-2 text-xs font-bold text-amber-600">
-                        <span className="h-2 w-2 rounded-full bg-amber-600" /> Выкл.
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-8 py-5 text-right">
-                    <div className="flex justify-end gap-2">
-                      <button
-                        type="button"
-                        title="В V1"
-                        onClick={() => window.open(getV1Url(), '_blank')}
-                        className="rounded-xl p-2.5 text-gray-400 transition-all hover:bg-blue-50 hover:text-blue-600"
-                      >
-                        <Settings size={18} />
-                      </button>
-                      <button type="button" disabled className="rounded-xl p-2.5 text-gray-300" title="Удаление через V1">
-                        <Trash2 size={18} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                      <div className="mt-1">
+                        {row.accountType === 'blocked' ? (
+                          <span className="font-bold text-red-600">Аккаунт: заблокирован</span>
+                        ) : (
+                          <span className="font-bold text-green-700">Аккаунт: активен</span>
+                        )}
+                      </div>
+                      <div className="mt-1 text-gray-500">Флудконтроль: {row.floodControl ? 'Да' : 'Нет'}</div>
+                    </td>
+                    <td className="px-6 py-5">
+                      <Switch
+                        checked={row.active}
+                        loading={updatingWorkerpostId === row.id}
+                        disabled={updatingWorkerpostId === row.id}
+                        onChange={(checked) => void handleToggleActive(row.id, checked)}
+                        checkedChildren="Вкл"
+                        unCheckedChildren="Выкл"
+                      />
+                    </td>
+                    <td className="px-8 py-5 text-right">
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          title="Настройки в V1 (статус рабочего процесса)"
+                          onClick={() => window.open(getV1WorkflowStatusUrl(), '_blank')}
+                          className="rounded-xl p-2.5 text-gray-400 transition-all hover:bg-blue-50 hover:text-blue-600"
+                        >
+                          <Settings size={18} />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={deletingWorkerpostId === row.id}
+                          title="Удалить воркерпост"
+                          onClick={() => void handleDeleteWorkerpost(row.id)}
+                          className="rounded-xl p-2.5 text-gray-400 transition-all hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
+                        >
+                          {deletingWorkerpostId === row.id ? (
+                            <Loader2 size={18} className="animate-spin" />
+                          ) : (
+                            <Trash2 size={18} />
+                          )}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
               {!loading && !rows.length && (
                 <tr>
-                  <td colSpan={7} className="px-8 py-12 text-center text-sm text-gray-500">
+                  <td colSpan={8} className="px-8 py-12 text-center text-sm text-gray-500">
                     Нет воркерпостов. Создайте через форму выше или в V1.
+                  </td>
+                </tr>
+              )}
+              {!loading && rows.length > 0 && filteredRows.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="px-8 py-12 text-center text-sm text-gray-500">
+                    Нет строк по фильтру. Измените запрос.
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
+        {!loading && filteredRows.length > 0 ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 px-6 py-4 text-xs text-gray-600 sm:px-8">
+            <span>
+              Показано{' '}
+              {filteredRows.length === 0
+                ? '0'
+                : `${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, filteredRows.length)}`}{' '}
+              из {filteredRows.length}
+            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                className="rounded-lg border border-gray-200 px-3 py-1.5 font-bold hover:bg-gray-50 disabled:opacity-40"
+              >
+                Назад
+              </button>
+              <span className="font-mono">
+                Стр. {page} / {pageCount}
+              </span>
+              <button
+                type="button"
+                disabled={page >= pageCount}
+                onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                className="rounded-lg border border-gray-200 px-3 py-1.5 font-bold hover:bg-gray-50 disabled:opacity-40"
+              >
+                Вперёд
+              </button>
+            </div>
+          </div>
+        ) : null}
       </section>
     </div>
   );
