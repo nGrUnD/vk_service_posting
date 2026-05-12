@@ -36,8 +36,6 @@ export default function AccountsView() {
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [curlInput, setCurlInput] = useState('');
-  const [connecting, setConnecting] = useState(false);
   const [checkingId, setCheckingId] = useState(null);
   const [reconnectId, setReconnectId] = useState(null);
 
@@ -247,24 +245,6 @@ export default function AccountsView() {
     }
   };
 
-  const handleCurlMain = async () => {
-    if (!curlInput.trim()) {
-      messageApi.warning('Вставьте curl для главного аккаунта');
-      return;
-    }
-    setConnecting(true);
-    try {
-      await api.post(`/users/${user.id}/vk_accounts/curl_main`, { curl: curlInput.trim() });
-      setCurlInput('');
-      messageApi.success('Запущена обработка главного аккаунта');
-      loadAccounts(true);
-    } catch (e) {
-      messageApi.error(e.response?.data?.detail || 'Ошибка curl_main');
-    } finally {
-      setConnecting(false);
-    }
-  };
-
   const handleCheck = async (id) => {
     setCheckingId(id);
     try {
@@ -414,61 +394,30 @@ export default function AccountsView() {
         </div>
       </section>
 
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-        <div className="space-y-6 lg:col-span-1">
-          <div className="rounded-3xl border border-gray-100 bg-white p-8 shadow-sm">
-            <h3 className="mb-4 flex items-center gap-2 text-lg font-black text-gray-800">
-              <RefreshCcw size={20} className="text-blue-600" /> Подключить по cURL
-            </h3>
-            <p className="mb-6 text-sm font-medium leading-relaxed text-gray-500">
-              Главный технический аккаунт: отправка той же команды, что и в V1 (`curl_main`).
-            </p>
-            <textarea
-              className="h-40 w-full resize-none rounded-2xl border border-gray-100 bg-gray-50 p-4 font-mono text-[11px] leading-tight text-gray-600 outline-none focus:ring-4 focus:ring-blue-100"
-              placeholder="curl 'https://vk.com/al_feed.php' -H 'cookie: ...' ..."
-              value={curlInput}
-              onChange={(e) => setCurlInput(e.target.value)}
-            />
-            <button
-              type="button"
-              disabled={connecting}
-              onClick={handleCurlMain}
-              className="mt-6 w-full rounded-2xl bg-blue-600 py-4 font-bold text-white shadow-lg shadow-blue-100 transition-all hover:bg-blue-700 disabled:opacity-60"
-            >
-              {connecting ? 'Отправка…' : 'Обновить сессию'}
-            </button>
-          </div>
-
-          <div className="rounded-3xl bg-indigo-600 p-8 text-white shadow-lg shadow-indigo-200">
-            <h3 className="mb-2 text-lg font-black">Действия как в V1</h3>
-            <p className="mb-8 text-sm font-medium leading-relaxed text-indigo-100">
-              Проверка curl, переподключение, удаление — те же endpoint&apos;ы. Статусы парсинга обновляются при
-              «Обновить список» и во время отслеживания импорта.
-            </p>
-            <button
-              type="button"
-              onClick={() => loadAccounts()}
-              className="w-full rounded-xl bg-white/10 py-3 text-sm font-bold backdrop-blur-sm transition-all hover:bg-white/20"
-            >
-              Обновить список
-            </button>
-          </div>
-        </div>
-
-        <div className="flex flex-col overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm lg:col-span-2">
+      <div className="w-full flex flex-col overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
           <div className="z-10 flex flex-wrap items-center justify-between gap-4 border-b border-gray-100 bg-white p-8">
             <span className="text-lg font-black text-gray-800">
               Всего аккаунтов: {loading ? '…' : accounts.length}
             </span>
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-              <input
-                type="text"
-                placeholder="Поиск…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-64 rounded-2xl border border-gray-100 bg-gray-50 py-3 pl-11 pr-4 text-sm font-medium outline-none transition-all focus:ring-4 focus:ring-blue-100"
-              />
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => loadAccounts()}
+                className="inline-flex items-center gap-2 rounded-2xl border border-gray-200 bg-white px-4 py-2.5 text-xs font-bold text-gray-700 transition-all hover:bg-gray-50"
+              >
+                <RefreshCcw size={14} />
+                Обновить список
+              </button>
+              <div className="relative">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                <input
+                  type="text"
+                  placeholder="Поиск…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-64 min-w-[12rem] rounded-2xl border border-gray-100 bg-gray-50 py-3 pl-11 pr-4 text-sm font-medium outline-none transition-all focus:ring-4 focus:ring-blue-100"
+                />
+              </div>
             </div>
           </div>
           <div className="max-h-[640px] flex-1 divide-y divide-gray-100 overflow-y-auto">
@@ -566,7 +515,6 @@ export default function AccountsView() {
               <div className="p-12 text-center text-sm text-gray-500">Нет аккаунтов по фильтру.</div>
             )}
           </div>
-        </div>
       </div>
     </div>
   );
