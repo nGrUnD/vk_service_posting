@@ -193,15 +193,18 @@ def get_vk_account_admin_groups(access_token: str, user_id: int, proxy: str) -> 
         "groups": groups,
     }
 
-def get_vk_account_groups(access_token: str, user_id: int, proxy: str = None):
+def get_vk_account_groups(access_token: str, user_id: int, proxy: str = None, *, first_page_only: bool = False):
     """
     Получает все группы пользователя VK (не только админские),
     возвращает всю доступную базовую информацию о них.
+
+    first_page_only: один запрос groups.get (count=1) — для проверки токена без выгрузки всех групп
+    (тот же путь, что при парсинге; ловит blocked / expired и др.).
     """
     url = "https://api.vk.com/method/groups.get"
     version = "5.131"
     delay = 0.34
-    count_per_request = 1000
+    count_per_request = 1 if first_page_only else 1000
 
     headers = {"User-Agent": get_random_user_agent()}
     print(f'Proxy: {proxy}')
@@ -226,11 +229,30 @@ def get_vk_account_groups(access_token: str, user_id: int, proxy: str = None):
     response_json = response.json()
 
     if "error" in response_json:
-        raise Exception(f"Ошибка при получении данных: {response_json['error']['error_msg']}")
+        err_msg = response_json["error"]["error_msg"]
+        if "access_token has expired" in err_msg:
+            print("⛔ Токен протух")
+            raise Exception("Требуется обновление access_token")
+        raise Exception(f"Ошибка при получении данных: {err_msg}")
 
     data = response_json["response"]
     total_count = data["count"]
     all_items.extend(data["items"])
+
+    if first_page_only:
+        groups = []
+        for group in all_items:
+            group_id = group["id"]
+            groups.append({
+                "group_id": group_id,
+                "vk_group_url": f"https://vk.com/{group.get('screen_name', f'club{group_id}')}",
+                "avatar_url": group.get("photo_200"),
+                "name": group.get("name"),
+            })
+        return {
+            "count": total_count,
+            "groups": groups,
+        }
 
     # Загружаем постранично
     while offset + count_per_request < total_count:

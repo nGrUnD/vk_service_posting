@@ -16,7 +16,7 @@ from typing import List
 from src.schemas.vk_account import VKAccountOut
 from src.celery_app.revoke_tasks import revoke_celery_task_ids
 from src.celery_app.tasks import vk_checker_add_account
-from src.vk_api_methods.vk_account import get_vk_account_data
+from src.vk_api_methods.vk_account import get_vk_account_data, get_vk_account_groups
 from src.vk_api_methods.vk_auth import get_new_token_request
 
 router = APIRouter(prefix="/users/{user_id}/vk_accounts", tags=["VK Аккаунты"])
@@ -508,16 +508,25 @@ async def check_vk_account_curl(
         return {"ok": False, "detail": "Не удалось получить токен"}
 
     try:
-        get_vk_account_data(token, proxy_http)
+        profile = get_vk_account_data(token, proxy_http)
     except Exception as e:
         return {"ok": False, "detail": f"Не удалось получить токен: {e}"}
+
+    vk_user_id = profile.get("id") or account.vk_account_id
+    if not vk_user_id:
+        return {"ok": False, "detail": "Не удалось определить VK user id для проверки"}
+
+    try:
+        get_vk_account_groups(token, int(vk_user_id), proxy_http, first_page_only=True)
+    except Exception as e:
+        return {"ok": False, "detail": f"Токен / сессия: {e}"}
 
     # Если web_token вернул новый — сохраняем его
     if token != account.token:
         await database.vk_account.edit(VKAccountUpdate(token=token), exclude_unset=True, id=account.id)
         await database.commit()
 
-    return {"ok": True, "detail": "curl живой"}
+    return {"ok": True, "detail": "curl и токен живые (users.get + groups.get)"}
 
 
 @router.post("/{vk_account_id}/reconnect_curl", summary="Переподключить cURL через vk_login (log:pass)")
