@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { message } from 'antd';
-import { Database, Download, Link2, Loader2, Plus, Settings } from 'lucide-react';
+import { Database, Download, Laptop, Link2, Loader2, Plus, Settings } from 'lucide-react';
 
 import api from '../../api/axios';
 import {
   downloadClipListLinks,
+  downloadClipListToPc,
   downloadClipListZip,
   parseErrorDetail,
 } from '../../utils/clipListDownload.js';
@@ -30,7 +31,11 @@ export default function SourcesView() {
   const [newName, setNewName] = useState('');
   const [downloadingId, setDownloadingId] = useState(null);
   const [linksDownloadingId, setLinksDownloadingId] = useState(null);
+  const [pcDownloadingId, setPcDownloadingId] = useState(null);
   const [downloadProgress, setDownloadProgress] = useState(null);
+
+  const isListBusy = (listId) =>
+    downloadingId === listId || linksDownloadingId === listId || pcDownloadingId === listId;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -63,6 +68,39 @@ export default function SourcesView() {
       messageApi.error(text);
     } finally {
       setLinksDownloadingId(null);
+    }
+  };
+
+  const handleDownloadPc = async (cat) => {
+    setPcDownloadingId(cat.id);
+    setDownloadProgress(null);
+    try {
+      const result = await downloadClipListToPc(api, `/users/${user.id}/clip_list`, cat, {
+        onProgress: (status) => {
+          setDownloadProgress({
+            current: status.current ?? 0,
+            total: status.total ?? 0,
+            phase: status.phase,
+            ok_count: status.ok_count,
+            fail_count: status.fail_count,
+          });
+        },
+      });
+      let msg = `Скачано на ПК: ${result.ok} файлов в папку «Загрузки» браузера`;
+      if (result.randomSample) {
+        msg = `${result.exportCount} случайных из ${result.totalInList}. ${msg}`;
+      }
+      if (result.fail > 0) {
+        messageApi.warning(`${msg}. Не удалось: ${result.fail}. Для всех клипов — VK Clips Downloader + vk_pages.txt`);
+      } else {
+        messageApi.success(msg);
+      }
+    } catch (e) {
+      const text = e.response ? await parseErrorDetail(e) : e.message;
+      messageApi.error(text);
+    } finally {
+      setPcDownloadingId(null);
+      setDownloadProgress(null);
     }
   };
 
@@ -102,15 +140,22 @@ export default function SourcesView() {
     }
   };
 
-  const downloadButtonLabel = (cat) => {
+  const zipButtonLabel = (cat) => {
     if (downloadingId !== cat.id) return 'ZIP';
     const p = downloadProgress;
-    if (!p?.total) return 'Подготовка…';
-    if (p.phase === 'packing') return 'Упаковка…';
-    if (p.phase === 'downloading_file') return 'Скачивание…';
-    if (p.phase === 'ready') return 'Готово';
+    if (!p?.total) return '…';
+    if (p.phase === 'packing') return 'Упаковка';
+    if (p.phase === 'downloading_file') return 'ZIP…';
     const cur = Math.min(p.current ?? 0, p.total);
-    const ok = p.ok_count != null ? ` · ${p.ok_count} ок` : '';
+    return `${cur}/${p.total}`;
+  };
+
+  const pcButtonLabel = (cat) => {
+    if (pcDownloadingId !== cat.id) return 'На ПК';
+    const p = downloadProgress;
+    if (!p?.total) return '…';
+    const cur = Math.min(p.current ?? 0, p.total);
+    const ok = p.ok_count != null ? ` ·${p.ok_count}` : '';
     return `${cur}/${p.total}${ok}`;
   };
 
@@ -196,9 +241,7 @@ export default function SourcesView() {
                   </button>
                   <button
                     type="button"
-                    disabled={
-                      !cat.count || linksDownloadingId === cat.id || downloadingId === cat.id
-                    }
+                    disabled={!cat.count || isListBusy(cat.id)}
                     onClick={() => void handleDownloadLinks(cat)}
                     className="flex flex-1 items-center justify-center gap-1 rounded-2xl border border-emerald-200 bg-emerald-50 py-3.5 text-xs font-bold text-emerald-900 transition-all hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
                     title="Быстро: ZIP со ссылками — скачивание видео с вашего ПК"
@@ -212,17 +255,31 @@ export default function SourcesView() {
                   </button>
                   <button
                     type="button"
-                    disabled={!cat.count || downloadingId === cat.id || linksDownloadingId === cat.id}
+                    disabled={!cat.count || isListBusy(cat.id)}
+                    onClick={() => void handleDownloadPc(cat)}
+                    className="flex flex-1 items-center justify-center gap-1 rounded-2xl border border-violet-200 bg-violet-50 py-3.5 text-xs font-bold text-violet-900 transition-all hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    title="До 20 клипов в «Загрузки», без ZIP на сервере"
+                  >
+                    {pcDownloadingId === cat.id ? (
+                      <Loader2 size={15} className="animate-spin shrink-0" />
+                    ) : (
+                      <Laptop size={15} className="shrink-0" />
+                    )}
+                    <span className="truncate">{pcButtonLabel(cat)}</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!cat.count || isListBusy(cat.id)}
                     onClick={() => void handleDownloadList(cat)}
                     className="flex flex-1 items-center justify-center gap-1 rounded-2xl border border-blue-200 bg-blue-50 py-3.5 text-xs font-bold text-blue-800 transition-all hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
-                    title="Медленно: сервер собирает ZIP (CDN часто отказывает серверу)"
+                    title="ZIP: до 20 случайных клипов с сервера (медленно, часто ошибки CDN)"
                   >
                     {downloadingId === cat.id ? (
                       <Loader2 size={15} className="animate-spin shrink-0" />
                     ) : (
                       <Download size={15} className="shrink-0" />
                     )}
-                    <span className="truncate">{downloadButtonLabel(cat)}</span>
+                    <span className="truncate">{zipButtonLabel(cat)}</span>
                   </button>
                   <button
                     type="button"

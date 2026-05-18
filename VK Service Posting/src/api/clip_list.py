@@ -2,7 +2,8 @@ import os
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, Response, StreamingResponse
+from starlette.concurrency import run_in_threadpool
 from sqlalchemy import select, func
 from sqlalchemy.orm import aliased
 
@@ -10,13 +11,18 @@ from src.api.dependencies import DataBaseDep, UserIdDep
 from src.models import VKClipOrm, ClipListOrm
 from src.schemas.clip_list import ClipListAddRequest, ClipListAdd, ClipListUpdate
 from src.services.clip_list_export import (
+    ClipExportPayload,
     _safe_archive_basename,
+    _vk_owner_id,
     attachment_content_disposition,
     build_links_manifest_zip,
+    clip_pc_filename,
     clips_to_payloads,
     count_downloadable_clips,
+    iter_cdn_stream,
     load_export_download_context,
     pick_clips_for_export,
+    resolve_clip_cdn_url,
 )
 from src.services.clip_list_export_jobs import get_job, job_to_status_dict, remove_job, start_export_job
 from src.services.live_log import livelogadd
@@ -82,7 +88,7 @@ async def read(clip_list_id: int, database: DataBaseDep, user_id: UserIdDep):
 
 @router.post(
     "/get/{clip_list_id}/download/start",
-    summary="Начать формирование ZIP (до 500 клипов, при большем списке — случайная выборка)",
+    summary="Начать формирование ZIP (до 20 случайных клипов)",
 )
 async def start_clip_list_download(
     clip_list_id: int,
@@ -147,6 +153,121 @@ async def download_clip_list_links(
         "X-Export-Count": str(len(payloads)),
     }
     return Response(content=zip_bytes, media_type="application/zip", headers=headers)
+
+
+@router.get(
+    "/get/{clip_list_id}/download/pc/manifest",
+    summary="Список клипов для скачивания на ПК (потоком, без ZIP на сервере)",
+)
+async def pc_download_manifest(
+    clip_list_id: int,
+    database: DataBaseDep,
+    user_id: UserIdDep,
+):
+    clip_list = await database.clip_list.get_one_or_none(id=clip_list_id, user_id=user_id)
+    if not clip_list:
+        raise HTTPException(status_code=404, detail="Список клипов не найден")
+
+    clips = await database.vk_clip.get_all_filtered(clip_list_id=clip_list_id, user_id=user_id)
+    if not clips:
+        raise HTTPException(status_code=400, detail="В списке нет клипов для скачивания")
+
+    export_clips, random_sample, total_in_list = pick_clips_for_export(clips)
+    payloads = clips_to_payloads(export_clips)
+    group_ids = {c.vk_group_id for c in payloads if c.vk_group_id}
+    export_ctx = load_export_download_context(user_id, group_ids)
+
+    items = []
+    for p in payloads:
+        owner_id = _vk_owner_id(export_ctx, p) if export_ctx else None
+        vk_page = (
+            f"https://vk.com/video{owner_id}_{p.vk_id}" if owner_id is not None else None
+        )
+        items.append(
+            {
+                "clip_db_id": p.id,
+                "vk_id": p.vk_id,
+                "filename": clip_pc_filename(p, owner_id),
+                "vk_page": vk_page,
+                "stream_path": (
+                    f"/users/{user_id}/clip_list/get/{clip_list_id}"
+                    f"/download/pc/stream/{p.id}"
+                ),
+            },
+        )
+
+    return {
+        "clip_list_id": clip_list_id,
+        "clip_list_name": clip_list.name,
+        "items": items,
+        "export_count": len(items),
+        "total_in_list": total_in_list,
+        "random_sample": random_sample,
+        "has_main_account": export_ctx is not None,
+        "hint": (
+            "Файлы идут потоком в папку «Загрузки» браузера (как отдельные файлы в облаке). "
+            "ZIP на сервере не собирается. Нужен main-аккаунт для обновления CDN."
+        ),
+    }
+
+
+@router.get(
+    "/get/{clip_list_id}/download/pc/stream/{clip_db_id}",
+    summary="Поток одного клипа в браузер (CDN → сервер → ПК, без сохранения ZIP)",
+)
+async def pc_stream_clip(
+    clip_list_id: int,
+    clip_db_id: int,
+    database: DataBaseDep,
+    user_id: UserIdDep,
+):
+    clip_row = await database.vk_clip.get_one_or_none(
+        id=clip_db_id,
+        clip_list_id=clip_list_id,
+        user_id=user_id,
+    )
+    if not clip_row:
+        raise HTTPException(status_code=404, detail="Клип не найден")
+
+    payload = ClipExportPayload(
+        id=clip_row.id,
+        vk_group_id=clip_row.vk_group_id,
+        vk_id=clip_row.vk_id,
+        files=clip_row.files,
+    )
+    export_ctx = load_export_download_context(
+        user_id,
+        {clip_row.vk_group_id} if clip_row.vk_group_id else set(),
+    )
+    owner_id = _vk_owner_id(export_ctx, payload) if export_ctx else None
+
+    def _resolve() -> str:
+        url = resolve_clip_cdn_url(payload, export_ctx)
+        if not url:
+            raise ValueError("Не удалось получить ссылку на видео")
+        return url
+
+    try:
+        cdn_url = await run_in_threadpool(_resolve)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Ошибка VK CDN: {e}") from e
+
+    filename = clip_pc_filename(payload, owner_id)
+    proxy = export_ctx.proxy if export_ctx else None
+
+    def stream() -> bytes:
+        yield from iter_cdn_stream(cdn_url, proxy)
+
+    return StreamingResponse(
+        stream(),
+        media_type="application/octet-stream",
+        headers={
+            "Content-Disposition": attachment_content_disposition(filename),
+            "Cache-Control": "no-store",
+        },
+    )
 
 
 @router.get(

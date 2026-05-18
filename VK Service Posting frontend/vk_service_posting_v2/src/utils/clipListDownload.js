@@ -67,6 +67,81 @@ export async function downloadClipListLinks(api, basePath, list) {
   };
 }
 
+const PC_DOWNLOAD_GAP_MS = 1500;
+
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+/**
+ * Скачивание на ПК: сервер обновляет CDN (video.get) и отдаёт поток в браузер.
+ * ZIP на диске сервера не создаётся — отдельные файлы в «Загрузки».
+ */
+export async function downloadClipListToPc(api, basePath, list, { onProgress } = {}) {
+  const count = Number(list.count || 0);
+  if (!count) {
+    throw new Error('В списке нет клипов для скачивания');
+  }
+
+  const { data: manifest } = await api.get(`${basePath}/get/${list.id}/download/pc/manifest`);
+  const items = manifest.items || [];
+  if (!items.length) {
+    throw new Error('Нет клипов для скачивания');
+  }
+
+  let ok = 0;
+  let fail = 0;
+  const total = items.length;
+
+  for (let i = 0; i < items.length; i += 1) {
+    const item = items[i];
+    onProgress?.({
+      current: i,
+      total,
+      phase: 'downloading',
+      ok_count: ok,
+      message: `Скачивание ${i + 1}/${total}: ${item.filename}`,
+    });
+
+    try {
+      const response = await api.get(item.stream_path, {
+        responseType: 'blob',
+        timeout: 0,
+      });
+      if (!response.data || response.data.size < 1024) {
+        throw new Error('Пустой файл');
+      }
+      triggerBlobDownload(response.data, item.filename);
+      ok += 1;
+    } catch (e) {
+      fail += 1;
+      console.warn('PC clip download failed', item, e);
+    }
+
+    onProgress?.({
+      current: i + 1,
+      total,
+      phase: i + 1 < items.length ? 'downloading' : 'done',
+      ok_count: ok,
+      fail_count: fail,
+    });
+
+    if (i + 1 < items.length) {
+      await sleep(PC_DOWNLOAD_GAP_MS);
+    }
+  }
+
+  return {
+    ok,
+    fail,
+    total,
+    randomSample: manifest.random_sample,
+    totalInList: manifest.total_in_list,
+    exportCount: manifest.export_count,
+    hasMainAccount: manifest.has_main_account,
+  };
+}
+
 export async function downloadClipListZip(api, basePath, list, { onProgress } = {}) {
   const count = Number(list.count || 0);
   if (!count) {

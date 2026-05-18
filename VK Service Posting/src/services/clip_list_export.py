@@ -27,7 +27,7 @@ from src.vk_api_methods.vk_posting import (
 
 logger = logging.getLogger(__name__)
 
-MAX_CLIPS_PER_EXPORT = 500
+MAX_CLIPS_PER_EXPORT = 20
 MAX_CLIP_FILE_BYTES = 150 * 1024 * 1024
 DOWNLOAD_TIMEOUT_SEC = (10, 45)
 DOWNLOAD_CHUNK = 1024 * 256
@@ -139,6 +139,47 @@ def _refresh_clip_download_url(
     token = get_new_token_request(context.token, context.cookies, context.proxy) or context.token
     info = get_clip_info(owner_id, clip.vk_id, token, context.proxy)
     return _files_field_to_url(info.get("files"))
+
+
+def resolve_clip_cdn_url(
+    clip: ClipExportPayload,
+    context: ClipExportDownloadContext | None,
+) -> str | None:
+    """Свежий CDN через video.get (как при открытии страницы VK), иначе URL из БД."""
+    if context:
+        try:
+            fresh = _refresh_clip_download_url(context, clip)
+            if fresh:
+                return fresh
+        except Exception as e:
+            logger.debug("refresh cdn for clip %s failed: %s", clip.id, e)
+    stored = (clip.files or "").strip()
+    if _is_downloadable_url(stored):
+        return stored
+    return None
+
+
+def iter_cdn_stream(url: str, proxy: str | None):
+    """Поток байтов с CDN через сервер (в браузер, без файла на диске)."""
+    session = requests.Session()
+    session.headers.setdefault("User-Agent", "Mozilla/5.0 (compatible; VKPosting/1.0)")
+    proxies = {"http": proxy, "https": proxy} if proxy else None
+    with session.get(url, stream=True, timeout=DOWNLOAD_TIMEOUT_SEC, proxies=proxies) as resp:
+        resp.raise_for_status()
+        size = 0
+        for chunk in resp.iter_content(chunk_size=DOWNLOAD_CHUNK):
+            if not chunk:
+                continue
+            size += len(chunk)
+            if size > MAX_CLIP_FILE_BYTES:
+                raise RuntimeError("Файл больше 150 МБ")
+            yield chunk
+
+
+def clip_pc_filename(clip: ClipExportPayload, owner_id: int | None) -> str:
+    if owner_id is not None:
+        return f"clip_{owner_id}_{clip.vk_id}.mp4"
+    return f"clip_{clip.vk_group_id}_{clip.vk_id}.mp4"
 
 
 def _safe_archive_basename(name: str) -> str:
@@ -253,8 +294,10 @@ def build_links_manifest_zip(
             "urls.txt — прямые CDN (могут протухнуть).",
             "vk_pages.txt — страницы VK для загрузки с ПК.",
             "",
-            "Windows: папка windows_downloader\\ — запустите Скачать_клипы.bat",
-            "(перетащите vk_pages.txt на bat) — видео в папке clips\\",
+            "Windows: папка windows_downloader\\",
+            "  • VK Clips Downloader.exe — программа с окном (удобнее)",
+            "  • или Скачать_клипы.bat — консоль",
+            "Перетащите vk_pages.txt в программу — видео в clips\\",
             "",
             "Чтобы обновить CDN-ссылки — пополните базу в V1.",
         ],
@@ -285,10 +328,21 @@ li {{ margin: 0.4rem 0; }}
             zf.writestr("vk_pages.txt", "\n".join(vk_page_lines).encode("utf-8"))
         zf.writestr("index.html", html_page.encode("utf-8"))
         if tool_dir.is_dir():
-            for name in ("download_vk_clips.py", "Скачать_клипы.bat", "requirements.txt"):
+            for name in (
+                "download_vk_clips.py",
+                "gui_app.py",
+                "Скачать_клипы.bat",
+                "Запуск_программы.bat",
+                "build_exe.bat",
+                "requirements.txt",
+                "VK Clips Downloader.spec",
+            ):
                 tool_file = tool_dir / name
                 if tool_file.is_file():
                     zf.write(tool_file, arcname=f"windows_downloader/{name}")
+            exe_file = tool_dir / "dist" / "VK Clips Downloader.exe"
+            if exe_file.is_file():
+                zf.write(exe_file, arcname="windows_downloader/VK Clips Downloader.exe")
     return buf.getvalue()
 
 

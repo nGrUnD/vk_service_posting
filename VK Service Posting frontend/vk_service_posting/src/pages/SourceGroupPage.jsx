@@ -16,7 +16,12 @@ import {
 import {DownloadOutlined, LinkOutlined, ReloadOutlined} from '@ant-design/icons';
 import dayjs from 'dayjs';
 import api from '../api/axios';
-import {downloadClipListLinks, downloadClipListZip, parseErrorDetail} from '../utils/clipListDownload';
+import {
+    downloadClipListLinks,
+    downloadClipListToPc,
+    downloadClipListZip,
+    parseErrorDetail,
+} from '../utils/clipListDownload';
 
 const {Title} = Typography;
 const {TextArea} = Input;
@@ -34,6 +39,7 @@ export default function SourceGroupPage() {
     const [selectedClipListId, setSelectedClipListId] = useState(null);
     const [downloadingClipListId, setDownloadingClipListId] = useState(null);
     const [linksDownloadingClipListId, setLinksDownloadingClipListId] = useState(null);
+    const [pcDownloadingClipListId, setPcDownloadingClipListId] = useState(null);
     const [downloadProgress, setDownloadProgress] = useState(null);
 
     useEffect(() => {
@@ -156,6 +162,21 @@ export default function SourceGroupPage() {
         }
     };
 
+    const isClipListBusy = (id) =>
+        downloadingClipListId === id || linksDownloadingClipListId === id || pcDownloadingClipListId === id;
+
+    const pcButtonLabel = (item) => {
+        if (pcDownloadingClipListId !== item.id) {
+            return 'На ПК';
+        }
+        const p = downloadProgress;
+        if (!p?.total) {
+            return '…';
+        }
+        const cur = Math.min(p.current ?? 0, p.total);
+        return `${cur}/${p.total}`;
+    };
+
     const downloadButtonLabel = (item) => {
         if (downloadingClipListId !== item.id) {
             return 'ZIP';
@@ -173,6 +194,38 @@ export default function SourceGroupPage() {
         const cur = Math.min(p.current ?? 0, p.total);
         const ok = p.ok_count != null ? ` · ${p.ok_count} ок` : '';
         return `${cur}/${p.total}${ok}`;
+    };
+
+    const handleDownloadClipListPc = async (item) => {
+        setPcDownloadingClipListId(item.id);
+        setDownloadProgress(null);
+        try {
+            const result = await downloadClipListToPc(api, '/users/{user_id}/clip_list', item, {
+                onProgress: (status) => {
+                    setDownloadProgress({
+                        current: status.current ?? 0,
+                        total: status.total ?? 0,
+                        phase: status.phase,
+                        ok_count: status.ok_count,
+                    });
+                },
+            });
+            let msg = `Скачано на ПК: ${result.ok} файлов`;
+            if (result.randomSample) {
+                msg = `${result.exportCount} из ${result.totalInList}. ${msg}`;
+            }
+            if (result.fail > 0) {
+                messageApi.warning(`${msg}. Ошибок: ${result.fail}`);
+            } else {
+                messageApi.success(msg);
+            }
+        } catch (error) {
+            const text = error.response ? await parseErrorDetail(error) : error.message;
+            messageApi.error(text);
+        } finally {
+            setPcDownloadingClipListId(null);
+            setDownloadProgress(null);
+        }
     };
 
     const handleDownloadClipList = async (item) => {
@@ -291,30 +344,31 @@ export default function SourceGroupPage() {
                                                 key="links"
                                                 size="small"
                                                 icon={<LinkOutlined/>}
-                                                disabled={
-                                                    !item.count
-                                                    || linksDownloadingClipListId === item.id
-                                                    || downloadingClipListId === item.id
-                                                }
+                                                disabled={!item.count || isClipListBusy(item.id)}
                                                 loading={linksDownloadingClipListId === item.id}
                                                 onClick={() => handleDownloadClipListLinks(item)}
-                                                title="Быстро: ссылки для скачивания с вашего ПК"
+                                                title="Архив vk_pages.txt + программа"
                                             >
                                                 Ссылки
                                             </Button>,
                                             <Button
+                                                key="pc"
+                                                size="small"
+                                                disabled={!item.count || isClipListBusy(item.id)}
+                                                loading={pcDownloadingClipListId === item.id}
+                                                onClick={() => handleDownloadClipListPc(item)}
+                                                title="До 20 клипов в «Загрузки», без ZIP на сервере"
+                                            >
+                                                {pcButtonLabel(item)}
+                                            </Button>,
+                                            <Button
                                                 key="download"
-                                                type="primary"
                                                 size="small"
                                                 icon={<DownloadOutlined/>}
-                                                disabled={
-                                                    !item.count
-                                                    || downloadingClipListId === item.id
-                                                    || linksDownloadingClipListId === item.id
-                                                }
+                                                disabled={!item.count || isClipListBusy(item.id)}
                                                 loading={downloadingClipListId === item.id}
                                                 onClick={() => handleDownloadClipList(item)}
-                                                title="Медленно: сервер собирает ZIP"
+                                                title="ZIP на сервере (медленно)"
                                             >
                                                 {downloadButtonLabel(item)}
                                             </Button>,
@@ -324,18 +378,12 @@ export default function SourceGroupPage() {
                                                 onConfirm={() => handleDeleteClipList(item.id)}
                                                 okText="Да"
                                                 cancelText="Нет"
-                                                disabled={
-                                                    downloadingClipListId === item.id
-                                                    || linksDownloadingClipListId === item.id
-                                                }
+                                                disabled={isClipListBusy(item.id)}
                                             >
                                                 <Button
                                                     danger
                                                     size="small"
-                                                    disabled={
-                                                        downloadingClipListId === item.id
-                                                        || linksDownloadingClipListId === item.id
-                                                    }
+                                                    disabled={isClipListBusy(item.id)}
                                                 >
                                                     Удалить
                                                 </Button>
