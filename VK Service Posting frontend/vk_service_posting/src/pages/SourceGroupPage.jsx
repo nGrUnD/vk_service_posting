@@ -13,7 +13,7 @@ import {
     Popconfirm,
     Select,
 } from 'antd';
-import {ReloadOutlined} from '@ant-design/icons';
+import {DownloadOutlined, ReloadOutlined} from '@ant-design/icons';
 import dayjs from 'dayjs';
 import api from '../api/axios';
 
@@ -31,6 +31,7 @@ export default function SourceGroupPage() {
     const [newListName, setNewListName] = useState('');
     const [loadingClipLists, setLoadingClipLists] = useState(false);
     const [selectedClipListId, setSelectedClipListId] = useState(null);
+    const [downloadingClipListId, setDownloadingClipListId] = useState(null);
 
     useEffect(() => {
         fetchClipLists();
@@ -133,6 +134,65 @@ export default function SourceGroupPage() {
         }
     };
 
+    const handleDownloadClipList = async (item) => {
+        const count = Number(item.count || 0);
+        if (!count) {
+            messageApi.warning('В списке нет клипов для скачивания');
+            return;
+        }
+
+        setDownloadingClipListId(item.id);
+        const hide = messageApi.loading('Формируем архив… Это может занять несколько минут.', 0);
+
+        try {
+            const response = await api.get(`/users/{user_id}/clip_list/get/${item.id}/download`, {
+                responseType: 'blob',
+                timeout: 0,
+            });
+
+            const failed = response.headers?.['x-export-failed'];
+            const ok = response.headers?.['x-export-ok'];
+            const safeName = (item.name || `list_${item.id}`).replace(/[^\w\-.]+/g, '_').slice(0, 80);
+            const blob = new Blob([response.data], {type: 'application/zip'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${safeName}_clips.zip`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+
+            if (failed && Number(failed) > 0) {
+                messageApi.warning(
+                    `Архив скачан. Успешно: ${ok ?? '?'}. Не скачалось: ${failed} (см. manifest.csv в архиве).`,
+                );
+            } else {
+                messageApi.success('Архив скачан на ваш компьютер');
+            }
+        } catch (error) {
+            console.error('Ошибка скачивания клипов:', error);
+            let text = 'Не удалось скачать клипы';
+            const detail = error.response?.data;
+            if (detail instanceof Blob) {
+                try {
+                    const parsed = JSON.parse(await detail.text());
+                    if (parsed?.detail) {
+                        text = typeof parsed.detail === 'string' ? parsed.detail : text;
+                    }
+                } catch {
+                    /* ignore */
+                }
+            } else if (detail?.detail) {
+                text = typeof detail.detail === 'string' ? detail.detail : text;
+            }
+            messageApi.error(text);
+        } finally {
+            hide();
+            setDownloadingClipListId(null);
+        }
+    };
+
     return (
         <div className="space-y-6 w-full px-4">
             {contextHolder}
@@ -210,14 +270,29 @@ export default function SourceGroupPage() {
                                 renderItem={item => (
                                     <List.Item
                                         actions={[
+                                            <Button
+                                                key="download"
+                                                type="primary"
+                                                size="small"
+                                                icon={<DownloadOutlined/>}
+                                                disabled={!item.count || downloadingClipListId === item.id}
+                                                loading={downloadingClipListId === item.id}
+                                                onClick={() => handleDownloadClipList(item)}
+                                            >
+                                                Скачать
+                                            </Button>,
                                             <Popconfirm
+                                                key="delete"
                                                 title="Удалить этот список?"
                                                 onConfirm={() => handleDeleteClipList(item.id)}
                                                 okText="Да"
                                                 cancelText="Нет"
+                                                disabled={downloadingClipListId === item.id}
                                             >
-                                                <Button danger size="small">Удалить</Button>
-                                            </Popconfirm>
+                                                <Button danger size="small" disabled={downloadingClipListId === item.id}>
+                                                    Удалить
+                                                </Button>
+                                            </Popconfirm>,
                                         ]}
                                     >
                                         <div className="flex justify-between w-full">

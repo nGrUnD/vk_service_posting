@@ -1,10 +1,18 @@
-from fastapi import APIRouter, HTTPException
+import asyncio
+import os
+from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi.responses import FileResponse
 from sqlalchemy import select, func
 from sqlalchemy.orm import aliased
 
 from src.api.dependencies import DataBaseDep, UserIdDep
 from src.models import VKClipOrm, ClipListOrm
 from src.schemas.clip_list import ClipListAddRequest, ClipListAdd, ClipListUpdate
+from src.services.clip_list_export import (
+    MAX_CLIPS_PER_EXPORT,
+    _safe_archive_basename,
+    build_clip_list_zip_archive,
+)
 from src.services.live_log import livelogadd
 from src.services.vk_group_service import VKGroupSourceService
 
@@ -65,6 +73,67 @@ async def read(clip_list_id: int, database: DataBaseDep, user_id: UserIdDep):
     if not clip_list:
         raise HTTPException(status_code=404, detail="Список клипов не найден")
     return clip_list
+
+@router.get(
+    "/get/{clip_list_id}/download",
+    summary="Скачать все клипы списка одним ZIP-архивом",
+)
+async def download_clip_list_zip(
+    clip_list_id: int,
+    database: DataBaseDep,
+    user_id: UserIdDep,
+    background_tasks: BackgroundTasks,
+):
+    clip_list = await database.clip_list.get_one_or_none(id=clip_list_id, user_id=user_id)
+    if not clip_list:
+        raise HTTPException(status_code=404, detail="Список клипов не найден")
+
+    clips = await database.vk_clip.get_all_filtered(clip_list_id=clip_list_id, user_id=user_id)
+    if not clips:
+        raise HTTPException(status_code=400, detail="В списке нет клипов для скачивания")
+    if len(clips) > MAX_CLIPS_PER_EXPORT:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Слишком много клипов ({len(clips)}). "
+                f"За один раз можно скачать не больше {MAX_CLIPS_PER_EXPORT}. "
+                "Разбейте список или обратитесь к администратору."
+            ),
+        )
+
+    try:
+        zip_path, ok_count, fail_count = await asyncio.to_thread(
+            build_clip_list_zip_archive,
+            clip_list.name,
+            clips,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка формирования архива: {e}") from e
+
+    filename = f"{_safe_archive_basename(clip_list.name)}_clips.zip"
+
+    def _remove_temp_file(path: str) -> None:
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+
+    background_tasks.add_task(_remove_temp_file, str(zip_path))
+
+    headers = {}
+    if fail_count:
+        headers["X-Export-Failed"] = str(fail_count)
+        headers["X-Export-Ok"] = str(ok_count)
+
+    return FileResponse(
+        path=zip_path,
+        media_type="application/zip",
+        filename=filename,
+        headers=headers,
+    )
+
 
 @router.get("/get/{clip_list_id}/tasks_status", summary="Получить списки тасок по списку клипов пользователя")
 async def get_all_tasks_status(

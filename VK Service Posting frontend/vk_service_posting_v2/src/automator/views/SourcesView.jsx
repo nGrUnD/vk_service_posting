@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { message } from 'antd';
-import { Database, Plus, Settings } from 'lucide-react';
+import { Database, Download, Loader2, Plus, Settings } from 'lucide-react';
 
 import api from '../../api/axios';
 import { useAutomatorUser } from '../AutomatorUserContext.jsx';
@@ -23,6 +23,7 @@ export default function SourcesView() {
   const [lists, setLists] = useState([]);
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState('');
+  const [downloadingId, setDownloadingId] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -39,6 +40,55 @@ export default function SourcesView() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const handleDownloadList = async (cat) => {
+    const count = Number(cat.count || 0);
+    if (!count) {
+      messageApi.warning('В списке нет клипов для скачивания');
+      return;
+    }
+    setDownloadingId(cat.id);
+    try {
+      const response = await api.get(`/users/${user.id}/clip_list/get/${cat.id}/download`, {
+        responseType: 'blob',
+        timeout: 0,
+      });
+      const failed = response.headers?.['x-export-failed'];
+      const ok = response.headers?.['x-export-ok'];
+      const safeName = (cat.name || `list_${cat.id}`).replace(/[^\w\-.]+/g, '_').slice(0, 80);
+      const blob = new Blob([response.data], { type: 'application/zip' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${safeName}_clips.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      if (failed && Number(failed) > 0) {
+        messageApi.warning(
+          `Архив скачан. Успешно: ${ok ?? '?'}. Не скачалось: ${failed} (см. manifest.csv в архиве).`,
+        );
+      } else {
+        messageApi.success('Архив скачан на ваш компьютер');
+      }
+    } catch (e) {
+      const detail = e.response?.data;
+      let text = 'Не удалось скачать клипы';
+      if (detail instanceof Blob) {
+        try {
+          text = JSON.parse(await detail.text())?.detail || text;
+        } catch {
+          /* ignore */
+        }
+      } else if (detail?.detail) {
+        text = typeof detail.detail === 'string' ? detail.detail : text;
+      }
+      messageApi.error(text);
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   const handleCreate = async () => {
     if (!newName.trim()) {
@@ -119,6 +169,20 @@ export default function SourcesView() {
                     title="Парсинг источников — через V1"
                   >
                     Пополнить
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!cat.count || downloadingId === cat.id}
+                    onClick={() => void handleDownloadList(cat)}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-2xl border border-blue-200 bg-blue-50 py-3.5 text-xs font-bold text-blue-800 transition-all hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    title="Скачать все клипы списка ZIP-архивом на компьютер"
+                  >
+                    {downloadingId === cat.id ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <Download size={16} />
+                    )}
+                    Скачать
                   </button>
                   <button
                     type="button"
