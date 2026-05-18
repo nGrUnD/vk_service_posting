@@ -3,6 +3,7 @@ import { message } from 'antd';
 import { Database, Download, Loader2, Plus, Settings } from 'lucide-react';
 
 import api from '../../api/axios';
+import { downloadClipListZip, parseErrorDetail } from '../../utils/clipListDownload.js';
 import { useAutomatorUser } from '../AutomatorUserContext.jsx';
 
 const PALETTE = [
@@ -24,6 +25,7 @@ export default function SourcesView() {
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState('');
   const [downloadingId, setDownloadingId] = useState(null);
+  const [downloadProgress, setDownloadProgress] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -42,52 +44,44 @@ export default function SourcesView() {
   }, [load]);
 
   const handleDownloadList = async (cat) => {
-    const count = Number(cat.count || 0);
-    if (!count) {
-      messageApi.warning('В списке нет клипов для скачивания');
-      return;
-    }
     setDownloadingId(cat.id);
+    setDownloadProgress(null);
     try {
-      const response = await api.get(`/users/${user.id}/clip_list/get/${cat.id}/download`, {
-        responseType: 'blob',
-        timeout: 0,
+      const result = await downloadClipListZip(api, `/users/${user.id}/clip_list`, cat, {
+        onProgress: (status) => {
+          setDownloadProgress({
+            current: status.current ?? 0,
+            total: status.total ?? status.export_count ?? 0,
+            randomSample: status.random_sample,
+            totalInList: status.total_in_list,
+          });
+        },
       });
-      const failed = response.headers?.['x-export-failed'];
-      const ok = response.headers?.['x-export-ok'];
-      const safeName = (cat.name || `list_${cat.id}`).replace(/[^\w\-.]+/g, '_').slice(0, 80);
-      const blob = new Blob([response.data], { type: 'application/zip' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${safeName}_clips.zip`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      if (failed && Number(failed) > 0) {
+      let msg = 'Архив скачан на ваш компьютер';
+      if (result.randomSample) {
+        msg = `Скачано ${result.status.export_count} случайных клипов из ${result.status.total_in_list}. ${msg}`;
+      }
+      if (result.failed && Number(result.failed) > 0) {
         messageApi.warning(
-          `Архив скачан. Успешно: ${ok ?? '?'}. Не скачалось: ${failed} (см. manifest.csv в архиве).`,
+          `${msg} Успешно: ${result.ok ?? '?'}. Не скачалось: ${result.failed} (см. manifest.csv).`,
         );
       } else {
-        messageApi.success('Архив скачан на ваш компьютер');
+        messageApi.success(msg);
       }
     } catch (e) {
-      const detail = e.response?.data;
-      let text = 'Не удалось скачать клипы';
-      if (detail instanceof Blob) {
-        try {
-          text = JSON.parse(await detail.text())?.detail || text;
-        } catch {
-          /* ignore */
-        }
-      } else if (detail?.detail) {
-        text = typeof detail.detail === 'string' ? detail.detail : text;
-      }
+      const text = e.response ? await parseErrorDetail(e) : e.message;
       messageApi.error(text);
     } finally {
       setDownloadingId(null);
+      setDownloadProgress(null);
     }
+  };
+
+  const downloadButtonLabel = (cat) => {
+    if (downloadingId !== cat.id) return 'Скачать';
+    if (!downloadProgress?.total) return 'Подготовка…';
+    const cur = Math.min(downloadProgress.current, downloadProgress.total);
+    return `${cur}/${downloadProgress.total}`;
   };
 
   const handleCreate = async () => {
@@ -177,12 +171,12 @@ export default function SourcesView() {
                     className="flex flex-1 items-center justify-center gap-1.5 rounded-2xl border border-blue-200 bg-blue-50 py-3.5 text-xs font-bold text-blue-800 transition-all hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
                     title="Скачать все клипы списка ZIP-архивом на компьютер"
                   >
-                    {downloadingId === cat.id ? (
-                      <Loader2 size={16} className="animate-spin" />
-                    ) : (
-                      <Download size={16} />
-                    )}
-                    Скачать
+                      {downloadingId === cat.id ? (
+                        <Loader2 size={16} className="animate-spin shrink-0" />
+                      ) : (
+                        <Download size={16} className="shrink-0" />
+                      )}
+                      <span className="truncate">{downloadButtonLabel(cat)}</span>
                   </button>
                   <button
                     type="button"

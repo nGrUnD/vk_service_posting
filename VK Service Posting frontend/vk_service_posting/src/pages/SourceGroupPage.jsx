@@ -16,6 +16,7 @@ import {
 import {DownloadOutlined, ReloadOutlined} from '@ant-design/icons';
 import dayjs from 'dayjs';
 import api from '../api/axios';
+import {downloadClipListZip, parseErrorDetail} from '../utils/clipListDownload';
 
 const {Title} = Typography;
 const {TextArea} = Input;
@@ -32,6 +33,7 @@ export default function SourceGroupPage() {
     const [loadingClipLists, setLoadingClipLists] = useState(false);
     const [selectedClipListId, setSelectedClipListId] = useState(null);
     const [downloadingClipListId, setDownloadingClipListId] = useState(null);
+    const [downloadProgress, setDownloadProgress] = useState(null);
 
     useEffect(() => {
         fetchClipLists();
@@ -134,62 +136,47 @@ export default function SourceGroupPage() {
         }
     };
 
-    const handleDownloadClipList = async (item) => {
-        const count = Number(item.count || 0);
-        if (!count) {
-            messageApi.warning('В списке нет клипов для скачивания');
-            return;
+    const downloadButtonLabel = (item) => {
+        if (downloadingClipListId !== item.id) {
+            return 'Скачать';
         }
+        if (!downloadProgress?.total) {
+            return 'Подготовка…';
+        }
+        const cur = Math.min(downloadProgress.current, downloadProgress.total);
+        return `${cur}/${downloadProgress.total}`;
+    };
 
+    const handleDownloadClipList = async (item) => {
         setDownloadingClipListId(item.id);
-        const hide = messageApi.loading('Формируем архив… Это может занять несколько минут.', 0);
-
+        setDownloadProgress(null);
         try {
-            const response = await api.get(`/users/{user_id}/clip_list/get/${item.id}/download`, {
-                responseType: 'blob',
-                timeout: 0,
+            const result = await downloadClipListZip(api, '/users/{user_id}/clip_list', item, {
+                onProgress: (status) => {
+                    setDownloadProgress({
+                        current: status.current ?? 0,
+                        total: status.total ?? status.export_count ?? 0,
+                    });
+                },
             });
-
-            const failed = response.headers?.['x-export-failed'];
-            const ok = response.headers?.['x-export-ok'];
-            const safeName = (item.name || `list_${item.id}`).replace(/[^\w\-.]+/g, '_').slice(0, 80);
-            const blob = new Blob([response.data], {type: 'application/zip'});
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${safeName}_clips.zip`;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            URL.revokeObjectURL(url);
-
-            if (failed && Number(failed) > 0) {
+            let msg = 'Архив скачан на ваш компьютер';
+            if (result.randomSample) {
+                msg = `Скачано ${result.status.export_count} случайных клипов из ${result.status.total_in_list}. ${msg}`;
+            }
+            if (result.failed && Number(result.failed) > 0) {
                 messageApi.warning(
-                    `Архив скачан. Успешно: ${ok ?? '?'}. Не скачалось: ${failed} (см. manifest.csv в архиве).`,
+                    `${msg} Успешно: ${result.ok ?? '?'}. Не скачалось: ${result.failed} (см. manifest.csv).`,
                 );
             } else {
-                messageApi.success('Архив скачан на ваш компьютер');
+                messageApi.success(msg);
             }
         } catch (error) {
             console.error('Ошибка скачивания клипов:', error);
-            let text = 'Не удалось скачать клипы';
-            const detail = error.response?.data;
-            if (detail instanceof Blob) {
-                try {
-                    const parsed = JSON.parse(await detail.text());
-                    if (parsed?.detail) {
-                        text = typeof parsed.detail === 'string' ? parsed.detail : text;
-                    }
-                } catch {
-                    /* ignore */
-                }
-            } else if (detail?.detail) {
-                text = typeof detail.detail === 'string' ? detail.detail : text;
-            }
+            const text = error.response ? await parseErrorDetail(error) : error.message;
             messageApi.error(text);
         } finally {
-            hide();
             setDownloadingClipListId(null);
+            setDownloadProgress(null);
         }
     };
 
@@ -279,7 +266,7 @@ export default function SourceGroupPage() {
                                                 loading={downloadingClipListId === item.id}
                                                 onClick={() => handleDownloadClipList(item)}
                                             >
-                                                Скачать
+                                                {downloadButtonLabel(item)}
                                             </Button>,
                                             <Popconfirm
                                                 key="delete"
