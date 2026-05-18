@@ -1,10 +1,11 @@
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from src.celery_app import app
 from src.models import VKAccountOrm
 from src.models.category import CategoryOrm
 from src.models.schedule_posting import SchedulePostingOrm
+from src.models.vk_clip import VKClipOrm
 from src.models.vk_group import VKGroupOrm
 from src.models.workerpost import WorkerPostOrm
 from src.services.live_log import livelogadd_sync
@@ -18,6 +19,12 @@ from src.vk_api_methods.vk_posting import (
     delete_file,
 )
 from src.celery_app.celery_db import SyncSessionLocal
+
+MAX_CLIP_DOWNLOAD_ATTEMPTS = 10
+
+
+class ClipDownloadError(Exception):
+    """Не удалось скачать клип (CDN / yt-dlp) — можно взять другой из базы."""
 
 
 def posting_error(schedule_database_id: int, database_manager):
@@ -33,6 +40,58 @@ def get_flood_control_datetime(minutes=90):
     """Устанавливает flood control на указанное количество минут"""
     flood_time = datetime.now(timezone.utc) + timedelta(minutes=minutes)
     return flood_time
+
+
+def _clip_orm_to_dict(clip: VKClipOrm) -> dict:
+    return {
+        "id": clip.id,
+        "user_id": clip.user_id,
+        "clip_list_id": clip.clip_list_id,
+        "vk_group_id": clip.vk_group_id,
+        "vk_id": clip.vk_id,
+        "files": clip.files,
+        "views": clip.views,
+        "date": clip.date.isoformat() if clip.date else None,
+        "frames_file": clip.frames_file,
+        "parse_status": clip.parse_status,
+        "task_id": clip.task_id,
+        "created_at": clip.created_at,
+        "updated_at": clip.updated_at,
+    }
+
+
+def _get_random_clip_sync(clip_list_id: int, exclude_ids: set[int]) -> dict | None:
+    with SyncSessionLocal() as session:
+        stmt = select(VKClipOrm).where(VKClipOrm.clip_list_id == clip_list_id)
+        if exclude_ids:
+            stmt = stmt.where(VKClipOrm.id.notin_(exclude_ids))
+        stmt = stmt.order_by(func.random()).limit(1)
+        row = session.execute(stmt).scalar_one_or_none()
+        return _clip_orm_to_dict(row) if row else None
+
+
+def _download_clip_file(
+    *,
+    files_field: str,
+    clip_url: str,
+    vk_clip_owner_id: int,
+    clip_id: int,
+    proxy: str,
+) -> str:
+    clip_filename = None
+    if isinstance(files_field, str) and files_field.strip().lower().startswith(("http://", "https://")):
+        try:
+            clip_filename = download_clip_by_direct_url(
+                files_field.strip(), proxy, vk_clip_owner_id, clip_id,
+            )
+        except Exception as direct_err:
+            print(f"Direct URL download failed, fallback vk page / yt-dlp: {direct_err}")
+    if not clip_filename:
+        clip_filename = download_clip_by_url(clip_url, vk_clip_owner_id, clip_id)
+    if not clip_filename:
+        raise ClipDownloadError("Пустой путь после скачивания клипа")
+    return clip_filename
+
 
 def posting_clip(worker_id: int, token_db: str, schedule_database_id: int, clip, proxy: str):
     with SyncSessionLocal() as session:
@@ -78,15 +137,19 @@ def posting_clip(worker_id: int, token_db: str, schedule_database_id: int, clip,
         rendered_clip_path = None
         upload_video_path = None
         try:
-            if isinstance(files_field, str) and files_field.strip().lower().startswith(("http://", "https://")):
-                try:
-                    clip_filename = download_clip_by_direct_url(
-                        files_field.strip(), proxy, vk_clip_owner_id, clip_id
-                    )
-                except Exception as direct_err:
-                    print(f"Direct URL download failed, fallback vk page / yt-dlp: {direct_err}")
-            if not clip_filename:
-                clip_filename = download_clip_by_url(clip_url, vk_clip_owner_id, clip_id)
+            try:
+                clip_filename = _download_clip_file(
+                    files_field=files_field,
+                    clip_url=clip_url,
+                    vk_clip_owner_id=vk_clip_owner_id,
+                    clip_id=clip_id,
+                    proxy=proxy,
+                )
+            except ClipDownloadError:
+                raise
+            except Exception as e:
+                raise ClipDownloadError(str(e)) from e
+
             upload_video_path = clip_filename
 
             if workerpost.banner_video_path:
@@ -145,6 +208,11 @@ def posting_clip(worker_id: int, token_db: str, schedule_database_id: int, clip,
                 )
                 raise e
 
+            elif isinstance(e, ClipDownloadError):
+                if schedule_update_data:
+                    schedule_update_data.status = "failed"
+                session.commit()
+                raise
             else:
                 session.commit()
                 raise e
@@ -173,24 +241,70 @@ def posting_clip(worker_id: int, token_db: str, schedule_database_id: int, clip,
 
 @app.task
 def create_post(worker_id: int, token_db: str, schedule_id: int, clip: dict, proxy: str):
-    try:
-        posting_clip(worker_id, token_db, schedule_id, clip, proxy)
-    except Exception as e:
-        print(f"create_post error: {e}")
-        is_known_vk_state = hasattr(e, "code") and (
-            e.code == 9 or (e.code == 5 and "user is blocked" in str(e).lower())
-        )
-        if not is_known_vk_state:
+    clip_list_id = clip.get("clip_list_id")
+    tried_clip_db_ids: set[int] = {clip["id"]}
+    current_clip = clip
+    last_download_error: Exception | None = None
+
+    for attempt in range(1, MAX_CLIP_DOWNLOAD_ATTEMPTS + 1):
+        try:
+            posting_clip(worker_id, token_db, schedule_id, current_clip, proxy)
+            return
+        except ClipDownloadError as e:
+            last_download_error = e
+            print(
+                f"create_post download failed attempt={attempt}/{MAX_CLIP_DOWNLOAD_ATTEMPTS} "
+                f"clip_db_id={current_clip.get('id')} vk_id={current_clip.get('vk_id')}: {e}",
+            )
+            if not clip_list_id or attempt >= MAX_CLIP_DOWNLOAD_ATTEMPTS:
+                break
+            next_clip = _get_random_clip_sync(clip_list_id, tried_clip_db_ids)
+            if not next_clip:
+                print(f"create_post: no more clips in list {clip_list_id}")
+                break
+            tried_clip_db_ids.add(next_clip["id"])
+            current_clip = next_clip
             with SyncSessionLocal() as session:
-                workerpost = session.execute(
-                    select(WorkerPostOrm).where(WorkerPostOrm.id == worker_id)
-                ).scalars().one_or_none()
-                if workerpost:
-                    livelogadd_sync(
-                        session,
-                        workerpost.user_id,
-                        "posting",
-                        "Ошибка публикации клипа",
-                        f"workerpost_id={worker_id}; schedule_id={schedule_id}; error={e}",
-                    )
-        #async_to_sync(posting_error)(schedule_id, database_manager)
+                schedule_row = session.get(SchedulePostingOrm, schedule_id)
+                if schedule_row:
+                    schedule_row.clip_id = next_clip["vk_id"]
+                    schedule_row.status = "starting"
+                    session.commit()
+            continue
+        except Exception as e:
+            print(f"create_post error: {e}")
+            is_known_vk_state = hasattr(e, "code") and (
+                e.code == 9 or (e.code == 5 and "user is blocked" in str(e).lower())
+            )
+            if not is_known_vk_state:
+                with SyncSessionLocal() as session:
+                    workerpost = session.execute(
+                        select(WorkerPostOrm).where(WorkerPostOrm.id == worker_id),
+                    ).scalars().one_or_none()
+                    if workerpost:
+                        livelogadd_sync(
+                            session,
+                            workerpost.user_id,
+                            "posting",
+                            "Ошибка публикации клипа",
+                            f"workerpost_id={worker_id}; schedule_id={schedule_id}; error={e}",
+                        )
+            return
+
+    err = last_download_error or ClipDownloadError("Не удалось скачать клип")
+    print(f"create_post: all download attempts failed: {err}")
+    with SyncSessionLocal() as session:
+        workerpost = session.execute(
+            select(WorkerPostOrm).where(WorkerPostOrm.id == worker_id),
+        ).scalars().one_or_none()
+        if workerpost:
+            livelogadd_sync(
+                session,
+                workerpost.user_id,
+                "posting",
+                "Не удалось скачать клип для постинга",
+                (
+                    f"workerpost_id={worker_id}; schedule_id={schedule_id}; "
+                    f"attempts={len(tried_clip_db_ids)}; last_error={err}"
+                ),
+            )

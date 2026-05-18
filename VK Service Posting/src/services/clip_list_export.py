@@ -251,8 +251,10 @@ def build_links_manifest_zip(
         [
             "",
             "urls.txt — прямые CDN (могут протухнуть).",
-            "vk_pages.txt — страницы VK для yt-dlp / IDM, если CDN не открывается.",
-            "Скачивайте с вашего ПК: index.html или менеджер загрузок.",
+            "vk_pages.txt — страницы VK для загрузки с ПК.",
+            "",
+            "Windows: папка windows_downloader\\ — запустите Скачать_клипы.bat",
+            "(перетащите vk_pages.txt на bat) — видео в папке clips\\",
             "",
             "Чтобы обновить CDN-ссылки — пополните базу в V1.",
         ],
@@ -273,6 +275,8 @@ li {{ margin: 0.4rem 0; }}
 </ol>
 </body></html>"""
 
+    tool_dir = Path(__file__).resolve().parents[2] / "tools" / "vk_pages_downloader"
+
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("readme.txt", "\n".join(readme).encode("utf-8"))
@@ -280,6 +284,11 @@ li {{ margin: 0.4rem 0; }}
         if vk_page_lines:
             zf.writestr("vk_pages.txt", "\n".join(vk_page_lines).encode("utf-8"))
         zf.writestr("index.html", html_page.encode("utf-8"))
+        if tool_dir.is_dir():
+            for name in ("download_vk_clips.py", "Скачать_клипы.bat", "requirements.txt"):
+                tool_file = tool_dir / name
+                if tool_file.is_file():
+                    zf.write(tool_file, arcname=f"windows_downloader/{name}")
     return buf.getvalue()
 
 
@@ -315,6 +324,8 @@ def _download_clip_to_temp(
     clip: ClipExportPayload,
     idx: int,
     context: ClipExportDownloadContext | None = None,
+    *,
+    allow_ytdlp_fallback: bool = False,
 ) -> tuple[int, str, str, Path | None, str | None]:
     """Как workerpost: CDN → свежий URL через video.get → yt-dlp по странице VK."""
     stored = (clip.files or "").strip()
@@ -352,7 +363,7 @@ def _download_clip_to_temp(
             last_err = str(e).replace(";", ",")
             logger.debug("clip %s direct download failed: %s", clip.id, e)
 
-    if context and owner_id is not None:
+    if allow_ytdlp_fallback and context and owner_id is not None:
         page_url = f"https://vk.com/video{owner_id}_{clip.vk_id}"
         try:
             path_str = download_clip_by_url(page_url, owner_id, clip.vk_id)
@@ -394,7 +405,13 @@ def build_clip_list_zip_archive(
         completed = 0
         with ThreadPoolExecutor(max_workers=PARALLEL_DOWNLOAD_WORKERS) as pool:
             futures = [
-                pool.submit(_download_clip_to_temp, clip, idx, download_context)
+                pool.submit(
+                    _download_clip_to_temp,
+                    clip,
+                    idx,
+                    download_context,
+                    allow_ytdlp_fallback=False,
+                )
                 for idx, clip in clip_by_idx.items()
             ]
             for future in as_completed(futures):

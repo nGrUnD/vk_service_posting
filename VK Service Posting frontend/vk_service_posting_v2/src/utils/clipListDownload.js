@@ -27,12 +27,22 @@ function triggerBlobDownload(blob, filename) {
   URL.revokeObjectURL(url);
 }
 
-/**
- * @param {import('axios').AxiosInstance} api
- * @param {string} basePath e.g. `/users/1/clip_list`
- * @param {{ id: number, name?: string, count?: number }} list
- * @param {{ onProgress?: (status: object) => void }} opts
- */
+/** Скачивание через браузер (cookie), без загрузки всего ZIP в RAM. */
+function triggerBrowserFileDownload(api, relativePath, filename) {
+  const base = (api.defaults.baseURL || '/api').replace(/\/$/, '');
+  const path = relativePath.startsWith('/') ? relativePath : `/${relativePath}`;
+  const a = document.createElement('a');
+  a.href = `${base}${path}`;
+  a.download = filename;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+const POLL_MS = 800;
+const MAX_POLL_MS = 3 * 60 * 60 * 1000;
+
 /**
  * Мгновенный ZIP: urls.txt + index.html — видео качает браузер/IDM с ПК, не сервер.
  */
@@ -67,9 +77,12 @@ export async function downloadClipListZip(api, basePath, list, { onProgress } = 
   let status = started;
   onProgress?.(status);
 
-  const pollMs = 800;
+  const startedAt = Date.now();
   while (status.status === 'running' || status.status === 'pending') {
-    await new Promise((r) => setTimeout(r, pollMs));
+    if (Date.now() - startedAt > MAX_POLL_MS) {
+      throw new Error('Превышено время ожидания формирования архива (3 ч)');
+    }
+    await new Promise((r) => setTimeout(r, POLL_MS));
     const { data } = await api.get(`${basePath}/download/export/${status.job_id}`);
     status = data;
     onProgress?.(status);
@@ -81,21 +94,29 @@ export async function downloadClipListZip(api, basePath, list, { onProgress } = 
   if (status.status !== 'done') {
     throw new Error('Не удалось завершить формирование архива');
   }
-
-  const response = await api.get(`${basePath}/download/export/${status.job_id}/file`, {
-    responseType: 'blob',
-    timeout: 0,
-  });
+  if (!status.ok_count) {
+    throw new Error(
+      status.error
+        || 'Не удалось скачать ни одного клипа на сервере. Попробуйте «Ссылки» или пополните базу.',
+    );
+  }
 
   const safeName = (list.name || `list_${list.id}`).replace(/[^\w\-.]+/g, '_').slice(0, 80);
-  triggerBlobDownload(new Blob([response.data], { type: 'application/zip' }), `${safeName}_clips.zip`);
+  const zipFilename = status.filename || `${safeName}_clips.zip`;
+
+  onProgress?.({ ...status, phase: 'downloading_file' });
+  triggerBrowserFileDownload(
+    api,
+    `${basePath}/download/export/${status.job_id}/file`,
+    zipFilename,
+  );
 
   return {
     status,
-    ok: response.headers?.['x-export-ok'],
-    failed: response.headers?.['x-export-failed'],
-    randomSample: response.headers?.['x-export-random-sample'] === '1',
-    totalInList: response.headers?.['x-export-total-in-list'],
+    ok: String(status.ok_count ?? ''),
+    failed: String(status.fail_count ?? ''),
+    randomSample: status.random_sample,
+    totalInList: status.total_in_list,
   };
 }
 

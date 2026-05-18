@@ -75,6 +75,8 @@ export default function SourcesView() {
           setDownloadProgress({
             current: status.current ?? 0,
             total: status.total ?? status.export_count ?? 0,
+            phase: status.phase,
+            ok_count: status.ok_count,
             randomSample: status.random_sample,
             totalInList: status.total_in_list,
           });
@@ -102,9 +104,14 @@ export default function SourcesView() {
 
   const downloadButtonLabel = (cat) => {
     if (downloadingId !== cat.id) return 'ZIP';
-    if (!downloadProgress?.total) return 'Подготовка…';
-    const cur = Math.min(downloadProgress.current, downloadProgress.total);
-    return `${cur}/${downloadProgress.total}`;
+    const p = downloadProgress;
+    if (!p?.total) return 'Подготовка…';
+    if (p.phase === 'packing') return 'Упаковка…';
+    if (p.phase === 'downloading_file') return 'Скачивание…';
+    if (p.phase === 'ready') return 'Готово';
+    const cur = Math.min(p.current ?? 0, p.total);
+    const ok = p.ok_count != null ? ` · ${p.ok_count} ок` : '';
+    return `${cur}/${p.total}${ok}`;
   };
 
   const handleCreate = async () => {

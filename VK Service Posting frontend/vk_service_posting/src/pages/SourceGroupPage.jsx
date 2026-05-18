@@ -160,11 +160,19 @@ export default function SourceGroupPage() {
         if (downloadingClipListId !== item.id) {
             return 'ZIP';
         }
-        if (!downloadProgress?.total) {
+        const p = downloadProgress;
+        if (!p?.total) {
             return 'Подготовка…';
         }
-        const cur = Math.min(downloadProgress.current, downloadProgress.total);
-        return `${cur}/${downloadProgress.total}`;
+        if (p.phase === 'packing') {
+            return 'Упаковка…';
+        }
+        if (p.phase === 'downloading_file') {
+            return 'Скачивание…';
+        }
+        const cur = Math.min(p.current ?? 0, p.total);
+        const ok = p.ok_count != null ? ` · ${p.ok_count} ок` : '';
+        return `${cur}/${p.total}${ok}`;
     };
 
     const handleDownloadClipList = async (item) => {
@@ -176,6 +184,8 @@ export default function SourceGroupPage() {
                     setDownloadProgress({
                         current: status.current ?? 0,
                         total: status.total ?? status.export_count ?? 0,
+                        phase: status.phase,
+                        ok_count: status.ok_count,
                     });
                 },
             });
