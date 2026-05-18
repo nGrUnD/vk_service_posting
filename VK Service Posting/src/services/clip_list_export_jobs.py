@@ -9,6 +9,7 @@ from typing import Any, Callable, Optional
 from src.services.clip_list_export import (
     ClipExportPayload,
     build_clip_list_zip_archive,
+    load_export_download_context,
     pick_clips_for_export,
 )
 
@@ -114,12 +115,15 @@ def start_export_job(
 
     def worker() -> None:
         try:
+            group_ids = {c.vk_group_id for c in payloads if c.vk_group_id}
+            download_context = load_export_download_context(user_id, group_ids)
             zip_path, ok_count, fail_count = build_clip_list_zip_archive(
                 clip_list_name,
                 payloads,
                 progress_cb=progress_cb,
                 total_in_list=total_in_list,
                 random_sample=random_sample,
+                download_context=download_context,
             )
             _set_job(
                 job_id,

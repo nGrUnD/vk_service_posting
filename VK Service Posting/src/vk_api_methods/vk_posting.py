@@ -25,10 +25,9 @@ def get_clip_info(owner_id: int, video_id: int, access_token: str, proxy: str) -
         "access_token": access_token,
         "v": "5.253"
     }
-    proxy_response = {
-        "http": proxy,
-        "https": proxy,
-    }
+    proxy_response = None
+    if proxy:
+        proxy_response = {"http": proxy, "https": proxy}
     response = requests.post(url, data=payload, proxies=proxy_response)
     data = response.json()
     if "error" in data:

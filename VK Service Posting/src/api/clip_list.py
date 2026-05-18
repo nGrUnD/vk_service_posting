@@ -11,9 +11,11 @@ from src.models import VKClipOrm, ClipListOrm
 from src.schemas.clip_list import ClipListAddRequest, ClipListAdd, ClipListUpdate
 from src.services.clip_list_export import (
     _safe_archive_basename,
+    attachment_content_disposition,
     build_links_manifest_zip,
     clips_to_payloads,
     count_downloadable_clips,
+    load_export_download_context,
     pick_clips_for_export,
 )
 from src.services.clip_list_export_jobs import get_job, job_to_status_dict, remove_job, start_export_job
@@ -125,17 +127,21 @@ async def download_clip_list_links(
 
     export_clips, random_sample, total_in_list = pick_clips_for_export(clips)
     payloads = clips_to_payloads(export_clips)
-    if count_downloadable_clips(payloads) == 0:
+    group_ids = {c.vk_group_id for c in payloads if c.vk_group_id}
+    export_ctx = load_export_download_context(user_id, group_ids)
+    group_map = export_ctx.vk_public_group_id_by_db_id if export_ctx else {}
+    if count_downloadable_clips(payloads, group_map) == 0:
         raise HTTPException(status_code=400, detail="Нет ссылок на видео в выбранных клипах")
     zip_bytes = build_links_manifest_zip(
         clip_list.name,
         payloads,
         total_in_list=total_in_list,
         random_sample=random_sample,
+        vk_public_group_id_by_db_id=group_map,
     )
     filename = f"{_safe_archive_basename(clip_list.name)}_links.zip"
     headers = {
-        "Content-Disposition": f'attachment; filename="{filename}"',
+        "Content-Disposition": attachment_content_disposition(filename),
         "X-Export-Total-In-List": str(total_in_list),
         "X-Export-Random-Sample": "1" if random_sample else "0",
         "X-Export-Count": str(len(payloads)),
