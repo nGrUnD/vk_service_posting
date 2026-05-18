@@ -1,9 +1,12 @@
+import html
+import io
 import logging
 import os
 import random
 import re
 import tempfile
 import zipfile
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional
@@ -14,8 +17,9 @@ logger = logging.getLogger(__name__)
 
 MAX_CLIPS_PER_EXPORT = 500
 MAX_CLIP_FILE_BYTES = 150 * 1024 * 1024
-DOWNLOAD_TIMEOUT_SEC = 120
+DOWNLOAD_TIMEOUT_SEC = (10, 45)
 DOWNLOAD_CHUNK = 1024 * 256
+PARALLEL_DOWNLOAD_WORKERS = 8
 
 ProgressCallback = Callable[[int, int, str], None]
 
@@ -56,6 +60,91 @@ def pick_clips_for_export(clips: list, max_count: int = MAX_CLIPS_PER_EXPORT) ->
     return random.sample(clips, max_count), True, total_in_list
 
 
+def count_downloadable_clips(clips: list[ClipExportPayload]) -> int:
+    return sum(1 for c in clips if _is_downloadable_url(c.files))
+
+
+def clips_to_payloads(clips: list) -> list[ClipExportPayload]:
+    return [
+        ClipExportPayload(
+            id=c.id,
+            vk_group_id=c.vk_group_id,
+            vk_id=c.vk_id,
+            files=c.files,
+        )
+        for c in clips
+    ]
+
+
+def build_links_manifest_zip(
+    clip_list_name: str,
+    clips: list[ClipExportPayload],
+    *,
+    total_in_list: int,
+    random_sample: bool,
+) -> bytes:
+    """Мгновенный ZIP со ссылками — скачивание с ПК (CDN часто не отдаёт файлы серверу)."""
+    url_lines: list[str] = []
+    html_items: list[str] = []
+
+    for idx, clip in enumerate(clips, start=1):
+        url = (clip.files or "").strip()
+        if not _is_downloadable_url(url):
+            continue
+        ext = _ext_from_url(url)
+        fname = f"clip_{clip.vk_group_id}_{clip.vk_id}_{idx}{ext}"
+        url_lines.append(url)
+        safe_url = html.escape(url, quote=True)
+        safe_fname = html.escape(fname)
+        html_items.append(
+            f'<li><a href="{safe_url}" download="{safe_fname}">{safe_fname}</a></li>',
+        )
+
+    readme = [
+        f"Список: {clip_list_name}",
+        f"Ссылок в файле: {len(url_lines)}",
+        f"Всего в базе: {total_in_list}",
+    ]
+    if random_sample:
+        readme.append(
+            f"Выборка: случайные {len(clips)} из {total_in_list} (лимит {MAX_CLIPS_PER_EXPORT}).",
+        )
+    readme.extend(
+        [
+            "",
+            "Ссылки VK CDN часто привязаны к IP и сроку действия.",
+            "Сервер при ZIP-скачивании получает 400 — это нормально.",
+            "Скачивайте с вашего ПК:",
+            "  • откройте index.html в браузере и сохраняйте файлы;",
+            "  • или urls.txt в IDM / Free Download Manager / aria2c.",
+            "",
+            "Чтобы обновить ссылки — заново «Пополните» базу в V1.",
+        ],
+    )
+
+    html_page = f"""<!DOCTYPE html>
+<html lang="ru"><head><meta charset="utf-8">
+<title>{html.escape(clip_list_name)} — ссылки на клипы</title>
+<style>
+body {{ font-family: system-ui, sans-serif; margin: 1.5rem; }}
+a {{ word-break: break-all; }}
+li {{ margin: 0.4rem 0; }}
+</style></head><body>
+<h1>{html.escape(clip_list_name)}</h1>
+<p>Откройте ссылки с <strong>этого компьютера</strong>. Для массовой загрузки используйте <code>urls.txt</code>.</p>
+<ol>
+{''.join(html_items)}
+</ol>
+</body></html>"""
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("readme.txt", "\n".join(readme).encode("utf-8"))
+        zf.writestr("urls.txt", "\n".join(url_lines).encode("utf-8"))
+        zf.writestr("index.html", html_page.encode("utf-8"))
+    return buf.getvalue()
+
+
 def _download_url_to_temp_file(session: requests.Session, url: str) -> Path:
     suffix = _ext_from_url(url)
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
@@ -84,6 +173,27 @@ def _download_url_to_temp_file(session: requests.Session, url: str) -> Path:
         raise
 
 
+def _download_clip_to_temp(
+    clip: ClipExportPayload,
+    idx: int,
+) -> tuple[int, str, str, Path | None, str | None]:
+    """idx, entry_name, url, temp_path|None, error|None"""
+    url = (clip.files or "").strip()
+    if not _is_downloadable_url(url):
+        return idx, "", url, None, "no_url"
+
+    ext = _ext_from_url(url)
+    entry_name = f"clips/clip_{clip.vk_group_id}_{clip.vk_id}_{idx}{ext}"
+    session = requests.Session()
+    session.headers.setdefault("User-Agent", "Mozilla/5.0 (compatible; VKPosting/1.0)")
+    try:
+        return idx, entry_name, url, _download_url_to_temp_file(session, url), None
+    except Exception as e:
+        return idx, entry_name, url, None, str(e).replace(";", ",")
+    finally:
+        session.close()
+
+
 def build_clip_list_zip_archive(
     clip_list_name: str,
     clips: list[ClipExportPayload],
@@ -104,44 +214,50 @@ def build_clip_list_zip_archive(
     total = len(clips)
     manifest_lines = ["clip_db_id;vk_group_id;vk_id;url;status\n"]
 
-    session = requests.Session()
-    session.headers.setdefault("User-Agent", "Mozilla/5.0 (compatible; VKPosting/1.0)")
-
     if progress_cb:
         progress_cb(0, total, "preparing")
 
+    clip_by_idx = {i: c for i, c in enumerate(clips, start=1)}
+
     with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-        for idx, clip in enumerate(clips, start=1):
-            url = (clip.files or "").strip()
-            if not _is_downloadable_url(url):
-                fail_count += 1
-                manifest_lines.append(f"{clip.id};{clip.vk_group_id};{clip.vk_id};;no_url\n")
-                continue
+        completed = 0
+        with ThreadPoolExecutor(max_workers=PARALLEL_DOWNLOAD_WORKERS) as pool:
+            futures = [
+                pool.submit(_download_clip_to_temp, clip, idx)
+                for idx, clip in clip_by_idx.items()
+            ]
+            for future in as_completed(futures):
+                idx, entry_name, url, temp_path, err = future.result()
+                clip = clip_by_idx[idx]
+                completed += 1
+                if progress_cb:
+                    progress_cb(completed, total, f"clip {completed}/{total}")
 
-            ext = _ext_from_url(url)
-            entry_name = f"clips/clip_{clip.vk_group_id}_{clip.vk_id}_{idx}{ext}"
-            temp_video: Path | None = None
+                if err:
+                    fail_count += 1
+                    if err != "no_url":
+                        logger.warning("clip export failed id=%s: %s", clip.id, err)
+                    manifest_lines.append(
+                        f"{clip.id};{clip.vk_group_id};{clip.vk_id};{url};{err}\n",
+                    )
+                    continue
 
-            try:
-                temp_video = _download_url_to_temp_file(session, url)
-                zf.write(temp_video, arcname=entry_name)
-                ok_count += 1
-                manifest_lines.append(f"{clip.id};{clip.vk_group_id};{clip.vk_id};{url};ok\n")
-            except Exception as e:
-                fail_count += 1
-                logger.warning("clip export failed id=%s: %s", clip.id, e)
-                manifest_lines.append(
-                    f"{clip.id};{clip.vk_group_id};{clip.vk_id};{url};{str(e).replace(';', ',')}\n",
-                )
-            finally:
-                if temp_video:
-                    try:
-                        temp_video.unlink(missing_ok=True)
-                    except OSError:
-                        pass
-
-            if progress_cb:
-                progress_cb(idx, total, f"clip {idx}/{total}")
+                try:
+                    zf.write(temp_path, arcname=entry_name)
+                    ok_count += 1
+                    manifest_lines.append(f"{clip.id};{clip.vk_group_id};{clip.vk_id};{url};ok\n")
+                except Exception as e:
+                    fail_count += 1
+                    logger.warning("clip export zip write failed id=%s: %s", clip.id, e)
+                    manifest_lines.append(
+                        f"{clip.id};{clip.vk_group_id};{clip.vk_id};{url};{str(e).replace(';', ',')}\n",
+                    )
+                finally:
+                    if temp_path:
+                        try:
+                            temp_path.unlink(missing_ok=True)
+                        except OSError:
+                            pass
 
         if progress_cb:
             progress_cb(total, total, "packing")
@@ -158,6 +274,7 @@ def build_clip_list_zip_archive(
             readme_lines.append(
                 f"В архив попали случайные {total} клипов (лимит {MAX_CLIPS_PER_EXPORT} за раз).",
             )
+        readme_lines.append("CDN-ссылки могут не работать с IP сервера — используйте «Ссылки» для скачивания с ПК.")
         readme_lines.append("Подробности — manifest.csv")
         zf.writestr("readme.txt", "\n".join(readme_lines).encode("utf-8"))
 

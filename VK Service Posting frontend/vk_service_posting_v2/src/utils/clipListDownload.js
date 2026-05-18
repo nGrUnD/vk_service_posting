@@ -33,6 +33,30 @@ function triggerBlobDownload(blob, filename) {
  * @param {{ id: number, name?: string, count?: number }} list
  * @param {{ onProgress?: (status: object) => void }} opts
  */
+/**
+ * Мгновенный ZIP: urls.txt + index.html — видео качает браузер/IDM с ПК, не сервер.
+ */
+export async function downloadClipListLinks(api, basePath, list) {
+  const count = Number(list.count || 0);
+  if (!count) {
+    throw new Error('В списке нет клипов для скачивания');
+  }
+
+  const response = await api.get(`${basePath}/get/${list.id}/download/links`, {
+    responseType: 'blob',
+    timeout: 120000,
+  });
+
+  const safeName = (list.name || `list_${list.id}`).replace(/[^\w\-.]+/g, '_').slice(0, 80);
+  triggerBlobDownload(new Blob([response.data], { type: 'application/zip' }), `${safeName}_links.zip`);
+
+  return {
+    randomSample: response.headers?.['x-export-random-sample'] === '1',
+    totalInList: response.headers?.['x-export-total-in-list'],
+    exportCount: response.headers?.['x-export-count'],
+  };
+}
+
 export async function downloadClipListZip(api, basePath, list, { onProgress } = {}) {
   const count = Number(list.count || 0);
   if (!count) {

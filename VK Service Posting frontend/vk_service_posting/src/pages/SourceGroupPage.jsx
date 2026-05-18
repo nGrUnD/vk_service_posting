@@ -13,10 +13,10 @@ import {
     Popconfirm,
     Select,
 } from 'antd';
-import {DownloadOutlined, ReloadOutlined} from '@ant-design/icons';
+import {DownloadOutlined, LinkOutlined, ReloadOutlined} from '@ant-design/icons';
 import dayjs from 'dayjs';
 import api from '../api/axios';
-import {downloadClipListZip, parseErrorDetail} from '../utils/clipListDownload';
+import {downloadClipListLinks, downloadClipListZip, parseErrorDetail} from '../utils/clipListDownload';
 
 const {Title} = Typography;
 const {TextArea} = Input;
@@ -33,6 +33,7 @@ export default function SourceGroupPage() {
     const [loadingClipLists, setLoadingClipLists] = useState(false);
     const [selectedClipListId, setSelectedClipListId] = useState(null);
     const [downloadingClipListId, setDownloadingClipListId] = useState(null);
+    const [linksDownloadingClipListId, setLinksDownloadingClipListId] = useState(null);
     const [downloadProgress, setDownloadProgress] = useState(null);
 
     useEffect(() => {
@@ -136,9 +137,28 @@ export default function SourceGroupPage() {
         }
     };
 
+    const handleDownloadClipListLinks = async (item) => {
+        setLinksDownloadingClipListId(item.id);
+        try {
+            const result = await downloadClipListLinks(api, '/users/{user_id}/clip_list', item);
+            let msg =
+                'Скачан архив со ссылками. Откройте index.html или urls.txt в IDM — файлы качаются с вашего ПК.';
+            if (result.randomSample) {
+                msg = `Ссылки на ${result.exportCount} случайных клипов из ${result.totalInList}. ${msg}`;
+            }
+            messageApi.success(msg, 8);
+        } catch (error) {
+            console.error('Ошибка скачивания ссылок:', error);
+            const text = error.response ? await parseErrorDetail(error) : error.message;
+            messageApi.error(text);
+        } finally {
+            setLinksDownloadingClipListId(null);
+        }
+    };
+
     const downloadButtonLabel = (item) => {
         if (downloadingClipListId !== item.id) {
-            return 'Скачать';
+            return 'ZIP';
         }
         if (!downloadProgress?.total) {
             return 'Подготовка…';
@@ -258,13 +278,33 @@ export default function SourceGroupPage() {
                                     <List.Item
                                         actions={[
                                             <Button
+                                                key="links"
+                                                size="small"
+                                                icon={<LinkOutlined/>}
+                                                disabled={
+                                                    !item.count
+                                                    || linksDownloadingClipListId === item.id
+                                                    || downloadingClipListId === item.id
+                                                }
+                                                loading={linksDownloadingClipListId === item.id}
+                                                onClick={() => handleDownloadClipListLinks(item)}
+                                                title="Быстро: ссылки для скачивания с вашего ПК"
+                                            >
+                                                Ссылки
+                                            </Button>,
+                                            <Button
                                                 key="download"
                                                 type="primary"
                                                 size="small"
                                                 icon={<DownloadOutlined/>}
-                                                disabled={!item.count || downloadingClipListId === item.id}
+                                                disabled={
+                                                    !item.count
+                                                    || downloadingClipListId === item.id
+                                                    || linksDownloadingClipListId === item.id
+                                                }
                                                 loading={downloadingClipListId === item.id}
                                                 onClick={() => handleDownloadClipList(item)}
+                                                title="Медленно: сервер собирает ZIP"
                                             >
                                                 {downloadButtonLabel(item)}
                                             </Button>,
@@ -274,9 +314,19 @@ export default function SourceGroupPage() {
                                                 onConfirm={() => handleDeleteClipList(item.id)}
                                                 okText="Да"
                                                 cancelText="Нет"
-                                                disabled={downloadingClipListId === item.id}
+                                                disabled={
+                                                    downloadingClipListId === item.id
+                                                    || linksDownloadingClipListId === item.id
+                                                }
                                             >
-                                                <Button danger size="small" disabled={downloadingClipListId === item.id}>
+                                                <Button
+                                                    danger
+                                                    size="small"
+                                                    disabled={
+                                                        downloadingClipListId === item.id
+                                                        || linksDownloadingClipListId === item.id
+                                                    }
+                                                >
                                                     Удалить
                                                 </Button>
                                             </Popconfirm>,

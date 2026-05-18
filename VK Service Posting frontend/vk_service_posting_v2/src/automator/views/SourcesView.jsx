@@ -1,9 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { message } from 'antd';
-import { Database, Download, Loader2, Plus, Settings } from 'lucide-react';
+import { Database, Download, Link2, Loader2, Plus, Settings } from 'lucide-react';
 
 import api from '../../api/axios';
-import { downloadClipListZip, parseErrorDetail } from '../../utils/clipListDownload.js';
+import {
+  downloadClipListLinks,
+  downloadClipListZip,
+  parseErrorDetail,
+} from '../../utils/clipListDownload.js';
 import { useAutomatorUser } from '../AutomatorUserContext.jsx';
 
 const PALETTE = [
@@ -25,6 +29,7 @@ export default function SourcesView() {
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState('');
   const [downloadingId, setDownloadingId] = useState(null);
+  const [linksDownloadingId, setLinksDownloadingId] = useState(null);
   const [downloadProgress, setDownloadProgress] = useState(null);
 
   const load = useCallback(async () => {
@@ -42,6 +47,24 @@ export default function SourcesView() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const handleDownloadLinks = async (cat) => {
+    setLinksDownloadingId(cat.id);
+    try {
+      const result = await downloadClipListLinks(api, `/users/${user.id}/clip_list`, cat);
+      let msg =
+        'Скачан архив со ссылками. Откройте index.html или urls.txt в IDM — файлы качаются с вашего ПК.';
+      if (result.randomSample) {
+        msg = `Ссылки на ${result.exportCount} случайных клипов из ${result.totalInList}. ${msg}`;
+      }
+      messageApi.success(msg, 8);
+    } catch (e) {
+      const text = e.response ? await parseErrorDetail(e) : e.message;
+      messageApi.error(text);
+    } finally {
+      setLinksDownloadingId(null);
+    }
+  };
 
   const handleDownloadList = async (cat) => {
     setDownloadingId(cat.id);
@@ -78,7 +101,7 @@ export default function SourcesView() {
   };
 
   const downloadButtonLabel = (cat) => {
-    if (downloadingId !== cat.id) return 'Скачать';
+    if (downloadingId !== cat.id) return 'ZIP';
     if (!downloadProgress?.total) return 'Подготовка…';
     const cur = Math.min(downloadProgress.current, downloadProgress.total);
     return `${cur}/${downloadProgress.total}`;
@@ -166,17 +189,33 @@ export default function SourcesView() {
                   </button>
                   <button
                     type="button"
-                    disabled={!cat.count || downloadingId === cat.id}
-                    onClick={() => void handleDownloadList(cat)}
-                    className="flex flex-1 items-center justify-center gap-1.5 rounded-2xl border border-blue-200 bg-blue-50 py-3.5 text-xs font-bold text-blue-800 transition-all hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
-                    title="Скачать все клипы списка ZIP-архивом на компьютер"
+                    disabled={
+                      !cat.count || linksDownloadingId === cat.id || downloadingId === cat.id
+                    }
+                    onClick={() => void handleDownloadLinks(cat)}
+                    className="flex flex-1 items-center justify-center gap-1 rounded-2xl border border-emerald-200 bg-emerald-50 py-3.5 text-xs font-bold text-emerald-900 transition-all hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    title="Быстро: ZIP со ссылками — скачивание видео с вашего ПК"
                   >
-                      {downloadingId === cat.id ? (
-                        <Loader2 size={16} className="animate-spin shrink-0" />
-                      ) : (
-                        <Download size={16} className="shrink-0" />
-                      )}
-                      <span className="truncate">{downloadButtonLabel(cat)}</span>
+                    {linksDownloadingId === cat.id ? (
+                      <Loader2 size={15} className="animate-spin shrink-0" />
+                    ) : (
+                      <Link2 size={15} className="shrink-0" />
+                    )}
+                    <span className="truncate">Ссылки</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!cat.count || downloadingId === cat.id || linksDownloadingId === cat.id}
+                    onClick={() => void handleDownloadList(cat)}
+                    className="flex flex-1 items-center justify-center gap-1 rounded-2xl border border-blue-200 bg-blue-50 py-3.5 text-xs font-bold text-blue-800 transition-all hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    title="Медленно: сервер собирает ZIP (CDN часто отказывает серверу)"
+                  >
+                    {downloadingId === cat.id ? (
+                      <Loader2 size={15} className="animate-spin shrink-0" />
+                    ) : (
+                      <Download size={15} className="shrink-0" />
+                    )}
+                    <span className="truncate">{downloadButtonLabel(cat)}</span>
                   </button>
                   <button
                     type="button"

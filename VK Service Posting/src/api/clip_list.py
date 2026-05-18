@@ -2,14 +2,20 @@ import os
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy import select, func
 from sqlalchemy.orm import aliased
 
 from src.api.dependencies import DataBaseDep, UserIdDep
 from src.models import VKClipOrm, ClipListOrm
 from src.schemas.clip_list import ClipListAddRequest, ClipListAdd, ClipListUpdate
-from src.services.clip_list_export import _safe_archive_basename
+from src.services.clip_list_export import (
+    _safe_archive_basename,
+    build_links_manifest_zip,
+    clips_to_payloads,
+    count_downloadable_clips,
+    pick_clips_for_export,
+)
 from src.services.clip_list_export_jobs import get_job, job_to_status_dict, remove_job, start_export_job
 from src.services.live_log import livelogadd
 from src.services.vk_group_service import VKGroupSourceService
@@ -98,6 +104,43 @@ async def start_clip_list_download(
         safe_filename=filename,
     )
     return job_to_status_dict(job)
+
+
+@router.get(
+    "/get/{clip_list_id}/download/links",
+    summary="Скачать ZIP со ссылками на клипы (мгновенно, загрузка с ПК)",
+)
+async def download_clip_list_links(
+    clip_list_id: int,
+    database: DataBaseDep,
+    user_id: UserIdDep,
+):
+    clip_list = await database.clip_list.get_one_or_none(id=clip_list_id, user_id=user_id)
+    if not clip_list:
+        raise HTTPException(status_code=404, detail="Список клипов не найден")
+
+    clips = await database.vk_clip.get_all_filtered(clip_list_id=clip_list_id, user_id=user_id)
+    if not clips:
+        raise HTTPException(status_code=400, detail="В списке нет клипов для скачивания")
+
+    export_clips, random_sample, total_in_list = pick_clips_for_export(clips)
+    payloads = clips_to_payloads(export_clips)
+    if count_downloadable_clips(payloads) == 0:
+        raise HTTPException(status_code=400, detail="Нет ссылок на видео в выбранных клипах")
+    zip_bytes = build_links_manifest_zip(
+        clip_list.name,
+        payloads,
+        total_in_list=total_in_list,
+        random_sample=random_sample,
+    )
+    filename = f"{_safe_archive_basename(clip_list.name)}_links.zip"
+    headers = {
+        "Content-Disposition": f'attachment; filename="{filename}"',
+        "X-Export-Total-In-List": str(total_in_list),
+        "X-Export-Random-Sample": "1" if random_sample else "0",
+        "X-Export-Count": str(len(payloads)),
+    }
+    return Response(content=zip_bytes, media_type="application/zip", headers=headers)
 
 
 @router.get(

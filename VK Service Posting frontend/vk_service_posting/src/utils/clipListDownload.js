@@ -27,6 +27,27 @@ function triggerBlobDownload(blob, filename) {
   URL.revokeObjectURL(url);
 }
 
+export async function downloadClipListLinks(api, basePath, list) {
+  const count = Number(list.count || 0);
+  if (!count) {
+    throw new Error('В списке нет клипов для скачивания');
+  }
+
+  const response = await api.get(`${basePath}/get/${list.id}/download/links`, {
+    responseType: 'blob',
+    timeout: 120000,
+  });
+
+  const safeName = (list.name || `list_${list.id}`).replace(/[^\w\-.]+/g, '_').slice(0, 80);
+  triggerBlobDownload(new Blob([response.data], { type: 'application/zip' }), `${safeName}_links.zip`);
+
+  return {
+    randomSample: response.headers?.['x-export-random-sample'] === '1',
+    totalInList: response.headers?.['x-export-total-in-list'],
+    exportCount: response.headers?.['x-export-count'],
+  };
+}
+
 export async function downloadClipListZip(api, basePath, list, { onProgress } = {}) {
   const count = Number(list.count || 0);
   if (!count) {
