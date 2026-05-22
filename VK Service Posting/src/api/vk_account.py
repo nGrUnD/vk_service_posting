@@ -12,7 +12,9 @@ from src.services.vk_account_checker import AccountChecker
 from src.services.auth import AuthService
 from src.services.vk_account_backup import VKAccountBackupService
 from src.services.vk_account_main import VKAccountMainService
-from typing import List
+from src.services.vk_account_reconnect import VKAccountReconnectService, _target_checker_type
+from typing import List, Optional
+from pydantic import BaseModel
 from src.schemas.vk_account import VKAccountOut
 from src.celery_app.revoke_tasks import revoke_celery_task_ids
 from src.celery_app.tasks import vk_checker_add_account
@@ -284,6 +286,23 @@ async def get_pending_logins(database: DataBaseDep, user_id: UserIdDep,):
     return {"accounts": accounts}
 
 
+class ReconnectPendingRequest(BaseModel):
+    category_id: Optional[int] = None
+
+
+@router.post("/reconnect_pending", summary="Переподключить все аккаунты в статусе pending")
+async def reconnect_all_pending_vk_accounts(
+    user_id: UserIdDep,
+    database: DataBaseDep,
+    body: ReconnectPendingRequest = Body(default_factory=ReconnectPendingRequest),
+):
+    """Повторно ставит в очередь Celery все pending-аккаунты пользователя (после сбоя сервера)."""
+    return await VKAccountReconnectService(database).reconnect_all_pending(
+        user_id,
+        category_id=body.category_id,
+    )
+
+
 @router.get("/blocked_logins")
 async def get_blocked_logins(database: DataBaseDep, user_id: UserIdDep,):
     all_accounts = await database.vk_account.get_all_filtered(account_type="backup", flood_control=True, user_id=user_id)
@@ -547,8 +566,7 @@ async def reconnect_vk_account_curl(
         proxy_db = await database.proxy.get_one_or_none(id=account.proxy_id)
         proxy_http = proxy_db.http if proxy_db else None
 
-    # backup — отдельный сценарий; checker / connect — флоу Account Checker, тип не понижать до backup
-    target_account_type = "backup" if account.account_type == "backup" else "checker"
+    target_account_type = _target_checker_type(account.account_type)
 
     task = vk_checker_add_account.delay(
         user_id,

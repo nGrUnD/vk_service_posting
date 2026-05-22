@@ -139,6 +139,7 @@ export default function AccountsView() {
   const [search, setSearch] = useState('');
   const [checkingId, setCheckingId] = useState(null);
   const [reconnectId, setReconnectId] = useState(null);
+  const [reconnectingAll, setReconnectingAll] = useState(false);
 
   const [bulkCreds, setBulkCreds] = useState('');
   const [bulkSubmitting, setBulkSubmitting] = useState(false);
@@ -688,6 +689,45 @@ export default function AccountsView() {
     }
   };
 
+  const pendingCount = useMemo(
+    () => accounts.filter((a) => a.parse_status === 'pending').length,
+    [accounts],
+  );
+
+  const handleReconnectAllPending = async () => {
+    if (pendingCount === 0) {
+      messageApi.info('Нет аккаунтов в статусе Pending');
+      return;
+    }
+    if (
+      !window.confirm(
+        `Переподключить ${pendingCount} аккаунтов в статусе Pending? Старые задачи Celery будут отменены.`,
+      )
+    ) {
+      return;
+    }
+    setReconnectingAll(true);
+    try {
+      const body = {};
+      if (autocurlCategoryId) {
+        body.category_id = Number(autocurlCategoryId);
+      }
+      const { data } = await api.post(`/users/${user.id}/vk_accounts/reconnect_pending`, body);
+      const parts = [`В очередь: ${data.queued ?? 0}`];
+      if (data.queued_autocurl) parts.push(`autocurl: ${data.queued_autocurl}`);
+      if (data.queued_checker) parts.push(`checker: ${data.queued_checker}`);
+      if (data.skipped_no_credentials) {
+        parts.push(`без login:pass: ${data.skipped_no_credentials}`);
+      }
+      messageApi.success(parts.join(', '));
+      await loadAccounts(true);
+    } catch (err) {
+      messageApi.error(err?.response?.data?.detail || 'Ошибка массового переподключения');
+    } finally {
+      setReconnectingAll(false);
+    }
+  };
+
   const handleDelete = async (id) => {
     if (!window.confirm('Удалить этот аккаунт?')) return;
     try {
@@ -937,6 +977,20 @@ export default function AccountsView() {
             >
               <RefreshCcw size={14} />
               Обновить список
+            </button>
+            <button
+              type="button"
+              disabled={reconnectingAll || pendingCount === 0}
+              onClick={handleReconnectAllPending}
+              title={
+                pendingCount === 0
+                  ? 'Нет аккаунтов в статусе Pending'
+                  : 'Повторно поставить в очередь все Pending (после сбоя сервера)'
+              }
+              className="inline-flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs font-bold text-amber-900 transition-all hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {reconnectingAll ? <Loader2 size={14} className="animate-spin" /> : <RefreshCcw size={14} />}
+              Переподключить Pending{pendingCount > 0 ? ` (${pendingCount})` : ''}
             </button>
             <div className="relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
