@@ -100,6 +100,8 @@ class VKAccount(BaseModel):
     cookies: Optional[str] = None
     # Расшифрованный пароль; заполняется только в list-эндпоинтах (см. api/vk_account).
     password: Optional[str] = None
+    # Расшифрованная команда cURL; заполняется только в list-эндпоинтах (см. api/vk_account).
+    curl: Optional[str] = None
     # Подпись пачки account checker; подставляется в API, не ORM-поле.
     checker_batch_label: Optional[str] = None
 

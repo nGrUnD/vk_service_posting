@@ -3,6 +3,11 @@ import { message } from 'antd';
 import { useOutletContext } from 'react-router-dom';
 
 import api from '../api/axios';
+import {
+  PARSE_STATUS_FILTER_OPTIONS,
+  getAccountCurl,
+  matchesParseStatusFilter,
+} from '../utils/accountFilters';
 
 function getStatusTone(status) {
   if (status === 'success') return 'success';
@@ -22,6 +27,7 @@ export default function AccountsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
 
   const loadAccounts = useCallback(async (silent = false) => {
     if (!silent) {
@@ -60,9 +66,19 @@ export default function AccountsPage() {
 
       const matchesSearch = !query || haystack.includes(query);
       const matchesType = typeFilter === 'all' || account.account_type === typeFilter;
-      return matchesSearch && matchesType;
+      const matchesStatus = matchesParseStatusFilter(statusFilter, account.parse_status);
+      return matchesSearch && matchesType && matchesStatus;
     });
-  }, [accounts, search, typeFilter]);
+  }, [accounts, search, typeFilter, statusFilter]);
+
+  const copyCurl = (account) => {
+    const curl = getAccountCurl(account);
+    if (!curl) return;
+    navigator.clipboard.writeText(curl).then(
+      () => messageApi.success('cURL скопирован в буфер'),
+      () => messageApi.error('Не удалось скопировать'),
+    );
+  };
 
   const availableTypes = useMemo(
     () => ['all', ...new Set(accounts.map((account) => account.account_type).filter(Boolean))],
@@ -82,7 +98,7 @@ export default function AccountsPage() {
             </p>
           </div>
 
-          <div className="grid w-full gap-3 md:grid-cols-[minmax(0,1fr)_220px_auto] xl:max-w-3xl">
+          <div className="grid w-full gap-3 md:grid-cols-[minmax(0,1fr)_180px_180px_auto] xl:max-w-4xl">
             <input
               className="v2-input"
               value={search}
@@ -98,6 +114,18 @@ export default function AccountsPage() {
               {availableTypes.map((item) => (
                 <option key={item} value={item}>
                   {item === 'all' ? 'Все типы' : item}
+                </option>
+              ))}
+            </select>
+
+            <select
+              className="v2-select"
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value)}
+            >
+              {PARSE_STATUS_FILTER_OPTIONS.map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.label}
                 </option>
               ))}
             </select>
@@ -122,6 +150,7 @@ export default function AccountsPage() {
                 <th>Прокси</th>
                 <th>Паблики</th>
                 <th>Cookies</th>
+                <th>Действия</th>
               </tr>
             </thead>
             <tbody>
@@ -164,12 +193,25 @@ export default function AccountsPage() {
                   <td>{account.proxy_id ?? '—'}</td>
                   <td>{account.groups_count ?? 0}</td>
                   <td>{account.cookies ? 'Есть' : '—'}</td>
+                  <td>
+                    {getAccountCurl(account) ? (
+                      <button
+                        type="button"
+                        className="v2-button v2-button-secondary text-xs"
+                        onClick={() => copyCurl(account)}
+                      >
+                        Копировать cURL
+                      </button>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
                 </tr>
               ))}
 
               {!loading && !filteredAccounts.length && (
                 <tr>
-                  <td colSpan="8">
+                  <td colSpan="9">
                     <div className="px-4 py-10 text-center text-sm text-slate-400">
                       По текущим фильтрам аккаунты не найдены.
                     </div>

@@ -15,6 +15,12 @@ import {
 import { CopyOutlined, DownOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import api from "../api/axios";
+import {
+    PARSE_STATUS_TABLE_FILTERS,
+    copyTextToClipboard,
+    getAccountCurl,
+    matchesParseStatusFilter,
+} from "../utils/accountTableHelpers";
 
 const { Text: TypographyText } = Typography;
 const BULK_PANEL_STORAGE_KEY = "accountCheckerBulkOpen";
@@ -319,6 +325,29 @@ export default function AccountTableChecker({ viewMode = "user", onViewModeChang
         return "-";
     };
 
+    const renderCopyCurlButton = (record, block = false) => {
+        const accountCurl = getAccountCurl(record);
+        if (!accountCurl) {
+            return null;
+        }
+        return (
+            <Tooltip title="Копировать cURL" placement="left">
+                <Button
+                    size="small"
+                    block={block}
+                    icon={<CopyOutlined />}
+                    onClick={() =>
+                        copyTextToClipboard(accountCurl, messageApi, {
+                            success: "cURL скопирован в буфер",
+                        })
+                    }
+                >
+                    Копировать cURL
+                </Button>
+            </Tooltip>
+        );
+    };
+
     const renderDeveloperRowActions = (record) => (
         <Dropdown
             trigger={["click"]}
@@ -328,6 +357,7 @@ export default function AccountTableChecker({ viewMode = "user", onViewModeChang
                     onClick={(e) => e.stopPropagation()}
                 >
                     <div className="flex flex-col gap-1">
+                        {renderCopyCurlButton(record, true)}
                         <Tooltip title="Проверяет, что у аккаунта рабочий curl/токен" placement="left">
                             <Button
                                 size="small"
@@ -434,6 +464,8 @@ export default function AccountTableChecker({ viewMode = "user", onViewModeChang
             title: "Статус",
             key: "status",
             width: 160,
+            filters: PARSE_STATUS_TABLE_FILTERS,
+            onFilter: (value, record) => matchesParseStatusFilter(value, record.parse_status),
             render: (_, record) => renderStatusCell(record),
         },
         {
@@ -441,6 +473,7 @@ export default function AccountTableChecker({ viewMode = "user", onViewModeChang
             key: "actions",
             render: (_, record) => (
                 <div className="flex flex-wrap gap-2">
+                    {renderCopyCurlButton(record)}
                     <Tooltip title="Проверяет, что у аккаунта рабочий curl/токен">
                         <Button
                             size="small"
@@ -596,6 +629,8 @@ export default function AccountTableChecker({ viewMode = "user", onViewModeChang
             title: "Парсинг",
             dataIndex: "parse_status",
             key: "parse_status",
+            filters: PARSE_STATUS_TABLE_FILTERS,
+            onFilter: (value, record) => matchesParseStatusFilter(value, record.parse_status),
             render: (_, record) => renderStatusCell(record),
         },
         {

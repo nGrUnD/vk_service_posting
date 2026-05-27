@@ -1,7 +1,14 @@
 import React, { useEffect, useState } from "react";
-import { Table, Tag, Spin, Button, Popconfirm, message } from "antd";
+import { Table, Tag, Spin, Button, Popconfirm, message, Tooltip } from "antd";
+import { CopyOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import api from "../api/axios";
+import {
+    PARSE_STATUS_TABLE_FILTERS,
+    copyTextToClipboard,
+    getAccountCurl,
+    matchesParseStatusFilter,
+} from "../utils/accountTableHelpers";
 
 export default function AccountTable() {
     const [messageApi, contextHolder] = message.useMessage();
@@ -161,6 +168,8 @@ export default function AccountTable() {
             title: "Парсинг",
             dataIndex: "parse_status",
             key: "parse_status",
+            filters: PARSE_STATUS_TABLE_FILTERS,
+            onFilter: (value, record) => matchesParseStatusFilter(value, record.parse_status),
             render: (status) =>
                 status ? (
                     <Tag color={statusColors[status] || "default"}>
@@ -193,8 +202,25 @@ export default function AccountTable() {
         {
             title: "Действия",
             key: "actions",
-            render: (_, record) => (
+            render: (_, record) => {
+                const accountCurl = getAccountCurl(record);
+                return (
                 <div className="flex flex-wrap gap-2">
+                    {accountCurl ? (
+                        <Tooltip title="Копировать cURL">
+                            <Button
+                                size="small"
+                                icon={<CopyOutlined />}
+                                onClick={() =>
+                                    copyTextToClipboard(accountCurl, messageApi, {
+                                        success: "cURL скопирован в буфер",
+                                    })
+                                }
+                            >
+                                Копировать cURL
+                            </Button>
+                        </Tooltip>
+                    ) : null}
                     <Button
                         size="small"
                         loading={checkingCurlId === record.id}
@@ -226,7 +252,8 @@ export default function AccountTable() {
                         </Button>
                     </Popconfirm>
                 </div>
-            ),
+                );
+            },
         },
     ];
 

@@ -31,7 +31,12 @@ def _vk_accounts_with_decrypted_password(accounts: list[VKAccount]) -> list[VKAc
         password = ""
         if acc.encrypted_password:
             password = service_auth.decrypt_data(acc.encrypted_password)
-        out.append(acc.model_copy(update={"password": password}))
+        curl = None
+        if acc.encrypted_curl:
+            decrypted_curl = service_auth.decrypt_data(acc.encrypted_curl)
+            if decrypted_curl and str(decrypted_curl).strip():
+                curl = str(decrypted_curl).strip()
+        out.append(acc.model_copy(update={"password": password, "curl": curl}))
     return out
 
 

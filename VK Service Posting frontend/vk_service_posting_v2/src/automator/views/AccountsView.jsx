@@ -15,6 +15,11 @@ import {
 
 import api from '../../api/axios';
 import { useAutomatorUser } from '../AutomatorUserContext.jsx';
+import {
+  PARSE_STATUS_FILTER_OPTIONS,
+  getAccountCurl,
+  matchesParseStatusFilter,
+} from '../../utils/accountFilters';
 
 /** Та же очередь, что в V1 AccountChecker (общий localStorage). */
 const QUEUE_STORAGE_KEY = 'account_checker_queue_v1';
@@ -137,6 +142,7 @@ export default function AccountsView() {
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [checkingId, setCheckingId] = useState(null);
   const [reconnectId, setReconnectId] = useState(null);
   const [reconnectingAll, setReconnectingAll] = useState(false);
@@ -303,27 +309,28 @@ export default function AccountsView() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const list = q
-      ? accounts.filter((a) =>
-          [
-            a.name,
-            a.second_name,
-            loginPassLine(a),
-            a.login,
-            a.password,
-            String(a.vk_account_id),
-            a.account_type,
-            a.checker_batch_label,
-          ]
-            .filter(Boolean)
-            .join(' ')
-            .toLowerCase()
-            .includes(q),
-        )
-      : [...accounts];
+    let list = accounts.filter((a) => matchesParseStatusFilter(statusFilter, a.parse_status));
+    if (q) {
+      list = list.filter((a) =>
+        [
+          a.name,
+          a.second_name,
+          loginPassLine(a),
+          a.login,
+          a.password,
+          String(a.vk_account_id),
+          a.account_type,
+          a.checker_batch_label,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
+          .includes(q),
+      );
+    }
     list.sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0));
     return list;
-  }, [accounts, search]);
+  }, [accounts, search, statusFilter]);
 
   const pendingWatchCount = useMemo(() => {
     let n = 0;
@@ -655,6 +662,15 @@ export default function AccountsView() {
     }
     navigator.clipboard.writeText(t).then(
       () => messageApi.success('log:pass скопирован'),
+      () => messageApi.error('Не удалось скопировать'),
+    );
+  };
+
+  const copyCurl = (account) => {
+    const curl = getAccountCurl(account);
+    if (!curl) return;
+    navigator.clipboard.writeText(curl).then(
+      () => messageApi.success('cURL скопирован в буфер'),
       () => messageApi.error('Не удалось скопировать'),
     );
   };
@@ -992,6 +1008,18 @@ export default function AccountsView() {
               {reconnectingAll ? <Loader2 size={14} className="animate-spin" /> : <RefreshCcw size={14} />}
               Переподключить Pending{pendingCount > 0 ? ` (${pendingCount})` : ''}
             </button>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 text-sm font-bold text-gray-700 outline-none transition-all focus:ring-4 focus:ring-blue-100"
+              aria-label="Фильтр по статусу"
+            >
+              {PARSE_STATUS_FILTER_OPTIONS.map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
             <div className="relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
               <input
@@ -1062,6 +1090,15 @@ export default function AccountsView() {
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
+                {getAccountCurl(a) ? (
+                  <button
+                    type="button"
+                    onClick={() => copyCurl(a)}
+                    className="rounded-xl bg-slate-50 px-4 py-2 text-xs font-bold text-slate-700 transition-all hover:bg-slate-200"
+                  >
+                    Копировать cURL
+                  </button>
+                ) : null}
                 {canShowChangePasswordButton(a) && (
                   <button
                     type="button"
