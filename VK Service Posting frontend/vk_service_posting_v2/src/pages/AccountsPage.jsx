@@ -29,6 +29,7 @@ export default function AccountsPage() {
   const [typeFilter, setTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [collectingCurlId, setCollectingCurlId] = useState(null);
+  const [infoAccount, setInfoAccount] = useState(null);
 
   const loadAccounts = useCallback(async (silent = false) => {
     if (!silent) {
@@ -77,6 +78,17 @@ export default function AccountsPage() {
     if (!curl) return;
     navigator.clipboard.writeText(curl).then(
       () => messageApi.success('cURL скопирован в буфер'),
+      () => messageApi.error('Не удалось скопировать'),
+    );
+  };
+
+  const copyText = (text, emptyMsg, successMsg) => {
+    if (!text) {
+      messageApi.warning(emptyMsg);
+      return;
+    }
+    navigator.clipboard.writeText(text).then(
+      () => messageApi.success(successMsg),
       () => messageApi.error('Не удалось скопировать'),
     );
   };
@@ -232,6 +244,13 @@ export default function AccountsPage() {
                     ) : (
                       '—'
                     )}
+                    <button
+                      type="button"
+                      className="v2-button v2-button-secondary ml-2 text-xs"
+                      onClick={() => setInfoAccount(account)}
+                    >
+                      Инфо
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -255,6 +274,59 @@ export default function AccountsPage() {
           </div>
         )}
       </section>
+      {infoAccount ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-4">
+          <div className="v2-card w-full max-w-4xl rounded-3xl p-6">
+            <div className="mb-4 flex items-center justify-between">
+              <h4 className="m-0 text-lg font-semibold text-white">Информация об аккаунте</h4>
+              <button type="button" className="v2-button v2-button-secondary text-xs" onClick={() => setInfoAccount(null)}>
+                Закрыть
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <div className="mb-1 text-xs font-semibold text-slate-400">cURL</div>
+                <pre className="max-h-40 overflow-auto rounded-xl border border-slate-700 bg-slate-900 p-3 text-xs text-slate-200">
+                  {getAccountCurl(infoAccount) || '—'}
+                </pre>
+                <button
+                  type="button"
+                  className="v2-button v2-button-secondary mt-2 text-xs"
+                  onClick={() => copyText(getAccountCurl(infoAccount), 'cURL отсутствует', 'cURL скопирован')}
+                >
+                  Копировать cURL
+                </button>
+              </div>
+              <div>
+                <div className="mb-1 text-xs font-semibold text-slate-400">Cookie</div>
+                <pre className="max-h-32 overflow-auto rounded-xl border border-slate-700 bg-slate-900 p-3 text-xs text-slate-200">
+                  {infoAccount.cookies || '—'}
+                </pre>
+                <button
+                  type="button"
+                  className="v2-button v2-button-secondary mt-2 text-xs"
+                  onClick={() => copyText(infoAccount.cookies, 'Cookie отсутствует', 'Cookie скопирован')}
+                >
+                  Копировать cookie
+                </button>
+              </div>
+              <div>
+                <div className="mb-1 text-xs font-semibold text-slate-400">Access token</div>
+                <pre className="max-h-24 overflow-auto rounded-xl border border-slate-700 bg-slate-900 p-3 text-xs text-slate-200">
+                  {infoAccount.token || '—'}
+                </pre>
+                <button
+                  type="button"
+                  className="v2-button v2-button-secondary mt-2 text-xs"
+                  onClick={() => copyText(infoAccount.token, 'Access token отсутствует', 'Access token скопирован')}
+                >
+                  Копировать access token
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

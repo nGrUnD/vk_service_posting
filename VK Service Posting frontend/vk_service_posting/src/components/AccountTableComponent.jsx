@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Table, Tag, Spin, Button, Popconfirm, message, Tooltip } from "antd";
+import { Table, Tag, Spin, Button, Popconfirm, message, Tooltip, Modal } from "antd";
 import { CopyOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import api from "../api/axios";
@@ -17,6 +17,7 @@ export default function AccountTable() {
     const [checkingCurlId, setCheckingCurlId] = useState(null);
     const [reconnectingCurlId, setReconnectingCurlId] = useState(null);
     const [collectingCurlId, setCollectingCurlId] = useState(null);
+    const [infoAccount, setInfoAccount] = useState(null);
 
     const statusColors = {
         success: "green",
@@ -280,6 +281,9 @@ export default function AccountTable() {
                             Удалить
                         </Button>
                     </Popconfirm>
+                    <Button size="small" onClick={() => setInfoAccount(record)}>
+                        Инфо
+                    </Button>
                 </div>
                 );
             },
@@ -304,6 +308,79 @@ export default function AccountTable() {
                     }}
                 />
             </Spin>
+            <Modal
+                open={Boolean(infoAccount)}
+                title="Информация об аккаунте"
+                onCancel={() => setInfoAccount(null)}
+                footer={null}
+                width={860}
+            >
+                <div className="space-y-4">
+                    <div>
+                        <div className="mb-1 text-xs font-semibold text-gray-500">cURL</div>
+                        <div className="rounded border bg-gray-50 p-2">
+                            <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-all text-xs">
+                                {getAccountCurl(infoAccount) || "—"}
+                            </pre>
+                        </div>
+                        <div className="mt-2">
+                            <Button
+                                size="small"
+                                onClick={() =>
+                                    copyTextToClipboard(getAccountCurl(infoAccount), messageApi, {
+                                        empty: "cURL отсутствует",
+                                        success: "cURL скопирован",
+                                    })
+                                }
+                            >
+                                Копировать cURL
+                            </Button>
+                        </div>
+                    </div>
+                    <div>
+                        <div className="mb-1 text-xs font-semibold text-gray-500">Cookie</div>
+                        <div className="rounded border bg-gray-50 p-2">
+                            <pre className="max-h-32 overflow-auto whitespace-pre-wrap break-all text-xs">
+                                {infoAccount?.cookies || "—"}
+                            </pre>
+                        </div>
+                        <div className="mt-2">
+                            <Button
+                                size="small"
+                                onClick={() =>
+                                    copyTextToClipboard(infoAccount?.cookies, messageApi, {
+                                        empty: "Cookie отсутствует",
+                                        success: "Cookie скопирован",
+                                    })
+                                }
+                            >
+                                Копировать cookie
+                            </Button>
+                        </div>
+                    </div>
+                    <div>
+                        <div className="mb-1 text-xs font-semibold text-gray-500">Access token</div>
+                        <div className="rounded border bg-gray-50 p-2">
+                            <pre className="max-h-24 overflow-auto whitespace-pre-wrap break-all text-xs">
+                                {infoAccount?.token || "—"}
+                            </pre>
+                        </div>
+                        <div className="mt-2">
+                            <Button
+                                size="small"
+                                onClick={() =>
+                                    copyTextToClipboard(infoAccount?.token, messageApi, {
+                                        empty: "Access token отсутствует",
+                                        success: "Access token скопирован",
+                                    })
+                                }
+                            >
+                                Копировать access token
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            </Modal>
         </div>
     );
 }

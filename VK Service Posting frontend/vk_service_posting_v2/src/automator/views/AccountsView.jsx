@@ -147,6 +147,7 @@ export default function AccountsView() {
   const [reconnectId, setReconnectId] = useState(null);
   const [collectingCurlId, setCollectingCurlId] = useState(null);
   const [reconnectingAll, setReconnectingAll] = useState(false);
+  const [infoAccount, setInfoAccount] = useState(null);
 
   const [bulkCreds, setBulkCreds] = useState('');
   const [bulkSubmitting, setBulkSubmitting] = useState(false);
@@ -676,6 +677,17 @@ export default function AccountsView() {
     );
   };
 
+  const copyInfoValue = (text, emptyMsg, successMsg) => {
+    if (!text) {
+      messageApi.warning(emptyMsg);
+      return;
+    }
+    navigator.clipboard.writeText(text).then(
+      () => messageApi.success(successMsg),
+      () => messageApi.error('Не удалось скопировать'),
+    );
+  };
+
   const handleCheck = async (id) => {
     setCheckingId(id);
     try {
@@ -1168,6 +1180,13 @@ export default function AccountsView() {
                 >
                   <Trash2 size={18} />
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setInfoAccount(a)}
+                  className="rounded-xl bg-white px-4 py-2 text-xs font-bold text-gray-700 transition-all hover:bg-gray-100"
+                >
+                  Инфо
+                </button>
               </div>
             </div>
           ))}
@@ -1176,6 +1195,72 @@ export default function AccountsView() {
           )}
         </div>
       </div>
+      {infoAccount ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-4xl rounded-3xl border border-gray-200 bg-white p-6 shadow-2xl">
+            <div className="mb-4 flex items-center justify-between">
+              <h4 className="text-lg font-black text-gray-800">Информация об аккаунте</h4>
+              <button
+                type="button"
+                className="rounded-xl border border-gray-200 px-4 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50"
+                onClick={() => setInfoAccount(null)}
+              >
+                Закрыть
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <div className="mb-1 text-xs font-bold uppercase tracking-wide text-gray-500">cURL</div>
+                <pre className="max-h-40 overflow-auto rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs text-gray-800">
+                  {getAccountCurl(infoAccount) || '—'}
+                </pre>
+                <button
+                  type="button"
+                  className="mt-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50"
+                  onClick={() =>
+                    copyInfoValue(getAccountCurl(infoAccount), 'cURL отсутствует', 'cURL скопирован')
+                  }
+                >
+                  Копировать cURL
+                </button>
+              </div>
+
+              <div>
+                <div className="mb-1 text-xs font-bold uppercase tracking-wide text-gray-500">Cookie</div>
+                <pre className="max-h-32 overflow-auto rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs text-gray-800">
+                  {infoAccount.cookies || '—'}
+                </pre>
+                <button
+                  type="button"
+                  className="mt-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50"
+                  onClick={() =>
+                    copyInfoValue(infoAccount.cookies, 'Cookie отсутствует', 'Cookie скопирован')
+                  }
+                >
+                  Копировать cookie
+                </button>
+              </div>
+
+              <div>
+                <div className="mb-1 text-xs font-bold uppercase tracking-wide text-gray-500">Access token</div>
+                <pre className="max-h-24 overflow-auto rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs text-gray-800">
+                  {infoAccount.token || '—'}
+                </pre>
+                <button
+                  type="button"
+                  className="mt-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50"
+                  onClick={() =>
+                    copyInfoValue(infoAccount.token, 'Access token отсутствует', 'Access token скопирован')
+                  }
+                >
+                  Копировать access token
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

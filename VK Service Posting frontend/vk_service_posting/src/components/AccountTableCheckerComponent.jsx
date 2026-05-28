@@ -11,6 +11,7 @@ import {
     Collapse,
     Dropdown,
     Typography,
+    Modal,
 } from "antd";
 import { CopyOutlined, DownOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
@@ -33,6 +34,7 @@ export default function AccountTableChecker({ viewMode = "user", onViewModeChang
     const [reconnectingCurlId, setReconnectingCurlId] = useState(null);
     const [collectingCurlId, setCollectingCurlId] = useState(null);
     const [changingPasswordId, setChangingPasswordId] = useState(null);
+    const [infoAccount, setInfoAccount] = useState(null);
     const [selectedRowKeys, setSelectedRowKeys] = useState([]);
     const [bulkActionLoading, setBulkActionLoading] = useState(null);
     const [localMode, setLocalMode] = useState(viewMode);
@@ -435,6 +437,9 @@ export default function AccountTableChecker({ viewMode = "user", onViewModeChang
                                 Сменить пароль
                             </Button>
                         </Tooltip>
+                        <Button size="small" block onClick={() => setInfoAccount(record)}>
+                            Инфо
+                        </Button>
                     </div>
                 </div>
             )}
@@ -549,6 +554,9 @@ export default function AccountTableChecker({ viewMode = "user", onViewModeChang
                             Сменить пароль
                         </Button>
                     </Tooltip>
+                    <Button size="small" onClick={() => setInfoAccount(record)}>
+                        Инфо
+                    </Button>
                 </div>
             ),
         },
@@ -830,6 +838,79 @@ export default function AccountTableChecker({ viewMode = "user", onViewModeChang
                         }}
                     />
                 </Spin>
+                <Modal
+                    open={Boolean(infoAccount)}
+                    title="Информация об аккаунте"
+                    onCancel={() => setInfoAccount(null)}
+                    footer={null}
+                    width={860}
+                >
+                    <div className="space-y-4">
+                        <div>
+                            <div className="mb-1 text-xs font-semibold text-gray-500">cURL</div>
+                            <div className="rounded border bg-gray-50 p-2">
+                                <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-all text-xs">
+                                    {getAccountCurl(infoAccount) || "—"}
+                                </pre>
+                            </div>
+                            <div className="mt-2">
+                                <Button
+                                    size="small"
+                                    onClick={() =>
+                                        copyTextToClipboard(getAccountCurl(infoAccount), messageApi, {
+                                            empty: "cURL отсутствует",
+                                            success: "cURL скопирован",
+                                        })
+                                    }
+                                >
+                                    Копировать cURL
+                                </Button>
+                            </div>
+                        </div>
+                        <div>
+                            <div className="mb-1 text-xs font-semibold text-gray-500">Cookie</div>
+                            <div className="rounded border bg-gray-50 p-2">
+                                <pre className="max-h-32 overflow-auto whitespace-pre-wrap break-all text-xs">
+                                    {infoAccount?.cookies || "—"}
+                                </pre>
+                            </div>
+                            <div className="mt-2">
+                                <Button
+                                    size="small"
+                                    onClick={() =>
+                                        copyTextToClipboard(infoAccount?.cookies, messageApi, {
+                                            empty: "Cookie отсутствует",
+                                            success: "Cookie скопирован",
+                                        })
+                                    }
+                                >
+                                    Копировать cookie
+                                </Button>
+                            </div>
+                        </div>
+                        <div>
+                            <div className="mb-1 text-xs font-semibold text-gray-500">Access token</div>
+                            <div className="rounded border bg-gray-50 p-2">
+                                <pre className="max-h-24 overflow-auto whitespace-pre-wrap break-all text-xs">
+                                    {infoAccount?.token || "—"}
+                                </pre>
+                            </div>
+                            <div className="mt-2">
+                                <Button
+                                    size="small"
+                                    onClick={() =>
+                                        copyTextToClipboard(infoAccount?.token, messageApi, {
+                                            empty: "Access token отсутствует",
+                                            success: "Access token скопирован",
+                                        })
+                                    }
+                                >
+                                    Копировать access token
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                </Modal>
             </div>
         </div>
     );
