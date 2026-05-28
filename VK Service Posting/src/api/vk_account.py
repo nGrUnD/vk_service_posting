@@ -24,6 +24,21 @@ from src.vk_api_methods.vk_auth import get_new_token_request
 router = APIRouter(prefix="/users/{user_id}/vk_accounts", tags=["VK Аккаунты"])
 
 
+def _build_web_token_curl(cookie: str, access_token: str) -> str:
+    safe_cookie = str(cookie or "").strip()
+    safe_token = str(access_token or "").strip()
+    return (
+        "curl 'https://login.vk.ru/?act=web_token&version=1&app_id=6287487"
+        f"&access_token={safe_token}' "
+        "-X POST "
+        "-H 'Accept: application/json, text/plain, */*' "
+        "-H 'Content-Type: application/x-www-form-urlencoded' "
+        "-H 'Origin: https://vk.ru' "
+        "-H 'Referer: https://vk.ru/' "
+        f"-H 'Cookie: {safe_cookie}'"
+    )
+
+
 def _vk_accounts_with_decrypted_password(accounts: list[VKAccount]) -> list[VKAccount]:
     service_auth = AuthService()
     out: list[VKAccount] = []
@@ -609,36 +624,33 @@ async def collect_vk_account_curl(
     if account.parse_status != "success":
         raise HTTPException(status_code=400, detail="Собирать cURL можно только у аккаунта со статусом success")
     if account.encrypted_curl and str(account.encrypted_curl).strip():
-        return {"status": "OK", "detail": "cURL уже сохранен", "task_id": None}
-    if not account.login or not account.encrypted_password:
-        raise HTTPException(status_code=400, detail="Для сбора cURL нужен login:password аккаунта")
+        return {"status": "OK", "detail": "cURL уже сохранен"}
+    if not account.cookies:
+        raise HTTPException(status_code=400, detail="У аккаунта нет cookies для сборки cURL")
+    if not account.token:
+        raise HTTPException(status_code=400, detail="У аккаунта нет token для сборки cURL")
 
-    password = AuthService().decrypt_data(account.encrypted_password)
     proxy_http = None
     if account.proxy_id:
         proxy_db = await database.proxy.get_one_or_none(id=account.proxy_id)
         proxy_http = proxy_db.http if proxy_db else None
 
-    target_account_type = _target_checker_type(account.account_type)
-    task = vk_checker_add_account.delay(
-        user_id,
-        account.id,
-        account.login,
-        password,
-        proxy_http,
-        target_account_type,
-    )
+    refreshed_token = get_new_token_request(account.token, account.cookies, proxy_http) or account.token
+    if not refreshed_token:
+        raise HTTPException(status_code=400, detail="Не удалось обновить token по cookies")
+
+    curl = _build_web_token_curl(account.cookies, refreshed_token)
+    encrypted_curl = AuthService().encrypt_data(curl)
     await database.vk_account.edit(
         VKAccountUpdate(
-            task_id=task.id,
-            parse_status="pending",
-            account_type=target_account_type,
+            encrypted_curl=encrypted_curl,
+            token=refreshed_token,
         ),
         exclude_unset=True,
         id=account.id,
     )
     await database.commit()
-    return {"status": "OK", "task_id": task.id}
+    return {"status": "OK", "detail": "cURL собран и сохранен"}
 
 @router.delete("/delete_list_logins", status_code=status.HTTP_204_NO_CONTENT, summary="Удалить VK аккаунт по list логинам")
 async def delete_vk_accounts_list_logins(
