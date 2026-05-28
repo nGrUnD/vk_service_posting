@@ -145,7 +145,6 @@ export default function AccountsView() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [checkingId, setCheckingId] = useState(null);
   const [reconnectId, setReconnectId] = useState(null);
-  const [collectingCurlId, setCollectingCurlId] = useState(null);
   const [reconnectingAll, setReconnectingAll] = useState(false);
   const [infoAccount, setInfoAccount] = useState(null);
 
@@ -668,15 +667,6 @@ export default function AccountsView() {
     );
   };
 
-  const copyCurl = (account) => {
-    const curl = getAccountCurl(account);
-    if (!curl) return;
-    navigator.clipboard.writeText(curl).then(
-      () => messageApi.success('cURL скопирован в буфер'),
-      () => messageApi.error('Не удалось скопировать'),
-    );
-  };
-
   const copyInfoValue = (text, emptyMsg, successMsg) => {
     if (!text) {
       messageApi.warning(emptyMsg);
@@ -715,23 +705,6 @@ export default function AccountsView() {
       messageApi.error(err?.response?.data?.detail || 'Ошибка reconnect');
     } finally {
       setReconnectId(null);
-    }
-  };
-
-  const handleCollectCurl = async (id) => {
-    setCollectingCurlId(id);
-    try {
-      const { data } = await api.post(`/users/${user.id}/vk_accounts/${id}/collect_curl`);
-      if (data?.task_id) {
-        messageApi.success('Сбор cURL запущен');
-      } else {
-        messageApi.info(data?.detail || 'cURL уже сохранен');
-      }
-      await loadAccounts(true);
-    } catch (err) {
-      messageApi.error(err?.response?.data?.detail || 'Ошибка запуска сбора cURL');
-    } finally {
-      setCollectingCurlId(null);
     }
   };
 
@@ -1120,24 +1093,6 @@ export default function AccountsView() {
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
-                {getAccountCurl(a) ? (
-                  <button
-                    type="button"
-                    onClick={() => copyCurl(a)}
-                    className="rounded-xl bg-slate-50 px-4 py-2 text-xs font-bold text-slate-700 transition-all hover:bg-slate-200"
-                  >
-                    Скопировать курл
-                  </button>
-                ) : a.parse_status === 'success' ? (
-                  <button
-                    type="button"
-                    disabled={collectingCurlId === a.id}
-                    onClick={() => handleCollectCurl(a.id)}
-                    className="rounded-xl bg-slate-50 px-4 py-2 text-xs font-bold text-slate-700 transition-all hover:bg-slate-200 disabled:opacity-50"
-                  >
-                    {collectingCurlId === a.id ? 'Сбор...' : 'Собрать курл'}
-                  </button>
-                ) : null}
                 {canShowChangePasswordButton(a) && (
                   <button
                     type="button"

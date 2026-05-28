@@ -16,7 +16,6 @@ export default function AccountTable() {
     const [loading, setLoading] = useState(true);
     const [checkingCurlId, setCheckingCurlId] = useState(null);
     const [reconnectingCurlId, setReconnectingCurlId] = useState(null);
-    const [collectingCurlId, setCollectingCurlId] = useState(null);
     const [infoAccount, setInfoAccount] = useState(null);
 
     const statusColors = {
@@ -107,24 +106,6 @@ export default function AccountTable() {
             messageApi.error(err?.response?.data?.detail || "Не удалось запустить переподключение curl");
         } finally {
             setReconnectingCurlId(null);
-        }
-    };
-
-    const handleCollectCurl = async (id) => {
-        setCollectingCurlId(id);
-        try {
-            const { data } = await api.post(`/users/{user_id}/vk_accounts/${id}/collect_curl`);
-            if (data?.task_id) {
-                messageApi.success("Сбор cURL запущен");
-            } else {
-                messageApi.info(data?.detail || "cURL уже сохранен");
-            }
-            fetchAccounts(true);
-        } catch (err) {
-            console.error(err);
-            messageApi.error(err?.response?.data?.detail || "Не удалось запустить сбор cURL");
-        } finally {
-            setCollectingCurlId(null);
         }
     };
 
@@ -223,34 +204,8 @@ export default function AccountTable() {
             title: "Действия",
             key: "actions",
             render: (_, record) => {
-                const accountCurl = getAccountCurl(record);
                 return (
                 <div className="flex flex-wrap gap-2">
-                    {accountCurl ? (
-                        <Tooltip title="Копировать cURL">
-                            <Button
-                                size="small"
-                                icon={<CopyOutlined />}
-                                onClick={() =>
-                                    copyTextToClipboard(accountCurl, messageApi, {
-                                        success: "cURL скопирован в буфер",
-                                    })
-                                }
-                            >
-                                Скопировать курл
-                            </Button>
-                        </Tooltip>
-                    ) : record.parse_status === "success" ? (
-                        <Tooltip title="Собрать cURL для аккаунта">
-                            <Button
-                                size="small"
-                                loading={collectingCurlId === record.id}
-                                onClick={() => handleCollectCurl(record.id)}
-                            >
-                                Собрать курл
-                            </Button>
-                        </Tooltip>
-                    ) : null}
                     <Button
                         size="small"
                         loading={checkingCurlId === record.id}

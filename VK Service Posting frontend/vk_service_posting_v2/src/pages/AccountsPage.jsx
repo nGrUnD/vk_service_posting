@@ -28,7 +28,6 @@ export default function AccountsPage() {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [collectingCurlId, setCollectingCurlId] = useState(null);
   const [infoAccount, setInfoAccount] = useState(null);
 
   const loadAccounts = useCallback(async (silent = false) => {
@@ -73,15 +72,6 @@ export default function AccountsPage() {
     });
   }, [accounts, search, typeFilter, statusFilter]);
 
-  const copyCurl = (account) => {
-    const curl = getAccountCurl(account);
-    if (!curl) return;
-    navigator.clipboard.writeText(curl).then(
-      () => messageApi.success('cURL скопирован в буфер'),
-      () => messageApi.error('Не удалось скопировать'),
-    );
-  };
-
   const copyText = (text, emptyMsg, successMsg) => {
     if (!text) {
       messageApi.warning(emptyMsg);
@@ -91,23 +81,6 @@ export default function AccountsPage() {
       () => messageApi.success(successMsg),
       () => messageApi.error('Не удалось скопировать'),
     );
-  };
-
-  const collectCurl = async (accountId) => {
-    setCollectingCurlId(accountId);
-    try {
-      const { data } = await api.post(`/users/${user.id}/vk_accounts/${accountId}/collect_curl`);
-      if (data?.task_id) {
-        messageApi.success('Сбор cURL запущен');
-      } else {
-        messageApi.info(data?.detail || 'cURL уже сохранен');
-      }
-      await loadAccounts(true);
-    } catch (error) {
-      messageApi.error(error?.response?.data?.detail || 'Не удалось запустить сбор cURL');
-    } finally {
-      setCollectingCurlId(null);
-    }
   };
 
   const availableTypes = useMemo(
@@ -224,29 +197,9 @@ export default function AccountsPage() {
                   <td>{account.groups_count ?? 0}</td>
                   <td>{account.cookies ? 'Есть' : '—'}</td>
                   <td>
-                    {getAccountCurl(account) ? (
-                      <button
-                        type="button"
-                        className="v2-button v2-button-secondary text-xs"
-                        onClick={() => copyCurl(account)}
-                      >
-                        Скопировать курл
-                      </button>
-                    ) : account.parse_status === 'success' ? (
-                      <button
-                        type="button"
-                        className="v2-button v2-button-secondary text-xs"
-                        disabled={collectingCurlId === account.id}
-                        onClick={() => collectCurl(account.id)}
-                      >
-                        {collectingCurlId === account.id ? 'Сбор...' : 'Собрать курл'}
-                      </button>
-                    ) : (
-                      '—'
-                    )}
                     <button
                       type="button"
-                      className="v2-button v2-button-secondary ml-2 text-xs"
+                      className="v2-button v2-button-secondary text-xs"
                       onClick={() => setInfoAccount(account)}
                     >
                       Инфо
