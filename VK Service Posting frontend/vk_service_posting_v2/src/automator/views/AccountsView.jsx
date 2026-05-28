@@ -145,6 +145,7 @@ export default function AccountsView() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [checkingId, setCheckingId] = useState(null);
   const [reconnectId, setReconnectId] = useState(null);
+  const [collectingCurlId, setCollectingCurlId] = useState(null);
   const [reconnectingAll, setReconnectingAll] = useState(false);
 
   const [bulkCreds, setBulkCreds] = useState('');
@@ -705,6 +706,23 @@ export default function AccountsView() {
     }
   };
 
+  const handleCollectCurl = async (id) => {
+    setCollectingCurlId(id);
+    try {
+      const { data } = await api.post(`/users/${user.id}/vk_accounts/${id}/collect_curl`);
+      if (data?.task_id) {
+        messageApi.success('Сбор cURL запущен');
+      } else {
+        messageApi.info(data?.detail || 'cURL уже сохранен');
+      }
+      await loadAccounts(true);
+    } catch (err) {
+      messageApi.error(err?.response?.data?.detail || 'Ошибка запуска сбора cURL');
+    } finally {
+      setCollectingCurlId(null);
+    }
+  };
+
   const pendingCount = useMemo(
     () => accounts.filter((a) => a.parse_status === 'pending').length,
     [accounts],
@@ -1096,7 +1114,16 @@ export default function AccountsView() {
                     onClick={() => copyCurl(a)}
                     className="rounded-xl bg-slate-50 px-4 py-2 text-xs font-bold text-slate-700 transition-all hover:bg-slate-200"
                   >
-                    Копировать cURL
+                    Скопировать курл
+                  </button>
+                ) : a.parse_status === 'success' ? (
+                  <button
+                    type="button"
+                    disabled={collectingCurlId === a.id}
+                    onClick={() => handleCollectCurl(a.id)}
+                    className="rounded-xl bg-slate-50 px-4 py-2 text-xs font-bold text-slate-700 transition-all hover:bg-slate-200 disabled:opacity-50"
+                  >
+                    {collectingCurlId === a.id ? 'Сбор...' : 'Собрать курл'}
                   </button>
                 ) : null}
                 {canShowChangePasswordButton(a) && (

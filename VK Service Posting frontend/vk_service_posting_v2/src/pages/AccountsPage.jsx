@@ -28,6 +28,7 @@ export default function AccountsPage() {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [collectingCurlId, setCollectingCurlId] = useState(null);
 
   const loadAccounts = useCallback(async (silent = false) => {
     if (!silent) {
@@ -78,6 +79,23 @@ export default function AccountsPage() {
       () => messageApi.success('cURL скопирован в буфер'),
       () => messageApi.error('Не удалось скопировать'),
     );
+  };
+
+  const collectCurl = async (accountId) => {
+    setCollectingCurlId(accountId);
+    try {
+      const { data } = await api.post(`/users/${user.id}/vk_accounts/${accountId}/collect_curl`);
+      if (data?.task_id) {
+        messageApi.success('Сбор cURL запущен');
+      } else {
+        messageApi.info(data?.detail || 'cURL уже сохранен');
+      }
+      await loadAccounts(true);
+    } catch (error) {
+      messageApi.error(error?.response?.data?.detail || 'Не удалось запустить сбор cURL');
+    } finally {
+      setCollectingCurlId(null);
+    }
   };
 
   const availableTypes = useMemo(
@@ -200,7 +218,16 @@ export default function AccountsPage() {
                         className="v2-button v2-button-secondary text-xs"
                         onClick={() => copyCurl(account)}
                       >
-                        Копировать cURL
+                        Скопировать курл
+                      </button>
+                    ) : account.parse_status === 'success' ? (
+                      <button
+                        type="button"
+                        className="v2-button v2-button-secondary text-xs"
+                        disabled={collectingCurlId === account.id}
+                        onClick={() => collectCurl(account.id)}
+                      >
+                        {collectingCurlId === account.id ? 'Сбор...' : 'Собрать курл'}
                       </button>
                     ) : (
                       '—'

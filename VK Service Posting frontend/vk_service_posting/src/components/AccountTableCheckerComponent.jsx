@@ -31,6 +31,7 @@ export default function AccountTableChecker({ viewMode = "user", onViewModeChang
     const [loading, setLoading] = useState(true);
     const [checkingCurlId, setCheckingCurlId] = useState(null);
     const [reconnectingCurlId, setReconnectingCurlId] = useState(null);
+    const [collectingCurlId, setCollectingCurlId] = useState(null);
     const [changingPasswordId, setChangingPasswordId] = useState(null);
     const [selectedRowKeys, setSelectedRowKeys] = useState([]);
     const [bulkActionLoading, setBulkActionLoading] = useState(null);
@@ -150,6 +151,24 @@ export default function AccountTableChecker({ viewMode = "user", onViewModeChang
             messageApi.error(err?.response?.data?.detail || "Не удалось запустить переподключение curl");
         } finally {
             setReconnectingCurlId(null);
+        }
+    };
+
+    const handleCollectCurl = async (id) => {
+        setCollectingCurlId(id);
+        try {
+            const { data } = await api.post(`/users/{user_id}/vk_accounts/${id}/collect_curl`);
+            if (data?.task_id) {
+                messageApi.success("Сбор cURL запущен.");
+            } else {
+                messageApi.info(data?.detail || "cURL уже сохранен");
+            }
+            fetchAccounts(true);
+        } catch (err) {
+            console.error(err);
+            messageApi.error(err?.response?.data?.detail || "Не удалось запустить сбор cURL");
+        } finally {
+            setCollectingCurlId(null);
         }
     };
 
@@ -325,24 +344,38 @@ export default function AccountTableChecker({ viewMode = "user", onViewModeChang
         return "-";
     };
 
-    const renderCopyCurlButton = (record, block = false) => {
+    const renderCurlActionButton = (record, block = false) => {
         const accountCurl = getAccountCurl(record);
-        if (!accountCurl) {
+        if (accountCurl) {
+            return (
+                <Tooltip title="Копировать cURL" placement="left">
+                    <Button
+                        size="small"
+                        block={block}
+                        icon={<CopyOutlined />}
+                        onClick={() =>
+                            copyTextToClipboard(accountCurl, messageApi, {
+                                success: "cURL скопирован в буфер",
+                            })
+                        }
+                    >
+                        Скопировать курл
+                    </Button>
+                </Tooltip>
+            );
+        }
+        if (record?.parse_status !== "success") {
             return null;
         }
         return (
-            <Tooltip title="Копировать cURL" placement="left">
+            <Tooltip title="Собрать cURL для аккаунта" placement="left">
                 <Button
                     size="small"
                     block={block}
-                    icon={<CopyOutlined />}
-                    onClick={() =>
-                        copyTextToClipboard(accountCurl, messageApi, {
-                            success: "cURL скопирован в буфер",
-                        })
-                    }
+                    loading={collectingCurlId === record.id}
+                    onClick={() => handleCollectCurl(record.id)}
                 >
-                    Копировать cURL
+                    Собрать курл
                 </Button>
             </Tooltip>
         );
@@ -357,7 +390,7 @@ export default function AccountTableChecker({ viewMode = "user", onViewModeChang
                     onClick={(e) => e.stopPropagation()}
                 >
                     <div className="flex flex-col gap-1">
-                        {renderCopyCurlButton(record, true)}
+                        {renderCurlActionButton(record, true)}
                         <Tooltip title="Проверяет, что у аккаунта рабочий curl/токен" placement="left">
                             <Button
                                 size="small"
@@ -473,7 +506,7 @@ export default function AccountTableChecker({ viewMode = "user", onViewModeChang
             key: "actions",
             render: (_, record) => (
                 <div className="flex flex-wrap gap-2">
-                    {renderCopyCurlButton(record)}
+                    {renderCurlActionButton(record)}
                     <Tooltip title="Проверяет, что у аккаунта рабочий curl/токен">
                         <Button
                             size="small"

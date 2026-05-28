@@ -593,6 +593,53 @@ async def reconnect_vk_account_curl(
     await database.commit()
     return {"status": "OK", "task_id": task.id}
 
+
+@router.post(
+    "/{vk_account_id}/collect_curl",
+    summary="Собрать cURL для success-аккаунта без сохраненного cURL",
+)
+async def collect_vk_account_curl(
+    user_id: UserIdDep,
+    vk_account_id: int,
+    database: DataBaseDep,
+):
+    account = await database.vk_account.get_one_or_none(id=vk_account_id, user_id=user_id)
+    if not account:
+        raise HTTPException(status_code=404, detail="VK аккаунт не найден")
+    if account.parse_status != "success":
+        raise HTTPException(status_code=400, detail="Собирать cURL можно только у аккаунта со статусом success")
+    if account.encrypted_curl and str(account.encrypted_curl).strip():
+        return {"status": "OK", "detail": "cURL уже сохранен", "task_id": None}
+    if not account.login or not account.encrypted_password:
+        raise HTTPException(status_code=400, detail="Для сбора cURL нужен login:password аккаунта")
+
+    password = AuthService().decrypt_data(account.encrypted_password)
+    proxy_http = None
+    if account.proxy_id:
+        proxy_db = await database.proxy.get_one_or_none(id=account.proxy_id)
+        proxy_http = proxy_db.http if proxy_db else None
+
+    target_account_type = _target_checker_type(account.account_type)
+    task = vk_checker_add_account.delay(
+        user_id,
+        account.id,
+        account.login,
+        password,
+        proxy_http,
+        target_account_type,
+    )
+    await database.vk_account.edit(
+        VKAccountUpdate(
+            task_id=task.id,
+            parse_status="pending",
+            account_type=target_account_type,
+        ),
+        exclude_unset=True,
+        id=account.id,
+    )
+    await database.commit()
+    return {"status": "OK", "task_id": task.id}
+
 @router.delete("/delete_list_logins", status_code=status.HTTP_204_NO_CONTENT, summary="Удалить VK аккаунт по list логинам")
 async def delete_vk_accounts_list_logins(
         user_id: UserIdDep,
