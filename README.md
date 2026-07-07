@@ -104,33 +104,33 @@ The API uses asynchronous SQLAlchemy sessions for request processing. Celery wor
 
 ```text
 .
-├── VK Service Posting/
-│   ├── src/
-│   │   ├── api/              # FastAPI routers and dependencies
-│   │   ├── celery_app/       # Celery configuration and tasks
-│   │   ├── migrations/       # Alembic migrations
-│   │   ├── models/           # SQLAlchemy models
-│   │   ├── repositories/     # Data-access layer
-│   │   ├── schemas/          # Pydantic schemas
-│   │   ├── services/         # Business logic
-│   │   ├── vk_api_methods/   # VK integration layer
-│   │   ├── config.py
-│   │   ├── database.py
-│   │   └── main.py
-│   ├── vk_api/               # Vendored VK API client package
-│   ├── Dockerfile
-│   ├── alembic.ini
-│   └── requirements.txt
-├── VK Service Posting frontend/
-│   ├── vk_service_posting/   # Dashboard V1
-│   ├── vk_service_posting_v2/# Dashboard V2
-│   └── Dockerfile
-├── grafana/
-├── redis/
-├── docker-compose.yml
-├── prometheus.yml
-├── loki-config.yaml
-└── promtail-config.yaml
+??? VK Service Posting/
+?   ??? src/
+?   ?   ??? api/              # FastAPI routers and dependencies
+?   ?   ??? celery_app/       # Celery configuration and tasks
+?   ?   ??? migrations/       # Alembic migrations
+?   ?   ??? models/           # SQLAlchemy models
+?   ?   ??? repositories/     # Data-access layer
+?   ?   ??? schemas/          # Pydantic schemas
+?   ?   ??? services/         # Business logic
+?   ?   ??? vk_api_methods/   # VK integration layer
+?   ?   ??? config.py
+?   ?   ??? database.py
+?   ?   ??? main.py
+?   ??? vk_api/               # Vendored VK API client package
+?   ??? Dockerfile
+?   ??? alembic.ini
+?   ??? requirements.txt
+??? VK Service Posting frontend/
+?   ??? vk_service_posting/   # Dashboard V1
+?   ??? vk_service_posting_v2/# Dashboard V2
+?   ??? Dockerfile
+??? grafana/
+??? redis/
+??? docker-compose.yml
+??? prometheus.yml
+??? loki-config.yaml
+??? promtail-config.yaml
 ```
 
 ## Quick start with Docker Compose
@@ -163,7 +163,10 @@ postgres_user=postgres
 postgres_password=change-me
 postgres_db=vk_service_posting
 
-REDIS_PASSWORD=change-me
+REDIS_PASSWORD=replace-with-a-long-random-secret
+
+GRAFANA_ADMIN_USER=replace-with-a-non-default-admin-name
+GRAFANA_ADMIN_PASSWORD=replace-with-a-long-random-secret
 
 JWT_SECRET_KEY=replace-with-a-long-random-secret
 JWT_ALGORITHM=HS256
@@ -181,7 +184,7 @@ The backend container reads variables from `VK Service Posting/.env`, while Dock
 cp .env "VK Service Posting/.env"
 ```
 
-Set `requirepass` in `redis/redis.conf` to the same value as `REDIS_PASSWORD`.
+Redis receives its password from `REDIS_PASSWORD` at container startup. Keep `redis/redis.conf` free of credentials.
 
 Generate a Fernet key with:
 
@@ -219,7 +222,7 @@ docker compose logs -f backend celery-default celery-heavy
 | Grafana | http://localhost:3001 |
 | Loki | http://localhost:3100 |
 
-The default Grafana credentials in `docker-compose.yml` are intended only for local development and must be changed before deployment.
+Grafana reads its administrator credentials from `GRAFANA_ADMIN_USER` and `GRAFANA_ADMIN_PASSWORD`. Docker Compose refuses to start Grafana when either value is missing.
 
 ### 5. Stop the stack
 
@@ -306,6 +309,6 @@ Before exposing the service publicly:
 
 ## Author
 
-**Semen Teneshev** — Python Backend Developer
+**Semen Teneshev** ? Python Backend Developer
 
 GitHub: [@nGrUnD](https://github.com/nGrUnD)
