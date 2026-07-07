@@ -104,33 +104,33 @@ The API uses asynchronous SQLAlchemy sessions for request processing. Celery wor
 
 ```text
 .
-??? VK Service Posting/
-?   ??? src/
-?   ?   ??? api/              # FastAPI routers and dependencies
-?   ?   ??? celery_app/       # Celery configuration and tasks
-?   ?   ??? migrations/       # Alembic migrations
-?   ?   ??? models/           # SQLAlchemy models
-?   ?   ??? repositories/     # Data-access layer
-?   ?   ??? schemas/          # Pydantic schemas
-?   ?   ??? services/         # Business logic
-?   ?   ??? vk_api_methods/   # VK integration layer
-?   ?   ??? config.py
-?   ?   ??? database.py
-?   ?   ??? main.py
-?   ??? vk_api/               # Vendored VK API client package
-?   ??? Dockerfile
-?   ??? alembic.ini
-?   ??? requirements.txt
-??? VK Service Posting frontend/
-?   ??? vk_service_posting/   # Dashboard V1
-?   ??? vk_service_posting_v2/# Dashboard V2
-?   ??? Dockerfile
-??? grafana/
-??? redis/
-??? docker-compose.yml
-??? prometheus.yml
-??? loki-config.yaml
-??? promtail-config.yaml
+├── VK Service Posting/
+│   ├── src/
+│   │   ├── api/              # FastAPI routers and dependencies
+│   │   ├── celery_app/       # Celery configuration and tasks
+│   │   ├── migrations/       # Alembic migrations
+│   │   ├── models/           # SQLAlchemy models
+│   │   ├── repositories/     # Data-access layer
+│   │   ├── schemas/          # Pydantic schemas
+│   │   ├── services/         # Business logic
+│   │   ├── vk_api_methods/   # VK integration layer
+│   │   ├── config.py
+│   │   ├── database.py
+│   │   └── main.py
+│   ├── vk_api/               # Vendored VK API client package
+│   ├── Dockerfile
+│   ├── alembic.ini
+│   └── requirements.txt
+├── VK Service Posting frontend/
+│   ├── vk_service_posting/   # Dashboard V1
+│   ├── vk_service_posting_v2/# Dashboard V2
+│   └── Dockerfile
+├── grafana/
+├── redis/
+├── docker-compose.yml
+├── prometheus.yml
+├── loki-config.yaml
+└── promtail-config.yaml
 ```
 
 ## Quick start with Docker Compose
@@ -309,6 +309,6 @@ Before exposing the service publicly:
 
 ## Author
 
-**Semen Teneshev** ? Python Backend Developer
+**Semen Teneshev** — Python Backend Developer
 
 GitHub: [@nGrUnD](https://github.com/nGrUnD)
